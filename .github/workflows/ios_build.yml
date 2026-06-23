@@ -1,0 +1,43 @@
+name: iOS Build
+
+on:
+  workflow_dispatch: # Allows you to manually trigger this build from the GitHub Actions tab
+  push:
+    branches:
+      - main # Automatically runs when you push code to the main branch
+
+jobs:
+  build_ios:
+    name: Build iOS Unsigned IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+        working-directory: my_flutter_app
+
+      - name: Build iOS App (Unsigned)
+        # We build without codesigning because certificates are required for a signed build
+        run: flutter build ios --release --no-codesign
+        working-directory: my_flutter_app
+
+      - name: Package into unsigned IPA
+        # This converts the compiled .app into an unsigned .ipa file suitable for sideloading
+        run: |
+          mkdir -p Payload
+          mv my_flutter_app/build/ios/iphoneos/Runner.app Payload/
+          zip -qq -r Dhankund_iOS.ipa Payload
+          
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dhankund_iOS_App
+          path: Dhankund_iOS.ipa

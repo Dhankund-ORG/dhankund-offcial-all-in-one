@@ -1,0 +1,18 @@
+# Miscellaneous
+*.log
+.DS_Store
+
+# VS Code settings
+.vscode/
+
+# Flutter/Dart related ignores for sub-folders
+**/build/
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/app.*.symbols
+**/app.*.map.json
