@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:my_flutter_app/services/aws_s3_service.dart';
 import 'package:my_flutter_app/presentation/auth/welcome_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
@@ -47,17 +47,11 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         });
 
         // Upload as png
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profile_pictures/${user.uid}.png');
-
-        final uploadTask = storageRef.putData(
-          croppedBytes,
-          SettableMetadata(contentType: 'image/png'),
+        final downloadUrl = await AwsS3Service.uploadFile(
+          bytes: croppedBytes,
+          folderPath: 'profile_pictures',
+          extension: 'png',
         );
-
-        final snapshot = await uploadTask;
-        final downloadUrl = await snapshot.ref.getDownloadURL();
 
         // Update Firestore user document
         await FirebaseFirestore.instance
@@ -473,69 +467,78 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
             ),
         ],
       ),
-      body: _isCropping
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Container(
-                        width: 300,
-                        height: 300,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white24, width: 1),
-                        ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Positioned.fill(
-                              child: RepaintBoundary(
-                                key: _cropKey,
-                                child: InteractiveViewer(
-                                  boundaryMargin: const EdgeInsets.all(100),
-                                  minScale: 1.0,
-                                  maxScale: 5.0,
-                                  child: _buildImageWidget(),
-                                ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Container(
+                      width: 300,
+                      height: 300,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.white24, width: 1),
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Positioned.fill(
+                            child: RepaintBoundary(
+                              key: _cropKey,
+                              child: InteractiveViewer(
+                                boundaryMargin: const EdgeInsets.all(100),
+                                minScale: 1.0,
+                                maxScale: 5.0,
+                                child: _buildImageWidget(),
                               ),
                             ),
-                            IgnorePointer(
-                              child: Positioned.fill(
-                                child: CustomPaint(
-                                  painter: CropOverlayPainter(),
-                                ),
+                          ),
+                          IgnorePointer(
+                            child: Positioned.fill(
+                              child: CustomPaint(
+                                painter: CropOverlayPainter(),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  color: Colors.black87,
-                  child: Column(
-                    children: [
-                      const Icon(Icons.crop_free, color: Colors.white70, size: 28),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Pinch to Zoom & Drag to Position',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Only the area inside the circular border will be saved as your profile picture.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                      ),
-                    ],
-                  ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                color: Colors.black87,
+                child: Column(
+                  children: [
+                    const Icon(Icons.crop_free, color: Colors.white70, size: 28),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Pinch to Zoom & Drag to Position',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Only the area inside the circular border will be saved as your profile picture.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+            ],
+          ),
+          if (_isCropping)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
+        ],
+      ),
     );
   }
 

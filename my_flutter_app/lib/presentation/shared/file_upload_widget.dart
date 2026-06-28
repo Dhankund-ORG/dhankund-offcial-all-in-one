@@ -1,5 +1,5 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:my_flutter_app/services/aws_s3_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -43,23 +43,21 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
         if (user == null) throw Exception('User not logged in');
 
         final extension = file.extension ?? 'bin';
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('${widget.storagePath}/${user.uid}_${DateTime.now().millisecondsSinceEpoch}.$extension');
 
-        final uploadTask = storageRef.putData(
-          file.bytes!,
-          SettableMetadata(contentType: _getContentType(extension)),
-        );
-
-        uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-          setState(() {
-            _uploadProgress = snapshot.bytesTransferred / snapshot.totalBytes;
-          });
+        // Fake upload progress for S3 since minio doesn't provide a direct stream progress easily for bytes
+        setState(() {
+          _uploadProgress = 0.5;
         });
 
-        final snapshot = await uploadTask;
-        final downloadUrl = await snapshot.ref.getDownloadURL();
+        final downloadUrl = await AwsS3Service.uploadFile(
+          bytes: file.bytes!,
+          folderPath: widget.storagePath,
+          extension: extension,
+        );
+
+        setState(() {
+          _uploadProgress = 1.0;
+        });
 
         widget.onUploadComplete(downloadUrl);
         

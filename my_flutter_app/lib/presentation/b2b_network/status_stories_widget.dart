@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'dart:io' as io;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:my_flutter_app/services/aws_s3_service.dart';
 import 'package:video_player/video_player.dart';
 
 const List<LinearGradient> statusGradients = [
@@ -167,30 +169,32 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
         type: type == 'image' ? FileType.image : FileType.video,
       );
 
-      if (result != null && result.files.single.bytes != null) {
-        setState(() {
-          _isUploadingMedia = true;
-          _mediaType = type;
-        });
-
+      if (result != null) {
         final file = result.files.single;
-        final extension = file.extension ?? (type == 'image' ? 'jpg' : 'mp4');
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('status_media/${widget.uid}_${DateTime.now().millisecondsSinceEpoch}.$extension');
+        
+        Uint8List? fileBytes = file.bytes;
+        if (fileBytes == null && file.path != null) {
+          fileBytes = await io.File(file.path!).readAsBytes();
+        }
 
-        final uploadTask = ref.putData(
-          file.bytes!,
-          SettableMetadata(contentType: type == 'image' ? 'image/$extension' : 'video/$extension'),
-        );
+        if (fileBytes != null) {
+          setState(() {
+            _isUploadingMedia = true;
+            _mediaType = type;
+          });
 
-        final snapshot = await uploadTask;
-        final url = await snapshot.ref.getDownloadURL();
+          final extension = file.extension ?? (type == 'image' ? 'jpg' : 'mp4');
+          final url = await AwsS3Service.uploadFile(
+            bytes: fileBytes,
+            folderPath: 'status_media',
+            extension: extension,
+          );
 
-        setState(() {
-          _mediaUrl = url;
-          _isUploadingMedia = false;
-        });
+          setState(() {
+            _mediaUrl = url;
+            _isUploadingMedia = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {

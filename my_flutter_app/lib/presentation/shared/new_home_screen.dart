@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:my_flutter_app/services/aws_s3_service.dart';
 import 'package:my_flutter_app/presentation/shared/my_profile_screen.dart';
 import 'package:my_flutter_app/presentation/b2b_network/profession_selection_screen.dart';
 import 'package:my_flutter_app/presentation/partner_app/refer_friend_form_screen.dart';
@@ -989,11 +989,11 @@ class _AddAdminPostDialogState extends State<AddAdminPostDialog> {
         setState(() => _isUploadingImage = true);
         final file = result.files.single;
         final extension = file.extension ?? 'jpg';
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('admin_posts_images/${DateTime.now().millisecondsSinceEpoch}.$extension');
-        await ref.putData(file.bytes!);
-        final url = await ref.getDownloadURL();
+        final url = await AwsS3Service.uploadFile(
+          bytes: file.bytes!,
+          folderPath: 'admin_posts_images',
+          extension: extension,
+        );
         setState(() {
           _uploadedImageUrl = url;
           _isUploadingImage = false;
@@ -1186,19 +1186,19 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
     try {
       if (_selectedFile != null) {
         final extension = _selectedFile!.extension ?? 'jpg';
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('news_feed_images/${widget.uid}_${DateTime.now().millisecondsSinceEpoch}.$extension');
-
-        UploadTask uploadTask;
-        if (kIsWeb) {
-          uploadTask = storageRef.putData(_selectedFile!.bytes!);
+        
+        Uint8List fileBytes;
+        if (kIsWeb || _selectedFile!.bytes != null) {
+          fileBytes = _selectedFile!.bytes!;
         } else {
-          uploadTask = storageRef.putFile(io.File(_selectedFile!.path!));
+          fileBytes = await io.File(_selectedFile!.path!).readAsBytes();
         }
 
-        final snapshot = await uploadTask;
-        imageUrl = await snapshot.ref.getDownloadURL();
+        imageUrl = await AwsS3Service.uploadFile(
+          bytes: fileBytes,
+          folderPath: 'news_feed_images',
+          extension: extension,
+        );
       }
 
       await FirebaseFirestore.instance.collection('news_feed').add({
