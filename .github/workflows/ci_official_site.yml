@@ -1,0 +1,37 @@
+name: CI - Dhankund Official Site
+
+on:
+  pull_request:
+    branches:
+      - '**'
+  push:
+    branches-ignore:
+      - master
+      - main
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dhankund_official_site
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: './dhankund_official_site/package-lock.json'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Lint Code
+        run: npm run lint
+
+      - name: Verify Build
+        run: npm run build

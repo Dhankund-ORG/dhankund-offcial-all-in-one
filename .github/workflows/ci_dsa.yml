@@ -1,0 +1,39 @@
+name: CI - DSA Flutter App
+
+on:
+  pull_request:
+    branches:
+      - '**'
+  push:
+    branches-ignore:
+      - master
+      - main
+
+jobs:
+  build-and-analyze:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 'DSA-Banker-flutter app'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Analyze Code
+        run: flutter analyze
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Verify Web Build
+        run: flutter build web --release

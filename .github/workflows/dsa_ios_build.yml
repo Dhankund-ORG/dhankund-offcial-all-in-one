@@ -4,7 +4,7 @@ on:
   workflow_dispatch: # Allows you to manually trigger this build from the GitHub Actions tab
   push:
     branches:
-      - main # Automatically runs when you push code to the main branch
+      - master # Automatically runs when you push code to the master branch
 
 jobs:
   build_ios:
