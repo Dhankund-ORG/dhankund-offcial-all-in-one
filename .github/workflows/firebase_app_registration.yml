@@ -55,3 +55,8 @@ jobs:
         with:
           name: firebase-secrets
           path: firebase_secrets.txt
+
+      - name: Set GitHub Secrets Automatically
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: python3 scripts/set_secrets.py
