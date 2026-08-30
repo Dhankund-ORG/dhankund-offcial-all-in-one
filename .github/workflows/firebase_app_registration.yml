@@ -35,7 +35,7 @@ jobs:
           flutter pub get
           # This command will automatically register Android, iOS, and Web apps in Firebase for CRM
           export PATH="$PATH":"$HOME/.pub-cache/bin"
-          flutterfire configure --project=dhankund --yes
+          flutterfire configure --project=dhankund --platforms=android,ios,web --yes
 
       - name: Authenticate with Firebase & Run FlutterFire (DSA Banker)
         env:
@@ -45,4 +45,4 @@ jobs:
           cd "DSA-Banker-flutter app"
           flutter pub get
           export PATH="$PATH":"$HOME/.pub-cache/bin"
-          flutterfire configure --project=dhankund --yes
+          flutterfire configure --project=dhankund --platforms=android,ios,web --yes
