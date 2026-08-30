@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:559062950688:android:adcdf358ebd80267436d45",
         "android_client_info": {
-          "package_name": "com.example.my_flutter_app"
+          "package_name": "com.dhankund.banker"
         }
       },
       "oauth_client": [
@@ -18,7 +18,7 @@
           "client_id": "559062950688-578cvqr2h37a5bg07hko562fk24f4ub6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.my_flutter_app",
+            "package_name": "com.dhankund.banker",
             "certificate_hash": "b847172601acdabe9cdf0ccab5a219de2d3cddf3"
           }
         },

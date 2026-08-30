@@ -1,4 +1,4 @@
-package com.example.my_flutter_app
+package com.dhankund.banker
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.android.FlutterActivity
