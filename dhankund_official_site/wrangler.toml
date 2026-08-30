@@ -1,0 +1,7 @@
+name = "dhankund-official-site"
+compatibility_date = "2024-03-20"
+pages_build_output_dir = ".vercel/output/static"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "dhankund-storage"
