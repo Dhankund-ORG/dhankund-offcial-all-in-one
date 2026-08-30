@@ -49,5 +49,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: dhankund-dsa-web # Make sure to replace with the actual project name
-          directory: 'DSA-Banker-flutter app/build/web
+          directory: 'DSA-Banker-flutter app/build/web'
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
