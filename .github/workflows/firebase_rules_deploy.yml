@@ -1,0 +1,26 @@
+name: Deploy Firestore Security Rules
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'firestore.rules'
+      - 'firebase.json'
+      - '.github/workflows/firebase_rules_deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Firebase
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only firestore:rules
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
