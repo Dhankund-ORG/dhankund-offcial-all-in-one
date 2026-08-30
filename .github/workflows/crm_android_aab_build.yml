@@ -54,4 +54,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release-aab
-          path: 'dhankund_crm/build/app/outputs/bundle/release/app-release.aab
+          path: 'dhankund_crm/build/app/outputs/bundle/release/app-release.aab'
