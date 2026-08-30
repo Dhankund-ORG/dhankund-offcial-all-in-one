@@ -3,7 +3,7 @@ name: Deploy Flutter Web to Cloudflare Pages
 on:
   push:
     branches:
-      - master
+      - latestpraveen
   workflow_dispatch:
 
 jobs:
