@@ -28,7 +28,7 @@ export async function onRequestGet(context: any) {
       headers,
     });
     
-  } catch (e) {
+  } catch (e: any) {
     return new Response(e.message || 'Internal Server Error', { status: 500 });
   }
 }

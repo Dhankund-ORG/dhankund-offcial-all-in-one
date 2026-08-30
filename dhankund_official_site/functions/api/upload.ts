@@ -41,7 +41,7 @@ export async function onRequestPost(context: any) {
       headers: { 'Content-Type': 'application/json' }
     });
     
-  } catch (e) {
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message || 'Internal Server Error' }), { 
       status: 500,
       headers: { 'Content-Type': 'application/json' }
