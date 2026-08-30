@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Function to check if user is logged in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Function to get user data from 'users' collection
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    // Function to check if user is a CRM Admin
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    // By default, deny everything to ensure safety
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      // Admin has full access
+      allow read, write: if isAdmin();
+      // Users can read/update their own profile
+      allow read, update: if isAuthenticated() && request.auth.uid == userId;
+      // Allow users to create their profile upon signup
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Loan Applications
+    match /loan_applications/{applicationId} {
+      allow read, write: if isAdmin();
+      
+      // DSA/Bankers can read loans they referred, clients can read their own loans
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.dsaId == request.auth.uid
+      );
+      
+      // Clients can create loan applications for themselves
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Clients can update their own loan applications
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Referrals (DSA Banker App)
+    match /referrals/{referralId} {
+      allow read, write: if isAdmin();
+      // DSAs can manage their own referrals
+      allow read, update: if isAuthenticated() && resource.data.dsaId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.dsaId == request.auth.uid;
+    }
+
+    // Registrations (Partner/DSA/Banker)
+    match /banker_registrations/{regId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated(); // Anyone logged in can apply
+    }
+
+    match /dsa_registrations/{regId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+    }
+
+    match /partner_registrations/{regId} {
+      allow read, write: if isAdmin();
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+    }
+  }
+}
