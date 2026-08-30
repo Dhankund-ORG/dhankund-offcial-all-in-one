@@ -33,7 +33,7 @@ jobs:
           cache-dependency-path: './dhankund_official_site/package-lock.json'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: Build Next.js app for Cloudflare
         run: npm run pages:build
