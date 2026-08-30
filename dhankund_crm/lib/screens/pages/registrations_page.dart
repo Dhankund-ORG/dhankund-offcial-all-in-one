@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../firebase_service.dart';
-import '../../aws_service.dart';
+import '../../cloudflare_r2_service.dart';
 import '../../theme/app_theme.dart';
 
 class RegistrationsPage extends StatefulWidget {
@@ -13,7 +13,7 @@ class RegistrationsPage extends StatefulWidget {
 class _RegistrationsPageState extends State<RegistrationsPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final FirestoreService _firestoreService = FirestoreService();
-  final AwsService _awsService = AwsService();
+  final CloudflareR2Service _r2Service = CloudflareR2Service();
 
   bool _isLoading = false;
   List<Map<String, dynamic>> _registrations = [];
@@ -201,7 +201,7 @@ class _RegistrationsPageState extends State<RegistrationsPage> with SingleTicker
                   Text('$documentName:', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.goldAccent)),
                   const SizedBox(height: 8),
                   FutureBuilder<String?>(
-                    future: _awsService.getBankerDocumentUrl(documentKey),
+                    future: _r2Service.getBankerDocumentUrl(documentKey),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator(color: AppTheme.royalGold));

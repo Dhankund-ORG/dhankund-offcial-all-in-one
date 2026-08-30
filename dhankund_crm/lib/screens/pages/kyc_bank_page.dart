@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../firebase_service.dart';
-import '../../aws_service.dart';
+import '../../cloudflare_r2_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
 
@@ -14,7 +14,7 @@ class KycBankPage extends StatefulWidget {
 class _KycBankPageState extends State<KycBankPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final FirestoreService _firestoreService = FirestoreService();
-  final AwsService _awsService = AwsService();
+  final CloudflareR2Service _r2Service = CloudflareR2Service();
 
   bool _isLoading = false;
   List<Map<String, dynamic>> _users = [];
@@ -111,7 +111,7 @@ class _KycBankPageState extends State<KycBankPage> with SingleTickerProviderStat
           backgroundColor: AppTheme.obsidianMedium,
           title: Text(docTitle, style: const TextStyle(color: AppTheme.textPrimary)),
           content: FutureBuilder<String?>(
-            future: _awsService.getBankerDocumentUrl(docKey),
+            future: _r2Service.getBankerDocumentUrl(docKey),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const SizedBox(
