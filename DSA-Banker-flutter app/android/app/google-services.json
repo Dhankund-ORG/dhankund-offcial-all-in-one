@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "559062950688",
+    "firebase_url": "https://dhankund-default-rtdb.firebaseio.com",
+    "project_id": "dhankund",
+    "storage_bucket": "dhankund.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:559062950688:android:adcdf358ebd80267436d45",
+        "android_client_info": {
+          "package_name": "com.dhankund.banker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "559062950688-578cvqr2h37a5bg07hko562fk24f4ub6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dhankund.banker",
+            "certificate_hash": "b847172601acdabe9cdf0ccab5a219de2d3cddf3"
+          }
+        },
+        {
+          "client_id": "559062950688-8q2jbip6safsk5648vcpqmbq28g9ai4j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1OBMtJl0kPk3qhQn3ZA8UrSpR81dbScQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "559062950688-8q2jbip6safsk5648vcpqmbq28g9ai4j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
