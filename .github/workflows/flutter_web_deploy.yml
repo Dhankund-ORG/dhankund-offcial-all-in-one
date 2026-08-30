@@ -37,6 +37,8 @@ jobs:
           echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> .env
           echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+          echo "DSA_FIREBASE_WEB='${{ secrets.DSA_FIREBASE_WEB }}'" >> .env
+          echo "CRM_FIREBASE_WEB='${{ secrets.CRM_FIREBASE_WEB }}'" >> .env
 
       - name: Build Flutter Web
         run: flutter build web --release
