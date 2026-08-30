@@ -1,0 +1,4 @@
+name = "dhankund-crm-web"
+compatibility_date = "2024-03-20"
+compatibility_flags = [ "nodejs_compat_v2" ]
+pages_build_output_dir = "build/web"
