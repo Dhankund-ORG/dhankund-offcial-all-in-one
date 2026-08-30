@@ -1,0 +1,53 @@
+name: Deploy Flutter Web to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - latestpraveen
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dhankund_crm
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Create .env file
+        run: |
+          echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > .env
+          echo "AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}" >> .env
+          echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> .env
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
+          echo "DSA_FIREBASE_WEB='${{ secrets.DSA_FIREBASE_WEB }}'" >> .env
+          echo "CRM_FIREBASE_WEB='${{ secrets.CRM_FIREBASE_WEB }}'" >> .env
+
+      - name: Build Flutter Web
+        run: flutter build web --release
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: dhankund-dsa-web # Make sure to replace with the actual project name
+          directory: 'dhankund_crm/build/web
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

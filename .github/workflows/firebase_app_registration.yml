@@ -1,0 +1,48 @@
+name: Firebase App Registration Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  firebase-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install FlutterFire CLI
+        run: dart pub global activate flutterfire_cli
+
+      - name: Authenticate with Firebase & Run FlutterFire (CRM)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_sa_key.json
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $GOOGLE_APPLICATION_CREDENTIALS
+          cd dhankund_crm
+          flutter pub get
+          # This command will automatically register Android, iOS, and Web apps in Firebase for CRM
+          export PATH="$PATH":"$HOME/.pub-cache/bin"
+          flutterfire configure --project=dhankund --yes
+
+      - name: Authenticate with Firebase & Run FlutterFire (DSA Banker)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp_sa_key.json
+        run: |
+          echo '${{ secrets.GCP_SA_KEY }}' > $GOOGLE_APPLICATION_CREDENTIALS
+          cd "DSA-Banker-flutter app"
+          flutter pub get
+          export PATH="$PATH":"$HOME/.pub-cache/bin"
+          flutterfire configure --project=dhankund --yes

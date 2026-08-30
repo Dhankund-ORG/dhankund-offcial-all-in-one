@@ -1,4 +1,4 @@
-name: Android AAB Build (Play Store Release)
+name: Android APK Build
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./my_flutter_app
+        working-directory: dhankund_crm
 
     steps:
       - name: Checkout Repository
@@ -47,11 +47,11 @@ jobs:
           echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
           echo "storeFile=upload-keystore.jks" >> android/key.properties
 
-      - name: Build App Bundle
-        run: flutter build appbundle --release --android-skip-build-dependency-validation
+      - name: Build APK
+        run: flutter build apk --release --android-skip-build-dependency-validation
 
-      - name: Upload AAB Artifact
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-aab
-          path: my_flutter_app/build/app/outputs/bundle/release/app-release.aab
+          name: release-apk
+          path: 'dhankund_crm/build/app/outputs/flutter-apk/app-release.apk'

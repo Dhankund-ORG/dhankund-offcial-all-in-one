@@ -22,28 +22,28 @@ jobs:
 
       - name: Install Dependencies
         run: flutter pub get
-        working-directory: my_flutter_app
+        working-directory: "DSA-Banker-flutter app"
 
       - name: Create .env file
         run: |
-          echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > my_flutter_app/.env
-          echo "AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}" >> my_flutter_app/.env
-          echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> my_flutter_app/.env
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> my_flutter_app/.env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> my_flutter_app/.env
-          echo "DSA_FIREBASE_IOS='${{ secrets.DSA_FIREBASE_IOS }}'" >> my_flutter_app/.env
-          echo "CRM_FIREBASE_IOS='${{ secrets.CRM_FIREBASE_IOS }}'" >> my_flutter_app/.env
+          echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > "DSA-Banker-flutter app"/.env
+          echo "AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}" >> "DSA-Banker-flutter app"/.env
+          echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> "DSA-Banker-flutter app"/.env
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> "DSA-Banker-flutter app"/.env
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> "DSA-Banker-flutter app"/.env
+          echo "DSA_FIREBASE_IOS='${{ secrets.DSA_FIREBASE_IOS }}'" >> "DSA-Banker-flutter app"/.env
+          echo "CRM_FIREBASE_IOS='${{ secrets.CRM_FIREBASE_IOS }}'" >> "DSA-Banker-flutter app"/.env
 
       - name: Build iOS App (Unsigned)
         # We build without codesigning because certificates are required for a signed build
         run: flutter build ios --release --no-codesign
-        working-directory: my_flutter_app
+        working-directory: "DSA-Banker-flutter app"
 
       - name: Package into unsigned IPA
         # This converts the compiled .app into an unsigned .ipa file suitable for sideloading
         run: |
           mkdir -p Payload
-          mv my_flutter_app/build/ios/iphoneos/Runner.app Payload/
+          mv 'DSA-Banker-flutter app/build/ios/iphoneos/Runner.app' Payload/
           zip -qq -r Dhankund_iOS.ipa Payload
           
       - name: Upload IPA Artifact
