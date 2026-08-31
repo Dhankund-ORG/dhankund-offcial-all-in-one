@@ -31,7 +31,17 @@ void main() async {
     }
 
     if (jsonStr != null && jsonStr.isNotEmpty) {
-      final config = jsonDecode(jsonStr);
+      Map<String, dynamic> config = {};
+      try {
+        config = jsonDecode(jsonStr);
+      } catch (e) {
+        // Fallback for JS object formats or unquoted keys
+        final RegExp keyRegex = RegExp(r'([a-zA-Z0-9_]+)\s*:\s*["\u0027]([^"\u0027]+)["\u0027]');
+        for (final match in keyRegex.allMatches(jsonStr)) {
+          config[match.group(1)!] = match.group(2);
+        }
+      }
+      
       await Firebase.initializeApp(
         options: FirebaseOptions(
           apiKey: config['apiKey'] ?? "",
@@ -46,9 +56,13 @@ void main() async {
       );
     } else {
       debugPrint("Warning: No Firebase JSON configuration found for this platform.");
+      runApp(MaterialApp(home: Scaffold(body: Center(child: Text("Error: Firebase configuration missing for this platform.")))));
+      return;
     }
-  } catch (e) {
-    debugPrint("Firebase initialization failed: $e");
+  } catch (e, stack) {
+    debugPrint("Firebase initialization failed: $e\n$stack");
+    runApp(MaterialApp(home: Scaffold(body: Center(child: SelectableText("Firebase Init Error:\n$e\n$jsonStr")))));
+    return;
   }
 
   runApp(const MyApp());
