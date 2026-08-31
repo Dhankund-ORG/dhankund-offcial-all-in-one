@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../firebase_service.dart';
 import '../../cloudflare_r2_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/secure_delete_dialog.dart';
 
 class RegistrationsPage extends StatefulWidget {
   const RegistrationsPage({super.key});
@@ -122,13 +123,47 @@ class _RegistrationsPageState extends State<RegistrationsPage> with SingleTicker
       _loadRegistrations();
     } catch (e) {
       debugPrint("Error updating registration status: $e");
-      setState(() => _isLoading = false);
       scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('Failed to update registration status.'),
           backgroundColor: AppTheme.rubyRed,
         ),
       );
+    }
+  }
+
+  Future<void> _handleDeleteUser(Map<String, dynamic> reg) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    final bool? success = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => SecureDeleteDialog(
+        title: 'Delete Registration',
+        content: 'Are you sure you want to completely delete ${reg['name']}? This will remove their registration and any synced user account permanently. This action cannot be undone.',
+        onDeleteConfirmed: () async {
+          final collection = reg['_source_collection'];
+          final docId = reg['id'];
+          final uid = reg['uid'] ?? '';
+          
+          await _firestoreService.deleteUserRecord(
+            uid: uid,
+            collection: collection,
+            docId: docId,
+          );
+        },
+      ),
+    );
+
+    if (success == true) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('User and registration deleted securely.'),
+          backgroundColor: AppTheme.emeraldGreen,
+        ),
+      );
+      Navigator.of(context).pop(); // Close the detail dialog
+      _loadRegistrations(); // Refresh list
     }
   }
 
@@ -265,6 +300,16 @@ class _RegistrationsPageState extends State<RegistrationsPage> with SingleTicker
             ),
           ),
           actions: [
+            OutlinedButton.icon(
+              onPressed: () => _handleDeleteUser(reg),
+              icon: const Icon(Icons.delete_forever, size: 18),
+              label: const Text('Delete User'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.rubyRed, 
+                side: const BorderSide(color: AppTheme.rubyRed, width: 1.5),
+              ),
+            ),
+            const SizedBox(width: 8),
             if (reg['status']?.toString().toLowerCase() == 'pending') ...[
               OutlinedButton(
                 onPressed: () {

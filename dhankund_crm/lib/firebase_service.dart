@@ -160,6 +160,32 @@ class FirestoreService {
   }
 
   // ----------------------------------------------------
+  // Secure User Deletion
+  // ----------------------------------------------------
+  Future<void> deleteUserRecord({
+    required String uid,
+    String? collection,
+    String? docId,
+  }) async {
+    final batch = _firestore.batch();
+    
+    // Delete from users collection
+    if (uid.isNotEmpty) {
+      final userRef = _firestore.collection('users').doc(uid);
+      batch.delete(userRef);
+    }
+    
+    // Delete from registration collection (e.g. dsa_registrations, banker_registrations)
+    if (collection != null && collection.isNotEmpty && docId != null && docId.isNotEmpty) {
+      final regRef = _firestore.collection(collection).doc(docId);
+      batch.delete(regRef);
+    }
+    
+    await batch.commit();
+  }
+
+
+  // ----------------------------------------------------
   // Loan Applications Management
   // ----------------------------------------------------
   Future<List<Map<String, dynamic>>> fetchLoanApplications() async {

@@ -3,6 +3,7 @@ import '../../firebase_service.dart';
 import '../../cloudflare_r2_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
+import '../../widgets/secure_delete_dialog.dart';
 
 class KycBankPage extends StatefulWidget {
   const KycBankPage({super.key});
@@ -100,6 +101,33 @@ class _KycBankPageState extends State<KycBankPage> with SingleTickerProviderStat
     } catch (e) {
       debugPrint("Error updating Bank details: $e");
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleDeleteUser(Map<String, dynamic> user) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    final bool? success = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => SecureDeleteDialog(
+        title: 'Delete User Account',
+        content: 'Are you sure you want to completely delete ${user['name']}? This action cannot be undone.',
+        onDeleteConfirmed: () async {
+          final uid = user['uid'] ?? user['id'] ?? '';
+          await _firestoreService.deleteUserRecord(uid: uid);
+        },
+      ),
+    );
+
+    if (success == true) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('User deleted securely.'),
+          backgroundColor: AppTheme.emeraldGreen,
+        ),
+      );
+      _loadUsers();
     }
   }
 
@@ -325,16 +353,26 @@ class _KycBankPageState extends State<KycBankPage> with SingleTickerProviderStat
                     ),
                   ],
                 ),
-                isVerified
-                    ? const Icon(Icons.verified, color: AppTheme.emeraldGreen)
-                    : ElevatedButton(
-                        onPressed: () => _toggleKycVerification(u['uid'] ?? '', true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.royalGold,
-                          foregroundColor: AppTheme.obsidianDark,
-                        ),
-                        child: const Text('Verify KYC'),
-                      ),
+                Row(
+                  children: [
+                    isVerified
+                        ? const Icon(Icons.verified, color: AppTheme.emeraldGreen)
+                        : ElevatedButton(
+                            onPressed: () => _toggleKycVerification(u['uid'] ?? '', true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.royalGold,
+                              foregroundColor: AppTheme.obsidianDark,
+                            ),
+                            child: const Text('Verify KYC'),
+                          ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_forever, color: AppTheme.rubyRed),
+                      tooltip: 'Delete User',
+                      onPressed: () => _handleDeleteUser(u),
+                    ),
+                  ],
+                ),
               ],
             ),
             const Divider(color: Colors.white10, height: 24),
@@ -404,16 +442,26 @@ class _KycBankPageState extends State<KycBankPage> with SingleTickerProviderStat
                     ),
                   ],
                 ),
-                isVerified
-                    ? const Icon(Icons.verified, color: AppTheme.emeraldGreen)
-                    : ElevatedButton(
-                        onPressed: () => _toggleBankVerification(u['uid'] ?? '', true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.royalGold,
-                          foregroundColor: AppTheme.obsidianDark,
-                        ),
-                        child: const Text('Verify Bank Details'),
-                      ),
+                Row(
+                  children: [
+                    isVerified
+                        ? const Icon(Icons.verified, color: AppTheme.emeraldGreen)
+                        : ElevatedButton(
+                            onPressed: () => _toggleBankVerification(u['uid'] ?? '', true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.royalGold,
+                              foregroundColor: AppTheme.obsidianDark,
+                            ),
+                            child: const Text('Verify Bank Details'),
+                          ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete_forever, color: AppTheme.rubyRed),
+                      tooltip: 'Delete User',
+                      onPressed: () => _handleDeleteUser(u),
+                    ),
+                  ],
+                ),
               ],
             ),
             const Divider(color: Colors.white10, height: 24),
