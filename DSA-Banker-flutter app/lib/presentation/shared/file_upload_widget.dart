@@ -59,7 +59,11 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
           _uploadProgress = 1.0;
         });
 
-        widget.onUploadComplete(downloadUrl);
+        if (downloadUrl != null) {
+          widget.onUploadComplete(downloadUrl);
+        } else {
+          throw Exception('Failed to retrieve download URL');
+        }
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
