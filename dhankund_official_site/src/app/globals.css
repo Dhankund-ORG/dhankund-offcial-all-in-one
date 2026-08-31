@@ -1,163 +1,41 @@
-/* Global CSS for Dhankund Official Site */
-:root {
-  --primary-color: #2563eb;
-  --primary-hover: #1d4ed8;
-  --secondary-color: #f1f5f9;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --bg-color: #ffffff;
-  --bg-gradient-start: #e0e7ff;
-  --bg-gradient-end: #f8fafc;
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1e3a8a;
+  --color-primary-hover: #1e40af;
+  --color-secondary: #f8fafc;
+  --color-accent: #3b82f6;
+  --font-sans: 'Inter', system-ui, sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  html,
+  body {
+    @apply text-slate-900 bg-slate-50 font-sans antialiased;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
-body {
-  background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
-  color: var(--text-primary);
-  font-family: inherit;
-  line-height: 1.5;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+@layer components {
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-lg border border-white/30 rounded-2xl shadow-md;
+  }
+  .btn-primary {
+    @apply inline-block px-6 py-3 rounded-xl font-semibold text-white bg-primary hover:bg-primary-hover transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-1;
+  }
+  .btn-outline {
+    @apply inline-block px-6 py-3 rounded-xl font-semibold text-primary border-2 border-primary hover:bg-primary hover:text-white transition-all duration-300;
+  }
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+@layer utilities {
+  .animate-fade-up {
+    animation: fadeUp 0.8s ease-out forwards;
+  }
 }
 
-/* Glassmorphism Utilities */
-.glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: var(--shadow-md);
-}
-
-/* Common Components */
-.container {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.btn {
-  display: inline-block;
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  border: none;
-}
-
-.btn-primary {
-  background-color: var(--primary-color);
-  color: white;
-  box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.39);
-}
-
-.btn-primary:hover {
-  background-color: var(--primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.23);
-}
-
-/* Layout */
-header {
-  padding: 20px 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-}
-
-.nav-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--primary-color);
-  letter-spacing: -0.5px;
-}
-
-main {
-  flex-grow: 1;
-}
-
-/* Hero Section */
-.hero {
-  padding: 100px 0;
-  text-align: center;
-}
-
-.hero h1 {
-  font-size: 4rem;
-  font-weight: 800;
-  line-height: 1.1;
-  margin-bottom: 24px;
-  background: linear-gradient(to right, #1e3a8a, #3b82f6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: fadeUp 0.8s ease-out;
-}
-
-.hero p {
-  font-size: 1.25rem;
-  color: var(--text-secondary);
-  max-width: 600px;
-  margin: 0 auto 40px auto;
-  animation: fadeUp 1s ease-out;
-}
-
-.hero .btn {
-  animation: fadeUp 1.2s ease-out;
-}
-
-/* Features Section */
-.features {
-  padding: 80px 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 32px;
-}
-
-.feature-card {
-  padding: 32px;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.feature-card:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow-lg);
-}
-
-.feature-card h3 {
-  font-size: 1.5rem;
-  margin-bottom: 16px;
-  color: var(--primary-color);
-}
-
-/* Animations */
 @keyframes fadeUp {
   from {
     opacity: 0;
