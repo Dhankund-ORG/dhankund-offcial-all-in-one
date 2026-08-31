@@ -19,9 +19,8 @@ void main() async {
     debugPrint("Failed to load .env file: $e");
   }
 
-  // Initialize Firebase using JSON config from environment
+  String? jsonStr;
   try {
-    String? jsonStr;
     if (kIsWeb) {
       jsonStr = dotenv.env['CRM_FIREBASE_WEB'];
     } else if (defaultTargetPlatform == TargetPlatform.android) {
