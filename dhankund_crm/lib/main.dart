@@ -12,9 +12,9 @@ import 'screens/login_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load the AWS credentials from the .env file
+  // Load the AWS credentials from the config.env file
   try {
-    await dotenv.load(fileName: ".env");
+    await dotenv.load(fileName: "config.env");
   } catch (e) {
     debugPrint("Failed to load .env file: $e");
   }
