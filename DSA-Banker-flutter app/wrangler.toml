@@ -5,3 +5,10 @@ main = "worker.js"
 
 [assets]
 directory = "build/web"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "dhankund-storage"
+
+[[send_email]]
+name = "SEB"
