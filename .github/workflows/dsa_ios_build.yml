@@ -24,15 +24,19 @@ jobs:
         run: flutter pub get
         working-directory: "DSA-Banker-flutter app"
 
-      - name: Create .env file
+      - name: Create config.env file
         run: |
-          echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > "DSA-Banker-flutter app"/.env
-          echo "AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}" >> "DSA-Banker-flutter app"/.env
-          echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> "DSA-Banker-flutter app"/.env
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> "DSA-Banker-flutter app"/.env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> "DSA-Banker-flutter app"/.env
-          echo "DSA_FIREBASE_IOS='${{ secrets.DSA_FIREBASE_IOS }}'" >> "DSA-Banker-flutter app"/.env
-          echo "CRM_FIREBASE_IOS='${{ secrets.CRM_FIREBASE_IOS }}'" >> "DSA-Banker-flutter app"/.env
+          echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > "DSA-Banker-flutter app"/config.env
+          echo "AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}" >> "DSA-Banker-flutter app"/config.env
+          echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> "DSA-Banker-flutter app"/config.env
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> "DSA-Banker-flutter app"/config.env
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> "DSA-Banker-flutter app"/config.env
+          
+          DSA_IOS=$(echo '${{ secrets.DSA_FIREBASE_IOS }}' | tr -d '\n' | tr -d '\r')
+          echo "DSA_FIREBASE_IOS='${DSA_IOS}'" >> "DSA-Banker-flutter app"/config.env
+          
+          CRM_IOS=$(echo '${{ secrets.CRM_FIREBASE_IOS }}' | tr -d '\n' | tr -d '\r')
+          echo "CRM_FIREBASE_IOS='${CRM_IOS}'" >> "DSA-Banker-flutter app"/config.env
 
       - name: Build iOS App (Unsigned)
         # We build without codesigning because certificates are required for a signed build
