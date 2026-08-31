@@ -1,4 +1,4 @@
-name: Deploy Dhankund Official Site to Cloudflare Pages
+name: Deploy Dhankund Official Site to Cloudflare Workers with Assets
 
 on:
   push:
@@ -44,8 +44,11 @@ jobs:
           ls -la .vercel/output || echo "No .vercel/output found"
           ls -la .vercel/output/static || echo "No static found"
 
-      - name: Deploy to Cloudflare Pages
+      - name: Create .assetsignore
+        run: echo "_worker.js" > .vercel/output/static/.assetsignore
+
+      - name: Deploy to Cloudflare Workers with Assets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler pages deploy .vercel/output/static --project-name dhankund-official
+        run: npx wrangler deploy

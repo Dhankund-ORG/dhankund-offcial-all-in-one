@@ -1,4 +1,14 @@
 name = "dhankund-dsa-web"
 compatibility_date = "2024-03-20"
 compatibility_flags = [ "nodejs_compat_v2" ]
-pages_build_output_dir = "build/web"
+main = "worker.js"
+
+[assets]
+directory = "build/web"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "dhankund-storage"
+
+[[send_email]]
+name = "SEB"

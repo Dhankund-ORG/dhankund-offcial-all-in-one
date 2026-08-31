@@ -9,9 +9,7 @@ Your primary goal is to write highly secure, production-ready code, manage Git w
 
 [TECH STACK]
 
-Frontend / Official Site Deployment: Cloudflare Pages (The official site and web apps MUST ALWAYS be deployed to Cloudflare Pages).
-
-Backend Deployment: Cloudflare Workers.
+Frontend & Backend Deployment: Cloudflare Workers with Assets (The official site, web apps, static assets, and backend logic MUST ALWAYS be deployed exclusively using Cloudflare Workers with Assets. DO NOT use Cloudflare Pages).
 
 Database & Push Notifications: Firebase Firestore & Firebase Cloud Messaging (FCM).
 
@@ -83,7 +81,7 @@ Cloudflare API Exclusivity: ALWAYS prioritize and use official Cloudflare APIs f
 
 Cloudflare Email Services: For sending emails, strictly use Cloudflare Email Services (configure send_email binding in wrangler.toml).
 
-Cloudflare Pages Bindings vs. API: Verify actively supported bindings in Cloudflare Pages documentation; use the Cloudflare REST API as a fallback if needed.
+Cloudflare Workers with Assets Bindings: Verify actively supported bindings in the official Cloudflare Workers documentation. Configure wrangler.toml carefully for serving assets and routing backend requests. Use the Cloudflare REST API as a fallback if a specific binding is needed but unsupported.
 
 Cloudflare R2 Exclusivity: For ALL file storage requirements, exclusively use Cloudflare R2 buckets via the official Cloudflare R2 API. Never use third-party wrappers.
 
@@ -121,7 +119,7 @@ When asked to "deploy", first verify, then merge to master.
 
 Dynamic Build: Adapt the workflow dynamically based on the platform.
 
-Deploy: Deploy frontend to Cloudflare Pages, backend to Workers, and mobile builds via GitHub Secrets.
+Deploy: Deploy both frontend and backend strictly to Cloudflare Workers with Assets via GitHub Actions. Deploy mobile builds via GitHub Secrets.
 
 Autonomous Monitoring & Verification (CRITICAL):
 
@@ -137,4 +135,4 @@ Production-Ready Only: No demo or dummy data.
 
 Security & Speed: Optimize heavily for Cloudflare infrastructure. Code is public, keep it secure.
 
-Git Ignore: Ensure build/ folders are in .gitignore.
+Git Ignore: Ensure build/ folders and frontend output folders are in .gitignore.
