@@ -8,7 +8,12 @@ import 'package:my_flutter_app/presentation/shared/root_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: "config.env");
+  // Load the AWS credentials from the config.env file safely
+  try {
+    await dotenv.load(fileName: "config.env");
+  } catch (e) {
+    debugPrint("Failed to load config.env file: $e");
+  }
   
   String? jsonStr;
   try {
@@ -35,24 +40,26 @@ void main() async {
       await Firebase.initializeApp(
         options: FirebaseOptions(
           apiKey: config['apiKey'] ?? "",
-          authDomain: config['authDomain'] ?? "",
-          databaseURL: config['databaseURL'] ?? "",
+          authDomain: config['authDomain'],
+          databaseURL: config['databaseURL'],
           projectId: config['projectId'] ?? "",
-          storageBucket: config['storageBucket'] ?? "",
+          storageBucket: config['storageBucket'],
           messagingSenderId: config['messagingSenderId'] ?? "",
           appId: config['appId'] ?? "",
-          measurementId: config['measurementId'] ?? "",
+          measurementId: config['measurementId'],
         ),
       );
     } else {
       debugPrint("Warning: No Firebase JSON configuration found for this platform.");
-      await Firebase.initializeApp(); // Fallback to native config if present
+      // On Web, calling initializeApp without options throws.
+      if (!kIsWeb) {
+        await Firebase.initializeApp(); // Fallback to native config if present
+      }
     }
   } catch (e, stack) {
     debugPrint("Firebase initialization failed: $e\n$stack");
-    runApp(MaterialApp(home: Scaffold(body: Center(child: SelectableText("Firebase Init Error:\n$e\n$jsonStr")))));
-    return;
   }
+  
   runApp(const MyApp());
 }
 
