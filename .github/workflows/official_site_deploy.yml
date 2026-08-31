@@ -44,6 +44,9 @@ jobs:
           ls -la .vercel/output || echo "No .vercel/output found"
           ls -la .vercel/output/static || echo "No static found"
 
+      - name: Create .assetsignore
+        run: echo "_worker.js" > .vercel/output/static/.assetsignore
+
       - name: Deploy to Cloudflare Workers with Assets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
