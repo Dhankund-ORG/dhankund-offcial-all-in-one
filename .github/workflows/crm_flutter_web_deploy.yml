@@ -1,4 +1,4 @@
-name: Deploy Flutter Web to Cloudflare Pages
+name: Deploy Flutter Web to Cloudflare Workers with Assets
 
 on:
   push:

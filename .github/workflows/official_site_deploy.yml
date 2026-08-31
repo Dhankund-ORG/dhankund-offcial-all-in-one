@@ -1,4 +1,4 @@
-name: Deploy Dhankund Official Site to Cloudflare Pages
+name: Deploy Dhankund Official Site to Cloudflare Workers with Assets
 
 on:
   push:
