@@ -34,8 +34,8 @@ void main() async {
       try {
         config = jsonDecode(jsonStr);
       } catch (e) {
-        // Fallback for JS object formats or unquoted keys
-        final RegExp keyRegex = RegExp(r'([a-zA-Z0-9_]+)\s*:\s*["\u0027]([^"\u0027]+)["\u0027]');
+        // Fallback for JS object formats or unquoted keys/values
+        final RegExp keyRegex = RegExp(r'([a-zA-Z0-9_]+)\s*:\s*["\u0027]?([^,"\u0027}\s]+)["\u0027]?');
         for (final match in keyRegex.allMatches(jsonStr)) {
           config[match.group(1)!] = match.group(2);
         }
