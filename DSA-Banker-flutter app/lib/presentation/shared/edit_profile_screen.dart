@@ -26,7 +26,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final List<String> _excludedFields = ['uid', 'profileCompleted', 'timestamp', 'profilePictureUrl'];
   
   // Fields that are strictly read-only
-  final List<String> _readOnlyFields = ['name', 'mobile', 'email'];
+  final List<String> _readOnlyFields = ['name', 'mobile', 'email', 'role'];
 
   @override
   void initState() {
@@ -158,7 +158,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Name, Mobile No, and Email ID cannot be modified after registration.',
+                              'Name, Mobile No, Email ID, and Role cannot be modified after registration.',
                               style: TextStyle(color: Colors.blue, fontSize: 13),
                             ),
                           ),
