@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:my_flutter_app/presentation/shared/thank_you_screen.dart';
@@ -200,7 +200,7 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
             _buildTextField(
               controller: _amountController,
               hint: 'Enter loan amount',
-              prefix: 'â‚¹ ',
+              prefix: '₹ ',
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
