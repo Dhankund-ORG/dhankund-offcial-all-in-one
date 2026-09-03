@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:my_flutter_app/presentation/customer_app/loan_application_screen.dart';
 
 class LoanSelectionScreen extends StatelessWidget {
