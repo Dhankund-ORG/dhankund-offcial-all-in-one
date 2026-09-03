@@ -1,4 +1,4 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:my_flutter_app/presentation/auth/welcome_screen.dart';
 import 'package:my_flutter_app/presentation/customer_app/emi_calculator_screen.dart';
