@@ -158,13 +158,13 @@ class _BankerFormScreenState extends State<BankerFormScreen> {
             children: [
               _buildSectionTitle('Personal Details'),
               _buildFieldLabel('Name *'),
-              _buildTextField(_nameController, 'Enter full name', Icons.person),
+              _buildTextField(_nameController, 'Enter full name', Icons.person, required: true),
               
               _buildFieldLabel('Mobile No. *'),
-              _buildTextField(_mobileController, 'Enter mobile number', Icons.phone, keyboardType: TextInputType.phone),
+              _buildTextField(_mobileController, 'Enter mobile number', Icons.phone, keyboardType: TextInputType.phone, required: true),
               
               _buildFieldLabel('Mail ID *'),
-              _buildTextField(_emailController, 'Enter email address', Icons.email, keyboardType: TextInputType.emailAddress),
+              _buildTextField(_emailController, 'Enter email address', Icons.email, keyboardType: TextInputType.emailAddress, required: true),
               
               _buildFieldLabel('Gender *'),
               _buildDropdownField(_selectedGender, _genders, 'Select Gender', (val) => setState(() => _selectedGender = val)),
@@ -283,7 +283,7 @@ class _BankerFormScreenState extends State<BankerFormScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {TextInputType keyboardType = TextInputType.text, int maxLines = 1}) {
+  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {TextInputType keyboardType = TextInputType.text, int maxLines = 1, bool required = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -308,8 +308,19 @@ class _BankerFormScreenState extends State<BankerFormScreen> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
         validator: (value) {
-          if (hint.contains('*') && (value == null || value.isEmpty)) {
+          final text = (value ?? '').trim();
+          if (required && text.isEmpty) {
             return 'This field is required';
+          }
+          if (text.isNotEmpty && keyboardType == TextInputType.phone) {
+            if (!RegExp(r'^[0-9]{10}$').hasMatch(text)) {
+              return 'Please enter a valid 10-digit mobile number';
+            }
+          }
+          if (text.isNotEmpty && keyboardType == TextInputType.emailAddress) {
+            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(text)) {
+              return 'Please enter a valid email address';
+            }
           }
           return null;
         },
