@@ -183,7 +183,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Text(
-                        'Admin Announcement â€¢ $dateStr',
+                        'Admin Announcement • $dateStr',
                         style: const TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ],
@@ -751,7 +751,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       Text(
-                        '$authorRole â€¢ $authorCompany â€¢ ${_formatPostTime(timestamp)}',
+                        '$authorRole • $authorCompany • ${_formatPostTime(timestamp)}',
                         style: const TextStyle(color: Colors.grey, fontSize: 11),
                       ),
                     ],
