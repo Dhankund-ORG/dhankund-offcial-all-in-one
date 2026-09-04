@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'theme/app_theme.dart';
 import 'screens/dashboard_layout.dart';
 import 'screens/login_screen.dart';
@@ -18,52 +15,6 @@ void main() async {
   } catch (e) {
     debugPrint("Failed to load .env file: $e");
   }
-
-  String? jsonStr;
-  try {
-    if (kIsWeb) {
-      jsonStr = dotenv.env['CRM_FIREBASE_WEB'];
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      jsonStr = dotenv.env['CRM_FIREBASE_ANDROID'];
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      jsonStr = dotenv.env['CRM_FIREBASE_IOS'];
-    }
-
-    if (jsonStr != null && jsonStr.isNotEmpty) {
-      Map<String, dynamic> config = {};
-      try {
-        config = jsonDecode(jsonStr);
-      } catch (e) {
-        // Fallback for JS object formats or unquoted keys/values
-        final RegExp keyRegex = RegExp(r'([a-zA-Z0-9_]+)\s*:\s*["\u0027]?([^,"\u0027}\s]+)["\u0027]?');
-        for (final match in keyRegex.allMatches(jsonStr)) {
-          config[match.group(1)!] = match.group(2);
-        }
-      }
-      
-      await Firebase.initializeApp(
-        options: FirebaseOptions(
-          apiKey: config['apiKey'] ?? "",
-          authDomain: config['authDomain'] ?? "",
-          databaseURL: config['databaseURL'] ?? "",
-          projectId: config['projectId'] ?? "",
-          storageBucket: config['storageBucket'] ?? "",
-          messagingSenderId: config['messagingSenderId'] ?? "",
-          appId: config['appId'] ?? "",
-          measurementId: config['measurementId'] ?? "",
-        ),
-      );
-    } else {
-      debugPrint("Warning: No Firebase JSON configuration found for this platform.");
-      runApp(MaterialApp(home: Scaffold(body: Center(child: Text("Error: Firebase configuration missing for this platform.")))));
-      return;
-    }
-  } catch (e, stack) {
-    debugPrint("Firebase initialization failed: $e\n$stack");
-    runApp(MaterialApp(home: Scaffold(body: Center(child: SelectableText("Firebase Init Error:\n$e\n$jsonStr")))));
-    return;
-  }
-
   runApp(const MyApp());
 }
 
@@ -86,42 +37,8 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        
-        if (snapshot.hasData && snapshot.data != null) {
-          return FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(snapshot.data!.uid).get(),
-            builder: (context, roleSnapshot) {
-              if (roleSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              
-              if (roleSnapshot.hasData && roleSnapshot.data!.exists) {
-                Map<String, dynamic>? data = roleSnapshot.data!.data() as Map<String, dynamic>?;
-                String? role = data?['role'];
-                if (role == 'admin' || role == 'staff') {
-                  return const DashboardLayout();
-                }
-              }
-              
-              // If unauthorized or error, sign out
-              FirebaseAuth.instance.signOut();
-              return const LoginScreen();
-            },
-          );
-        }
-        
-        return const LoginScreen();
-      },
-    );
+    // TODO: Implement Cloudflare Email OTP authentication logic
+    // Returning LoginScreen temporarily
+    return const LoginScreen();
   }
 }
