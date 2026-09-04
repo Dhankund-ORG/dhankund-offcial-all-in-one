@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:my_flutter_app/presentation/shared/root_wrapper.dart';
 import 'package:my_flutter_app/presentation/shared/home_screen.dart';
 import 'package:my_flutter_app/presentation/b2b_network/profession_selection_screen.dart';
@@ -52,21 +50,8 @@ class _AuthScreenState extends State<AuthScreen>
     });
 
     try {
-      if (isLogin) {
-        await FirebaseAuth.instance
-            .signInWithEmailAndPassword(
-              email: _emailController.text.trim(),
-              password: _passwordController.text.trim(),
-            )
-            .timeout(const Duration(seconds: 20));
-      } else {
-        await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
-              email: _emailController.text.trim(),
-              password: _passwordController.text.trim(),
-            )
-            .timeout(const Duration(seconds: 20));
-      }
+      // TODO: Implement Cloudflare Email OTP authentication
+      await Future.delayed(const Duration(seconds: 1)); // Simulate network request
 
       // Save biometric preferences
       final prefs = await SharedPreferences.getInstance();
@@ -81,24 +66,6 @@ class _AuthScreenState extends State<AuthScreen>
           MaterialPageRoute(builder: (context) => RootWrapper()),
           (route) => false,
         );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        String message = "An error occurred";
-        if (e.code == 'user-not-found') {
-          message = 'No user found for that email.';
-        } else if (e.code == 'wrong-password') {
-          message = 'Wrong password provided.';
-        } else if (e.code == 'email-already-in-use') {
-          message = 'The account already exists for that email.';
-        } else if (e.code == 'weak-password') {
-          message = 'The password provided is too weak.';
-        } else {
-          message = e.message ?? "Authentication failed";
-        }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (e) {
       if (mounted) {
@@ -126,45 +93,18 @@ class _AuthScreenState extends State<AuthScreen>
     });
 
     try {
-      // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-
-      if (googleUser == null) {
-        setState(() {
-          _isLoading = false;
-        });
-        return; // User canceled the sign-in
-      }
-
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      // Create a new credential
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Sign in to Firebase with the user credentials
-      await FirebaseAuth.instance.signInWithCredential(credential);
-
+      // TODO: Re-evaluate Social Sign-in without Firebase (Custom OAuth flow)
+      await Future.delayed(const Duration(seconds: 1)); // Simulate network request
+      
       // Bypass biometric screen immediately after Google sign in
       BiometricAuthWrapper.authenticatedThisSession = true;
 
       // Navigation reset to ensure the dashboard becomes visible
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => RootWrapper()),
+          MaterialPageRoute(builder: (context) => const RootWrapper()),
           (route) => false,
         );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        String message = "Authentication failed: ${e.message}";
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (e) {
       if (mounted) {
@@ -218,9 +158,8 @@ class _AuthScreenState extends State<AuthScreen>
                 final email = resetEmailController.text.trim();
                 if (email.isNotEmpty) {
                   try {
-                    await FirebaseAuth.instance.sendPasswordResetEmail(
-                      email: email,
-                    );
+                    // TODO: Implement Cloudflare Email OTP logic here
+                    await Future.delayed(const Duration(seconds: 1));
                     if (mounted) {
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(

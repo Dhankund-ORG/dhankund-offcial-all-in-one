@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,52 +13,7 @@ void main() async {
   } catch (e) {
     debugPrint("Failed to load config.env file: $e");
   }
-  
-  String? jsonStr;
-  try {
-    if (kIsWeb) {
-      jsonStr = dotenv.env['DSA_FIREBASE_WEB'];
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      jsonStr = dotenv.env['DSA_FIREBASE_ANDROID'];
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      jsonStr = dotenv.env['DSA_FIREBASE_IOS'];
-    }
 
-    if (jsonStr != null && jsonStr.isNotEmpty) {
-      Map<String, dynamic> config = {};
-      try {
-        config = jsonDecode(jsonStr);
-      } catch (e) {
-        // Fallback for JS object formats or unquoted keys/values
-        final RegExp keyRegex = RegExp(r'([a-zA-Z0-9_]+)\s*:\s*["\u0027]?([^,"\u0027}\s]+)["\u0027]?');
-        for (final match in keyRegex.allMatches(jsonStr)) {
-          config[match.group(1)!] = match.group(2);
-        }
-      }
-
-      await Firebase.initializeApp(
-        options: FirebaseOptions(
-          apiKey: config['apiKey'] ?? "",
-          authDomain: config['authDomain'],
-          databaseURL: config['databaseURL'],
-          projectId: config['projectId'] ?? "",
-          storageBucket: config['storageBucket'],
-          messagingSenderId: config['messagingSenderId'] ?? "",
-          appId: config['appId'] ?? "",
-          measurementId: config['measurementId'],
-        ),
-      );
-    } else {
-      debugPrint("Warning: No Firebase JSON configuration found for this platform.");
-      // On Web, calling initializeApp without options throws.
-      if (!kIsWeb) {
-        await Firebase.initializeApp(); // Fallback to native config if present
-      }
-    }
-  } catch (e, stack) {
-    debugPrint("Firebase initialization failed: $e\n$stack");
-  }
-  
   runApp(const MyApp());
 }
 
