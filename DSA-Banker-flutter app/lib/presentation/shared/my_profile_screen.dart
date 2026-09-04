@@ -122,7 +122,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                    children: [
                      _buildHeader(context, name, email, role, profilePictureUrl, combinedData, collectionName, user?.uid ?? ''),
                      const SizedBox(height: 24),
-                     _buildInfoSection(combinedData),
+                     _buildInfoSection(combinedData, user?.uid ?? ''),
                      const SizedBox(height: 24),
                      _buildLogoutButton(context),
                      const SizedBox(height: 40),
@@ -256,7 +256,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   }
 
 
-  Widget _buildInfoSection(Map<String, dynamic> data) {
+  Widget _buildInfoSection(Map<String, dynamic> data, String uid) {
     List<Widget> details = [];
     
     // Core fields first
@@ -310,15 +310,44 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildDetailCard([
-            _buildDetailTile(Icons.trending_up, 'Total Referrals', '12'),
-            _buildDetailTile(Icons.account_balance_wallet_outlined, 'Monthly Earnings', '₹45,000'),
-          ]),
+          FutureBuilder<Map<String, int>>(
+            future: _fetchAccountStats(uid),
+            builder: (context, statsSnapshot) {
+              final stats = statsSnapshot.data ?? {'referrals': 0, 'loans': 0};
+              return _buildDetailCard([
+                _buildDetailTile(Icons.trending_up, 'Total Referrals', (stats['referrals'] ?? 0).toString()),
+                _buildDetailTile(Icons.receipt_long_outlined, 'Loan Applications', (stats['loans'] ?? 0).toString()),
+              ]);
+            },
+          ),
         ],
       ),
     );
   }
 
+
+  Future<Map<String, int>> _fetchAccountStats(String uid) async {
+    if (uid.isEmpty) return {'referrals': 0, 'loans': 0};
+
+    try {
+      final referralSnapshot = await FirebaseFirestore.instance
+          .collection('referrals')
+          .where('referrer_id', isEqualTo: uid)
+          .get();
+
+      final loanSnapshot = await FirebaseFirestore.instance
+          .collection('loan_applications')
+          .where('user_id', isEqualTo: uid)
+          .get();
+
+      return {
+        'referrals': referralSnapshot.docs.length,
+        'loans': loanSnapshot.docs.length,
+      };
+    } catch (e) {
+      return {'referrals': 0, 'loans': 0};
+    }
+  }
 
   Widget _buildDetailCard(List<Widget> children) {
     return Container(

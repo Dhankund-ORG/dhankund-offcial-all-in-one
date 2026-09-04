@@ -77,9 +77,9 @@ class _MyLoansScreenState extends State<MyLoansScreen>
     Query query = FirebaseFirestore.instance
         .collection('loan_applications')
         .where(
-          'email',
-          isEqualTo: user.email,
-        ); // Filtering by user email for simplicity
+          'user_id',
+          isEqualTo: user.uid,
+        );
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -98,7 +98,7 @@ class _MyLoansScreenState extends State<MyLoansScreen>
           final status = data['status'] ?? 'Submitted';
           if (category == 'Active') return status == 'Disbursed';
           if (category == 'Applications') {
-            return ['Submitted', 'Under Review', 'Approved'].contains(status);
+            return ['Submitted', 'Under Review', 'Approved', 'Pending', 'Pending Details', 'Login done'].contains(status);
           }
           if (category == 'History') {
             return ['Closed', 'Rejected'].contains(status);

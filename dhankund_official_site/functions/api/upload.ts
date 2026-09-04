@@ -20,6 +20,13 @@ export async function onRequestPost(context: any) {
       });
     }
 
+    if (fileName.includes('..') || fileName.startsWith('/')) {
+      return new Response(JSON.stringify({ error: 'Invalid filename' }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const body = request.body;
     if (!body) {
       return new Response(JSON.stringify({ error: 'No file provided' }), { 
@@ -31,7 +38,8 @@ export async function onRequestPost(context: any) {
     await bucket.put(fileName, body);
     
     // Construct the public URL or download API URL
-    const downloadUrl = `/api/download/${fileName}`;
+    const origin = new URL(request.url).origin;
+    const downloadUrl = origin + '/api/download/' + fileName;
     
     return new Response(JSON.stringify({ 
       success: true, 

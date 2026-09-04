@@ -542,30 +542,105 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   Widget _buildApplicationsList() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.description_outlined, size: 48, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'No recent loan applications',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _fetchRecentApplications(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: const Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          final applications = snapshot.data ?? [];
+          if (applications.isEmpty) {
+            return _buildEmptyApplications();
+          }
+
+          return Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey[200]!),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Apply for a loan above to track its status here.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            child: Column(
+              children: applications.map((data) {
+                final loanType = data['loan_type'] ?? 'Loan';
+                final amount = data['loan_amount'] ?? '0';
+                final status = data['status'] ?? 'Pending';
+                return ListTile(
+                  leading: const Icon(Icons.receipt_long_outlined, color: Color(0xFF4A3AFF)),
+                  title: Text('$loanType - ₹$amount'),
+                  subtitle: Text('Status: $status'),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                );
+              }).toList(),
             ),
-          ],
-        ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchRecentApplications() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('loan_applications')
+          .where('user_id', isEqualTo: user.uid)
+          .get();
+
+      final docs = snapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+
+      docs.sort((a, b) {
+        final aTime = a['submitted_at'];
+        final bTime = b['submitted_at'];
+        final aMs = aTime is Timestamp ? aTime.millisecondsSinceEpoch : 0;
+        final bMs = bTime is Timestamp ? bTime.millisecondsSinceEpoch : 0;
+        return bMs.compareTo(aMs);
+      });
+
+      return docs.take(5).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Widget _buildEmptyApplications() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.description_outlined, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No recent loan applications',
+            style: TextStyle(color: Colors.grey[600], fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Apply for a loan above to track its status here.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[400], fontSize: 13),
+          ),
+        ],
       ),
     );
   }
