@@ -11,15 +11,17 @@ Your primary goal is to write highly secure, production-ready code, manage Git w
 
 Frontend & Backend Deployment: Cloudflare Workers with Assets (The official site, web apps, static assets, and backend logic MUST ALWAYS be deployed exclusively using Cloudflare Workers with Assets. DO NOT use Cloudflare Pages).
 
-Database & Push Notifications: Firebase Firestore & Firebase Cloud Messaging (FCM).
+Database: Cloudflare D1 (Strictly relational SQL database for all unified data).
+
+Real-time State & Instant Processing: Cloudflare Durable Objects (Use for instant tasks, state management, and real-time execution).
 
 Storage: Cloudflare R2 Buckets.
 
-Email Services: Cloudflare Email Services.
+Email Services: Cloudflare Email Services (Strictly use the send_email binding in wrangler.toml).
 
 Frontend/App Framework: Flutter (Web, Android APK/AAB builds, and iOS builds) & Next.js.
 
-Deployment Mechanism: NOT automatic. Must be handled strictly via GitHub Actions workflows triggered on the server (github.com).
+Deployment Mechanism: STRICTLY MANUAL via GitHub Actions (e.g., using workflow_dispatch). Absolutely NO automatic deployments on push. The GitHub Actions workflow must be configured to extract secrets from GitHub Secrets and securely inject them into Cloudflare Workers (using wrangler secret put or environment bindings) during the deployment process.
 
 [CORE COMMUNICATION PROTOCOL]
 
@@ -41,7 +43,7 @@ Final Reporting: After any task, provide a summary in pure Hindi explaining what
 
 [LOCAL TROUBLESHOOTING & MODIFICATION PROTOCOL (NEW & CRITICAL)]
 
-Strictly Limited Local Commands: You are permitted to run commands locally ONLY for setting up Flutter/Next.js environments, initializing Firebase, installing packages like FlutterFire, and authenticating to fetch/read data directly from the Firestore database.
+Strictly Limited Local Commands: You are permitted to run commands locally ONLY for setting up Flutter/Next.js environments, initializing Wrangler/Cloudflare local dev environments (Miniflare), and testing D1/Durable Objects locally.
 
 Purpose of Local Execution: This local execution is strictly limited to instant troubleshooting, debugging, and identifying database/code errors. NO workflows, builds, or deployments should ever be run locally.
 
@@ -63,37 +65,31 @@ Multi-Project Environment: This single repository contains multiple distinct pro
 
 Zero-Interference Rule: Ensure updates for one project strictly DO NOT break or affect any other production project.
 
-Unified Data Ecosystem (Shared Data Structure): Since these projects belong to the same company, the data architecture MUST be unified. Users, CRM records, and business data must be seamlessly fetchable, visible, and operable across all platforms. Design the Firestore schema to facilitate this interconnected data flow efficiently.
+Unified Data Ecosystem (Shared Data Structure): Since these projects belong to the same company, the data architecture MUST be unified. Users, CRM records, and business data must be seamlessly fetchable, visible, and operable across all platforms. Design the Cloudflare D1 SQL schema to facilitate this interconnected data flow efficiently.
 
-Shared Cloud Resources: All projects operate on a single shared Firebase project, a single Firestore database, and a single Cloudflare R2 bucket.
+Shared Cloud Resources: All projects operate on a single shared Cloudflare account, utilizing a shared D1 database, a unified Durable Objects architecture, and a single Cloudflare R2 bucket.
 
 [PUBLIC REPO & SECRETS MANAGEMENT (CRITICAL)]
 
-Public Repository Constraint: The repository is PUBLIC. NEVER hardcode API keys, service account JSON files, Apple certificates, or any sensitive data in the codebase.
+Public Repository Constraint: The repository is PUBLIC. NEVER hardcode API keys, service account JSON files, Apple certificates, or any sensitive data in the codebase or wrangler.toml files.
 
-Universal GitHub Secrets: ALL credentials—including Firebase configurations, Cloudflare API tokens, and App Store credentials—MUST be securely stored in and accessed ONLY via GitHub Secrets (e.g., ${{ secrets.SECRET_NAME }}).
+Universal GitHub Secrets: ALL credentials—including Cloudflare API tokens, Account IDs, D1/R2 configurations, and App Store credentials—MUST be securely stored in and accessed ONLY via GitHub Secrets.
 
-Cloudflare Secrets: Always ensure environment secrets are dynamically updated and deployed via workflows.
+Cloudflare Secrets Injection: Always ensure environment secrets are dynamically injected via GitHub Actions during the manual deployment phase. Use workflow steps to map ${{ secrets.SECRET_NAME }} to Worker secrets.
 
-[CLOUDFLARE SERVICES, STORAGE & EMAIL PROTOCOL]
+[CLOUDFLARE SERVICES, STORAGE, D1 & EMAIL PROTOCOL]
 
 Cloudflare API Exclusivity: ALWAYS prioritize and use official Cloudflare APIs for Cloudflare services.
 
+Database (Cloudflare D1): Always read and verify the existing D1 SQL schema before modifying it. Evaluate if changes could break production across ANY connected project. Halt and alert the user in pure Hindi if risky.
+
+Instant State (Durable Objects): Use Durable Objects to handle instant tasks, user sessions, or synchronized states required by the apps.
+
 Cloudflare Email Services: For sending emails, strictly use Cloudflare Email Services (configure send_email binding in wrangler.toml).
 
-Cloudflare Workers with Assets Bindings: Verify actively supported bindings in the official Cloudflare Workers documentation. Configure wrangler.toml carefully for serving assets and routing backend requests. Use the Cloudflare REST API as a fallback if a specific binding is needed but unsupported.
+Cloudflare Workers with Assets Bindings: Verify actively supported bindings in the official Cloudflare Workers documentation. Configure wrangler.toml carefully for serving assets, routing backend requests, and connecting D1, R2, and Durable Objects.
 
-Cloudflare R2 Exclusivity: For ALL file storage requirements, exclusively use Cloudflare R2 buckets via the official Cloudflare R2 API. Never use third-party wrappers.
-
-[FIREBASE & DATABASE PROTOCOL]
-
-Schema Verification: Always read and verify the existing Firestore schema before modifying it.
-
-Risk Assessment: Evaluate if changes could break production across ANY connected project. Halt and alert the user in pure Hindi if risky.
-
-Firebase Security Rules & Indexes: MUST be deployed and managed exclusively via GitHub Actions.
-
-Push Notifications (FCM): Strictly read and follow the LATEST official Firebase documentation when updating FCM.
+Cloudflare R2 Exclusivity: For ALL file storage requirements, exclusively use Cloudflare R2 buckets via the official Cloudflare R2 API/bindings. Never use third-party wrappers.
 
 [DEPENDENCY & PACKAGE MANAGEMENT (STRICT)]
 
@@ -103,15 +99,15 @@ Lock File Fail-Safe: If .yaml or .json is modified, do not blindly update lock f
 
 [GIT, BUILD & WORKFLOW PROTOCOL (STRICT)]
 
-Separate Workflows: Always create independent, dedicated GitHub workflow files for different tasks (e.g., web deploy vs Android APK/AAB build vs iOS IPA build).
+Separate Workflows: Always create independent, dedicated GitHub workflow files for different tasks (e.g., manual web deploy, Android APK/AAB build, iOS IPA build).
 
 Never Work on Master: Always create a new branch.
 
-Strict Server-Side Execution (NO LOCAL BUILDS):
+Strict Server-Side Execution (NO LOCAL BUILDS/DEPLOYS):
 
 NEVER run builds, workflow actions, or deployments on a local machine, localhost, or any personal computer.
 
-ALL execution for builds and deployments MUST happen directly on github.com via GitHub Actions.
+ALL execution for builds and deployments MUST happen directly on github.com via GitHub Actions (workflow_dispatch).
 
 Architecture-Aware Build & Deployment:
 
@@ -119,7 +115,7 @@ When asked to "deploy", first verify, then merge to master.
 
 Dynamic Build: Adapt the workflow dynamically based on the platform.
 
-Deploy: Deploy both frontend and backend strictly to Cloudflare Workers with Assets via GitHub Actions. Deploy mobile builds via GitHub Secrets.
+Deploy: Deploy both frontend and backend strictly to Cloudflare Workers with Assets via manually triggered GitHub Actions.
 
 Autonomous Monitoring & Verification (CRITICAL):
 
@@ -133,6 +129,6 @@ If Red: Read error logs, inform the user in pure Hindi, and attempt an auto-fix 
 
 Production-Ready Only: No demo or dummy data.
 
-Security & Speed: Optimize heavily for Cloudflare infrastructure. Code is public, keep it secure.
+Security & Speed: Optimize heavily for Cloudflare infrastructure (Edge execution). Code is public, keep it secure.
 
-Git Ignore: Ensure build/ folders and frontend output folders are in .gitignore.
+Git Ignore: Ensure build/, .dart_tool/, .next/, .wrangler/, and frontend output folders are in .gitignore.
