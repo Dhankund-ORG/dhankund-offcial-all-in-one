@@ -1,3 +1,15 @@
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function onRequestOptions() {
+  return new Response(null, {
+    headers: corsHeaders,
+  });
+}
+
 export async function onRequestPost(context: any) {
   const { request, env } = context;
   
@@ -6,7 +18,7 @@ export async function onRequestPost(context: any) {
     if (!bucket) {
       return new Response(JSON.stringify({ error: 'R2 bucket binding not found' }), { 
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
@@ -16,7 +28,7 @@ export async function onRequestPost(context: any) {
     if (!fileName) {
       return new Response(JSON.stringify({ error: 'Filename is required in query params' }), { 
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
@@ -24,7 +36,7 @@ export async function onRequestPost(context: any) {
     if (!body) {
       return new Response(JSON.stringify({ error: 'No file provided' }), { 
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
 
@@ -38,13 +50,13 @@ export async function onRequestPost(context: any) {
       url: downloadUrl,
       fileName: fileName
     }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
     
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message || 'Internal Server Error' }), { 
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...corsHeaders }
     });
   }
 }

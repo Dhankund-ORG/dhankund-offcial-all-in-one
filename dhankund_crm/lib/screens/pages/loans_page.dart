@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../firebase_service.dart';
 import '../../theme/app_theme.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../cloudflare_r2_service.dart';
 
 class LoansPage extends StatefulWidget {
   const LoansPage({super.key});
@@ -12,6 +14,7 @@ class LoansPage extends StatefulWidget {
 
 class _LoansPageState extends State<LoansPage> {
   final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareR2Service _r2Service = CloudflareR2Service();
   bool _isLoading = false;
   List<Map<String, dynamic>> _applications = [];
   String _selectedFilter = 'All'; // 'All', 'Pending', 'Approved', 'Rejected'
@@ -206,15 +209,31 @@ class _LoansPageState extends State<LoansPage> {
               ElevatedButton(
                 onPressed: isLoading
                     ? null
-                    : () {
-                        setDialogState(() {
-                          docMap[docKey] = 'Uploading...';
-                        });
-                        Future.delayed(const Duration(milliseconds: 1000), () {
+                    : () async {
+                        PlatformFile? result = await FilePicker.pickFile(
+                          type: FileType.any,
+                        );
+                        if (result != null) {
                           setDialogState(() {
-                            docMap[docKey] = defaultFileName;
+                            docMap[docKey] = 'Uploading...';
                           });
-                        });
+                          final fileBytes = await result.readAsBytes();
+                          final uploadedFileName = result.name;
+                          
+                          // Actual upload via Cloudflare R2
+                          final uploadedUrl = await _r2Service.uploadDocument(uploadedFileName, fileBytes);
+                          
+                          setDialogState(() {
+                            if (uploadedUrl != null) {
+                              docMap[docKey] = uploadedFileName;
+                            } else {
+                              docMap.remove(docKey); // Upload failed
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Failed to upload document')),
+                              );
+                            }
+                          });
+                        }
                       },
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -278,6 +297,7 @@ class _LoansPageState extends State<LoansPage> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
+  isExpanded: true,
                   value: incomeConsidered,
                   dropdownColor: AppTheme.obsidianMedium,
                   decoration: const InputDecoration(labelText: 'Income Considered *'),
@@ -327,6 +347,7 @@ class _LoansPageState extends State<LoansPage> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
+  isExpanded: true,
                   value: gender,
                   dropdownColor: AppTheme.obsidianMedium,
                   decoration: const InputDecoration(labelText: 'Gender *'),
@@ -346,6 +367,7 @@ class _LoansPageState extends State<LoansPage> {
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
+  isExpanded: true,
                   value: maritalStatus,
                   dropdownColor: AppTheme.obsidianMedium,
                   decoration: const InputDecoration(labelText: 'Marital Status'),
@@ -413,6 +435,7 @@ class _LoansPageState extends State<LoansPage> {
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
+  isExpanded: true,
                   value: safeOccupation,
                   dropdownColor: AppTheme.obsidianMedium,
                   decoration: const InputDecoration(labelText: 'Occupation'),
@@ -687,6 +710,7 @@ class _LoansPageState extends State<LoansPage> {
                         // SECTION 1: Loan Details
                         _buildSectionHeader('Loan Details'),
                         DropdownButtonFormField<String>(
+  isExpanded: true,
                           value: loanType,
                           dropdownColor: AppTheme.obsidianMedium,
                           decoration: const InputDecoration(labelText: 'Loan Type *'),
@@ -751,6 +775,7 @@ class _LoansPageState extends State<LoansPage> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: safeOccupation,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(labelText: 'Occupation'),
@@ -821,6 +846,7 @@ class _LoansPageState extends State<LoansPage> {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: gender,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(labelText: 'Gender *'),
@@ -840,6 +866,7 @@ class _LoansPageState extends State<LoansPage> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: maritalStatus,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(labelText: 'Marital Status'),
@@ -1139,6 +1166,7 @@ class _LoansPageState extends State<LoansPage> {
                         // SECTION 8: Application Status & Finalization
                         _buildSectionHeader('Application Status'),
                         DropdownButtonFormField<String>(
+  isExpanded: true,
                           value: _normalizeStatus(status),
                           dropdownColor: AppTheme.obsidianMedium,
                           decoration: const InputDecoration(
@@ -1847,6 +1875,7 @@ class _LoansPageState extends State<LoansPage> {
                       SizedBox(
                         width: 220,
                         child: DropdownButtonFormField<String>(
+  isExpanded: true,
                           value: _selectedSegment,
                           dropdownColor: AppTheme.obsidianMedium,
                           decoration: InputDecoration(
@@ -1884,6 +1913,7 @@ class _LoansPageState extends State<LoansPage> {
                       SizedBox(
                         width: 200,
                         child: DropdownButtonFormField<String>(
+  isExpanded: true,
                           value: _selectedAmountRange,
                           dropdownColor: AppTheme.obsidianMedium,
                           decoration: InputDecoration(

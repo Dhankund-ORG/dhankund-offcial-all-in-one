@@ -167,6 +167,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
+  isExpanded: true,
                           value: referrerId,
                           dropdownColor: AppTheme.obsidianMedium,
                           decoration: const InputDecoration(contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
@@ -212,6 +213,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: relationship,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(labelText: 'Relationship'),
@@ -230,6 +232,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: loanType,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(labelText: 'Target Loan Type'),
@@ -260,6 +263,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: initialStatus,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(labelText: 'Initial Payout Status'),

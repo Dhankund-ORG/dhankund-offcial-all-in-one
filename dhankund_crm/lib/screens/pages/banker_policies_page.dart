@@ -160,6 +160,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             Expanded(
                               flex: 2,
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: loanType,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(labelText: 'Loan Category *'),
@@ -184,6 +185,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: productType,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(
@@ -204,6 +206,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: vertical,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(
@@ -339,6 +342,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+  isExpanded: true,
                                 value: mProfileAllowed,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(
