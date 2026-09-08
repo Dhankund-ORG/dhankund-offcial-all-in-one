@@ -1,46 +1,60 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+// Mock User class to replace firebase_auth User
+class User {
+  final String uid;
+  final String email;
+  User({required this.uid, required this.email});
+}
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final String baseUrl;
+  
+  // Singleton pattern
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal() {
+    baseUrl = (dotenv.env['CLOUDFLARE_API_BASE_URL'] ?? 'https://dhankund.com').trim();
+  }
 
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  // Simple reactive state for auth
+  final ValueNotifier<User?> _userNotifier = ValueNotifier<User?>(null);
+  
+  Stream<User?> get authStateChanges async* {
+    yield _userNotifier.value;
+    // In a real app, listen to a stream controller or shared preferences
+  }
 
-  Future<String?> login(String email, String password) async {
+  User? get currentUser => _userNotifier.value;
+
+  Future<User?> signInWithEmailPassword(String email, String password) async {
     try {
-      UserCredential credential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
+      final uri = Uri.parse('$baseUrl/api/auth');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'action': 'signIn', 'email': email, 'password': password}),
       );
 
-      if (credential.user != null) {
-        DocumentSnapshot userDoc = await _firestore.collection('users').doc(credential.user!.uid).get();
-        
-        if (userDoc.exists) {
-          Map<String, dynamic>? data = userDoc.data() as Map<String, dynamic>?;
-          String? role = data?['role'];
-          
-          if (role == 'admin' || role == 'staff') {
-            return null; 
-          } else {
-            await logout();
-            return 'Unauthorized access. Only admin or staff can login.';
-          }
-        } else {
-          await logout();
-          return 'User record not found. Unauthorized.';
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded['success'] == true) {
+          final u = User(uid: decoded['user']['uid'], email: decoded['user']['email']);
+          _userNotifier.value = u;
+          return u;
         }
       }
-      return 'Login failed.';
-    } on FirebaseAuthException catch (e) {
-      return e.message ?? 'An unknown error occurred.';
+      return null;
     } catch (e) {
-      return e.toString();
+      debugPrint("Auth error: $e");
+      rethrow;
     }
   }
 
-  Future<void> logout() async {
-    await _auth.signOut();
+  Future<void> signOut() async {
+    _userNotifier.value = null;
   }
 }

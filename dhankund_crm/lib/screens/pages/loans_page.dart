@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../firebase_service.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../cloudflare_d1_service.dart';
 import '../../theme/app_theme.dart';
 
 class LoansPage extends StatefulWidget {
@@ -11,7 +11,7 @@ class LoansPage extends StatefulWidget {
 }
 
 class _LoansPageState extends State<LoansPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareD1Service _firestoreService = CloudflareD1Service();
   bool _isLoading = false;
   List<Map<String, dynamic>> _applications = [];
   String _selectedFilter = 'All'; // 'All', 'Pending', 'Approved', 'Rejected'
@@ -99,13 +99,14 @@ class _LoansPageState extends State<LoansPage> {
       // 5. Date Filter
       if (_selectedDateRange != null) {
         final timestamp = app['submitted_at'];
-        if (timestamp == null) return false;
-        final date = (timestamp is Timestamp) ? timestamp.toDate() : DateTime.tryParse(timestamp.toString());
-        if (date == null) return false;
-        
-        final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
-        final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
-        if (date.isBefore(start) || date.isAfter(end)) return false;
+        if (timestamp != null) {
+          final date = (timestamp is DateTime) ? timestamp : DateTime.tryParse(timestamp.toString());
+          if (date != null) {
+            final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
+            final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
+            if (date.isBefore(start) || date.isAfter(end)) return false;
+          }
+        }
       }
 
       return true;
@@ -1450,7 +1451,7 @@ class _LoansPageState extends State<LoansPage> {
                         'applicant_cibil': applicantCibil,
                         'pan_number': panNumber.isNotEmpty ? panNumber : null,
                         'aadhaar_number': aadhaarNumber.isNotEmpty ? aadhaarNumber : null,
-                        'submitted_at': existingLead?['submitted_at'] ?? Timestamp.now(),
+                        'submitted_at': existingLead?['submitted_at'] ?? DateTime.now(),
                       };
 
                       setState(() {

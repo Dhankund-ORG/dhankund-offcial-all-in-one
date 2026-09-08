@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../auth_service.dart';
 import '../theme/app_theme.dart';
 
 class SecureDeleteDialog extends StatefulWidget {
@@ -43,33 +43,24 @@ class _SecureDeleteDialogState extends State<SecureDeleteDialog> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null && user.email != null) {
-        // Re-authenticate Admin
-        AuthCredential credential = EmailAuthProvider.credential(
-          email: user.email!,
-          password: password,
-        );
-        await user.reauthenticateWithCredential(credential);
+      final user = AuthService().currentUser;
+      if (user != null && user.email.isNotEmpty) {
+        // Re-authenticate using our new custom AuthService logic
+        final authResult = await AuthService().signInWithEmailPassword(user.email, password);
         
-        // Authentication successful, proceed with deletion
-        await widget.onDeleteConfirmed();
-        
-        if (mounted) {
-          Navigator.of(context).pop(true); // Return true indicating success
+        if (authResult != null) {
+          // Authentication successful, proceed with deletion
+          await widget.onDeleteConfirmed();
+          
+          if (mounted) {
+            Navigator.of(context).pop(true); // Return true indicating success
+          }
+        } else {
+          setState(() => _errorMessage = 'Incorrect password. Deletion denied.');
         }
       } else {
         setState(() => _errorMessage = 'Admin not logged in.');
       }
-    } on FirebaseAuthException catch (e) {
-      debugPrint("Re-authentication failed: $e");
-      setState(() {
-        if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-          _errorMessage = 'Incorrect password. Deletion denied.';
-        } else {
-          _errorMessage = 'Authentication failed: ${e.message}';
-        }
-      });
     } catch (e) {
       debugPrint("Delete operation failed: $e");
       setState(() => _errorMessage = 'An error occurred during deletion.');

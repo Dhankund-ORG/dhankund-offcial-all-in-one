@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../firebase_service.dart';
+import '../../cloudflare_d1_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/stat_card.dart';
@@ -15,7 +15,7 @@ class OverviewPage extends StatefulWidget {
 }
 
 class _OverviewPageState extends State<OverviewPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareD1Service _firestoreService = CloudflareD1Service();
   bool _isLoading = true;
   Map<String, dynamic> _metrics = {};
   List<Map<String, dynamic>> _recentDsa = [];

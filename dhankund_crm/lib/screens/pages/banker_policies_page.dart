@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../firebase_service.dart';
+import '../../cloudflare_d1_service.dart';
 
 class BankerPoliciesPage extends StatefulWidget {
   const BankerPoliciesPage({super.key});
@@ -10,7 +10,7 @@ class BankerPoliciesPage extends StatefulWidget {
 }
 
 class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareD1Service _firestoreService = CloudflareD1Service();
   List<Map<String, dynamic>> _policies = [];
   bool _isLoading = true;
   String _selectedLoanType = 'All';

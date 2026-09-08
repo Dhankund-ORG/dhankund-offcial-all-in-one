@@ -21,15 +21,33 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = null;
     });
 
-    String? error = await _authService.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    try {
+      final user = await _authService.signInWithEmailPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Login failed. Invalid credentials.';
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
+      }
+      return;
+    }
 
     if (mounted) {
       setState(() {
         _isLoading = false;
-        _errorMessage = error;
       });
     }
   }

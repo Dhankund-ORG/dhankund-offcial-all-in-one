@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../firebase_service.dart';
+import '../../cloudflare_d1_service.dart';
 import '../../cloudflare_r2_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
@@ -14,7 +14,7 @@ class KycBankPage extends StatefulWidget {
 
 class _KycBankPageState extends State<KycBankPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareD1Service _firestoreService = CloudflareD1Service();
   final CloudflareR2Service _r2Service = CloudflareR2Service();
 
   bool _isLoading = false;

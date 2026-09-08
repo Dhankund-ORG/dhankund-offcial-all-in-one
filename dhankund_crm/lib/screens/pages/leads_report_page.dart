@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../cloudflare_d1_service.dart';
 import '../../theme/app_theme.dart';
-import '../../firebase_service.dart';
 
 class LeadsReportPage extends StatefulWidget {
   const LeadsReportPage({super.key});
@@ -10,7 +11,7 @@ class LeadsReportPage extends StatefulWidget {
 }
 
 class _LeadsReportPageState extends State<LeadsReportPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareD1Service _firestoreService = CloudflareD1Service();
   
   List<Map<String, dynamic>> _allLeads = [];
   List<Map<String, dynamic>> _eligibleLeads = [];

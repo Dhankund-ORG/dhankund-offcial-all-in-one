@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../firebase_service.dart';
+import '../../cloudflare_d1_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
 
@@ -11,7 +11,7 @@ class ReferralsPage extends StatefulWidget {
 }
 
 class _ReferralsPageState extends State<ReferralsPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareD1Service _firestoreService = CloudflareD1Service();
   bool _isLoading = false;
   List<Map<String, dynamic>> _referrals = [];
   List<Map<String, dynamic>> _users = [];

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../firebase_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../cloudflare_d1_service.dart';
+import 'package:intl/intl.dart';
 
 class BroadcastPage extends StatefulWidget {
   const BroadcastPage({super.key});
@@ -11,7 +11,7 @@ class BroadcastPage extends StatefulWidget {
 }
 
 class _BroadcastPageState extends State<BroadcastPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final CloudflareD1Service _firestoreService = CloudflareD1Service();
   
   bool _sendWhatsapp = true;
   bool _sendEmail = true;
@@ -323,10 +323,9 @@ class _BroadcastPageState extends State<BroadcastPage> {
                                       separatorBuilder: (_, __) => const Divider(color: Colors.white10),
                                       itemBuilder: (context, index) {
                                         final item = _broadcastHistory[index];
-                                        final ts = item['timestamp'] as Timestamp?;
-                                        final dateStr = ts != null 
-                                          ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}'
-                                          : 'Just now';
+                                        final ts = item['timestamp'];
+                                        final date = (ts is DateTime) ? ts : DateTime.tryParse(ts?.toString() ?? '');
+                                        final timeStr = date != null ? DateFormat('dd MMM yyyy, hh:mm a').format(date) : 'Just now';
                                         
                                         return Padding(
                                           padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -344,7 +343,7 @@ class _BroadcastPageState extends State<BroadcastPage> {
                                                       overflow: TextOverflow.ellipsis,
                                                     ),
                                                   ),
-                                                  Text(dateStr, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                                                  Text(timeStr, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                                                 ],
                                               ),
                                               const SizedBox(height: 6),
