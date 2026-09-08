@@ -12,3 +12,8 @@ bucket_name = "dhankund-storage"
 
 [[send_email]]
 name = "SEB"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dhankund-db"
+database_id = "D1_DATABASE_ID_PLACEHOLDER"

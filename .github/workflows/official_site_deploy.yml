@@ -47,6 +47,10 @@ jobs:
       - name: Create .assetsignore
         run: echo "_worker.js" > .vercel/output/static/.assetsignore
 
+      - name: Inject D1 Database ID
+        run: |
+          sed -i 's/D1_DATABASE_ID_PLACEHOLDER/${{ secrets.CLOUDFLARE_D1_ID }}/g' wrangler.toml
+
       - name: Deploy to Cloudflare Workers with Assets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

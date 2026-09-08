@@ -1,26 +1,27 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-export async function onRequestOptions() {
-  return new Response(null, { headers: corsHeaders });
+export async function OPTIONS() {
+  return new NextResponse(null, { headers: corsHeaders });
 }
 
-export async function onRequestPost(context: any) {
-  const { request, env } = context;
-  const d1 = env.DB;
-
-  if (!d1) {
-    return new Response(JSON.stringify({ error: 'D1 database binding not found' }), { 
-      status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-    });
-  }
-
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
-    const { action, payload } = body;
+    const { env } = getRequestContext();
+    const d1 = env.DB as any;
+
+    if (!d1) {
+      return NextResponse.json({ error: 'D1 database binding not found' }, { status: 500, headers: corsHeaders });
+    }
+
+    const body = await req.json();
+    const { action, payload } = body as any;
 
     let result;
     switch (action) {
@@ -260,18 +261,12 @@ export async function onRequestPost(context: any) {
         break;
 
       default:
-        return new Response(JSON.stringify({ error: 'Invalid action' }), { 
-          status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-        });
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400, headers: corsHeaders });
     }
 
-    return new Response(JSON.stringify({ success: true, data: result }), {
-      headers: { 'Content-Type': 'application/json', ...corsHeaders }
-    });
+    return NextResponse.json({ success: true, data: result }, { headers: corsHeaders });
     
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message || 'Internal Server Error' }), { 
-      status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-    });
+    return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500, headers: corsHeaders });
   }
 }
