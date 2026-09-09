@@ -1,7 +1,6 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:my_flutter_app/services/aws_s3_service.dart';
+import 'package:my_flutter_app/services/cloudflare_r2_service.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class FileUploadWidget extends StatefulWidget {
   final String label;
@@ -35,21 +34,12 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
       setState(() {
         _fileName = file.name;
         _isUploading = true;
-        _uploadProgress = 0;
+        _uploadProgress = 0.4;
       });
 
       try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) throw Exception('User not logged in');
-
         final extension = file.extension ?? 'bin';
-
-        // Fake upload progress for S3 since minio doesn't provide a direct stream progress easily for bytes
-        setState(() {
-          _uploadProgress = 0.5;
-        });
-
-        final downloadUrl = await AwsS3Service.uploadFile(
+        final downloadUrl = await CloudflareR2Service().uploadFile(
           bytes: file.bytes!,
           folderPath: widget.storagePath,
           extension: extension,
@@ -64,7 +54,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
         } else {
           throw Exception('Failed to retrieve download URL');
         }
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('File uploaded successfully!')),
@@ -86,16 +76,6 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
     }
   }
 
-  String _getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'pdf': return 'application/pdf';
-      case 'jpg':
-      case 'jpeg': return 'image/jpeg';
-      case 'png': return 'image/png';
-      default: return 'application/octet-stream';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -109,18 +89,14 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          ),
+          Text(widget.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
           const SizedBox(height: 12),
           if (_isUploading)
             Column(
               children: [
                 LinearProgressIndicator(value: _uploadProgress),
                 const SizedBox(height: 8),
-                Text('${(_uploadProgress * 100).toStringAsFixed(0)}% Uploading...', 
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                Text('${(_uploadProgress * 100).toStringAsFixed(0)}% Uploading...', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
               ],
             )
           else if (_fileName != null)
@@ -128,17 +104,8 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.green, size: 20),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _fileName!,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                TextButton(
-                  onPressed: _pickAndUploadFile,
-                  child: const Text('Change'),
-                ),
+                Expanded(child: Text(_fileName!, style: const TextStyle(fontSize: 14, color: Colors.black87), overflow: TextOverflow.ellipsis)),
+                TextButton(onPressed: _pickAndUploadFile, child: const Text('Change')),
               ],
             )
           else
@@ -151,10 +118,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
-          Text(
-            'Accepted: PDF, JPG, PNG',
-            style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-          ),
+          Text('Accepted: PDF, JPG, PNG', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
         ],
       ),
     );
