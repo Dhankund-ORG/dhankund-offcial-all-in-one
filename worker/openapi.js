@@ -42,7 +42,8 @@ export const endpoints = [
   { method: 'GET', path: '/api/v1/migrate/diff', auth: 'admin', summary: 'Compare Firestore vs D1 data (admin)' },
   { method: 'GET', path: '/api/v1/migrate/export', auth: 'admin', summary: 'Export Firestore data as JSON backup (admin)' },
   { method: 'POST', path: '/api/v1/migrate/import', auth: 'admin', summary: 'Import all Firestore data into D1 (admin)' },
-  { method: 'POST', path: '/api/v1/migrate/import-auth', auth: 'admin', summary: 'Import Firebase Auth passwords into D1 (admin)' }
+  { method: 'POST', path: '/api/v1/migrate/import-auth', auth: 'admin', summary: 'Import Firebase Auth passwords into D1 (admin)' },
+  { method: 'POST', path: '/api/v1/migrate/schema', auth: 'admin', summary: 'Add missing columns to users + registrations tables (admin)' }
 ];
 
 export function routeIndex() {
