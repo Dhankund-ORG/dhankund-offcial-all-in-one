@@ -159,7 +159,7 @@ class ApiService {
     required String role,
     required Map<String, dynamic> userDetails,
   }) async {
-    await ApiClient.patch('/api/v1/registrations/' + collection + '/' + docId, {
+    await ApiClient.patch('/api/v1/registrations/' + docId, {
       'status': status,
       'uid': uid,
       'role': role,
