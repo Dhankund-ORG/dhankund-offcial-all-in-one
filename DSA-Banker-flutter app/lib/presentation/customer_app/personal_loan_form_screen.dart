@@ -89,7 +89,7 @@ class _PersonalLoanFormScreenState extends State<PersonalLoanFormScreen> {
         const SizedBox(height: 32),
         _buildFormCard(),
         const SizedBox(height: 24),
-      ]))),
+      ])))),
     );
   }
 
