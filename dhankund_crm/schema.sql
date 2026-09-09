@@ -1,4 +1,3 @@
-PRAGMA journal_mode = WAL;
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
