@@ -15,7 +15,7 @@ class CloudflareR2Service {
       };
       final response = await http.post(uri, headers: headers, body: fileBytes);
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
         if (data is Map && data['url'] != null) {
           return data['url'].toString();
         }

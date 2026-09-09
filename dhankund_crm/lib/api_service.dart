@@ -70,9 +70,18 @@ class ApiClient {
   static dynamic _decode(http.Response response) {
     dynamic data;
     try {
-      data = jsonDecode(response.body);
+      final decodedBody = utf8.decode(response.bodyBytes);
+      try {
+        data = jsonDecode(decodedBody);
+      } catch (_) {
+        data = decodedBody;
+      }
     } catch (_) {
-      data = response.body;
+      try {
+        data = jsonDecode(response.body);
+      } catch (_) {
+        data = response.body;
+      }
     }
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return data;
