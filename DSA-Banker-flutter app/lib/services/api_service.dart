@@ -144,6 +144,7 @@ class ApiService {
   Future<void> createAdminPost({required String title, required String content, String? imageUrl}) async { await ApiClient.post('/api/v1/admin-posts', {'title': title, 'content': content, 'imageUrl': imageUrl}); }
   Future<void> deleteAdminPost(String id) async { await ApiClient.delete('/api/v1/admin-posts/' + id); }
 
+  Future<List<Map<String, dynamic>>> fetchDirectory(String role) async { final data = await ApiClient.get('/api/v1/directory?role=' + role); return _asList(data); }
   Future<List<Map<String, dynamic>>> fetchBankPolicies() async { final data = await ApiClient.get('/api/v1/bank-policies'); return _asList(data); }
 
   Future<void> registerDevice(String token, {String? platform}) async { await ApiClient.post('/api/v1/devices', {'token': token, 'platform': platform}); }
