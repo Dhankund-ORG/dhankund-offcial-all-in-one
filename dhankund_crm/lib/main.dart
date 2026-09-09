@@ -1,74 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'api_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/dashboard_layout.dart';
 import 'screens/login_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Load the AWS credentials from the config.env file
-  try {
-    await dotenv.load(fileName: "config.env");
-  } catch (e) {
-    debugPrint("Failed to load .env file: $e");
-  }
-
-  String? jsonStr;
-  try {
-    if (kIsWeb) {
-      jsonStr = dotenv.env['CRM_FIREBASE_WEB'];
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      jsonStr = dotenv.env['CRM_FIREBASE_ANDROID'];
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      jsonStr = dotenv.env['CRM_FIREBASE_IOS'];
-    }
-
-    if (jsonStr != null && jsonStr.isNotEmpty) {
-      Map<String, dynamic> config = {};
-      try {
-        config = jsonDecode(jsonStr);
-      } catch (e) {
-        // Fallback for JS object formats or unquoted keys/values
-        final RegExp keyRegex = RegExp(r'([a-zA-Z0-9_]+)\s*:\s*["\u0027]?([^,"\u0027}\s]+)["\u0027]?');
-        for (final match in keyRegex.allMatches(jsonStr)) {
-          config[match.group(1)!] = match.group(2);
-        }
-      }
-      
-      await Firebase.initializeApp(
-        options: FirebaseOptions(
-          apiKey: config['apiKey'] ?? "",
-          authDomain: config['authDomain'] ?? "",
-          databaseURL: config['databaseURL'] ?? "",
-          projectId: config['projectId'] ?? "",
-          storageBucket: config['storageBucket'] ?? "",
-          messagingSenderId: config['messagingSenderId'] ?? "",
-          appId: config['appId'] ?? "",
-          measurementId: config['measurementId'] ?? "",
-        ),
-      );
-    } else {
-      debugPrint("Warning: No Firebase JSON configuration found for this platform.");
-      runApp(MaterialApp(home: Scaffold(body: Center(child: Text("Error: Firebase configuration missing for this platform.")))));
-      return;
-    }
-  } catch (e, stack) {
-    debugPrint("Firebase initialization failed: $e\n$stack");
-    runApp(MaterialApp(home: Scaffold(body: Center(child: SelectableText("Firebase Init Error:\n$e\n$jsonStr")))));
-    return;
-  }
-
-  runApp(const MyApp());
+  await dotenv.load(fileName: 'config.env');
+  ApiClient.init();
+  await ApiClient.loadSession();
+  runApp(const DhankundCrmApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class DhankundCrmApp extends StatelessWidget {
+  const DhankundCrmApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -76,51 +22,61 @@ class MyApp extends StatelessWidget {
       title: 'Dhankund CRM Control Center',
       theme: AppTheme.themeData,
       debugShowCheckedModeBanner: false,
-      home: const AuthWrapper(),
+      home: const AuthGate(),
     );
   }
 }
 
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late Future<Map<String, dynamic>?> _session;
+
+  @override
+  void initState() {
+    super.initState();
+    _session = _resolveSession();
+  }
+
+  Future<Map<String, dynamic>?> _resolveSession() async {
+    final token = ApiClient.token;
+    if (token == null || token.isEmpty) return null;
+    try {
+      final user = await ApiService().me();
+      if (user != null) {
+        final role = (user['role'] ?? '').toString();
+        if (role == 'admin' || role == 'staff') return user;
+      }
+      await ApiClient.clearSession();
+    } catch (_) {
+      await ApiClient.clearSession();
+    }
+    return null;
+  }
+
+  void _onLoggedIn() {
+    setState(() {
+      _session = _resolveSession();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _session,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-        
-        if (snapshot.hasData && snapshot.data != null) {
-          return FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(snapshot.data!.uid).get(),
-            builder: (context, roleSnapshot) {
-              if (roleSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              
-              if (roleSnapshot.hasData && roleSnapshot.data!.exists) {
-                Map<String, dynamic>? data = roleSnapshot.data!.data() as Map<String, dynamic>?;
-                String? role = data?['role'];
-                if (role == 'admin' || role == 'staff') {
-                  return const DashboardLayout();
-                }
-              }
-              
-              // If unauthorized or error, sign out
-              FirebaseAuth.instance.signOut();
-              return const LoginScreen();
-            },
-          );
+        if (snapshot.data != null) {
+          return const DashboardLayout();
         }
-        
-        return const LoginScreen();
+        return LoginScreen(onLogin: _onLoggedIn);
       },
     );
   }
