@@ -1,4 +1,4 @@
-// worker/migrate.js Ã¢ÂÂ Firestore to D1 migration module
+// worker/migrate.js ÃÂ¢ÃÂÃÂ Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
@@ -488,13 +488,15 @@ export async function importAuthData(env, dryRun) {
   const projectId = getProjectId(env);
   const results = { project_id: projectId, imported_at: nowIso(), dry_run: !!dryRun };
   const errors = [];
+  var totalUsers = 0, withPasswordHash = 0, withSalt = 0, updated = 0, created = 0, failed = 0;
+  var sampleUser = null;
 
   // 1. Fetch project config (signerKey + saltSeparator for Firebase scrypt)
   let signerKey = null;
   let saltSeparator = null;
   try {
     const configRes = await fetch('https://identitytoolkit.googleapis.com/v1/projects/' + projectId, {
-      headers: { Authorization: 'Bearer ' + token }
+      headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
     });
     if (!configRes.ok) {
       const body = await configRes.text();
@@ -517,39 +519,53 @@ export async function importAuthData(env, dryRun) {
 
   // 3. Fetch all Firebase Auth users with passwordHash + salt (paginated)
   let pageToken = null;
-  let totalUsers = 0, withPassword = 0, updated = 0, created = 0, failed = 0;
   do {
     let url = 'https://identitytoolkit.googleapis.com/v1/projects/' + projectId + '/accounts:batchGet?maxResults=1000';
     if (pageToken) url += '&nextPageToken=' + encodeURIComponent(pageToken);
-    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    const res = await fetch(url, {
+      headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
+    });
     if (!res.ok) {
       const body = await res.text();
       throw new Error('Identity Toolkit list users failed: ' + res.status + ' ' + body.slice(0, 500));
     }
-    const data = await res.json();
-    const users = data.users || [];
+    const respData = await res.json();
+    const users = respData.users || [];
     for (const u of users) {
       totalUsers++;
+      if (!sampleUser && totalUsers <= 3) {
+        sampleUser = {
+          localId: u.localId ? 'present' : 'absent',
+          email: u.email || 'absent',
+          hasPasswordHash: !!u.passwordHash,
+          passwordHashLength: u.passwordHash ? u.passwordHash.length : 0,
+          passwordHashPrefix: u.passwordHash ? u.passwordHash.slice(0, 20) : null,
+          hasSalt: !!u.salt,
+          saltLength: u.salt ? u.salt.length : 0,
+          providers: (u.providerUserInfo || []).map(function(p) { return p.providerId; })
+        };
+      }
       const email = (u.email || '').toString().toLowerCase();
       const passwordHash = u.passwordHash || null;
       const salt = u.salt || null;
+      if (passwordHash) withPasswordHash++;
+      if (salt) withSalt++;
       if (!email || !passwordHash || !salt) continue;
-      withPassword++;
       try {
         const existing = await first(env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
         if (existing) {
           if (!dryRun) {
-            const data = safeJson(existing.data, '{}');
-            data.firebasePasswordHash = passwordHash;
-            data.firebaseSalt = salt;
-            await run(env, 'UPDATE users SET data = ?, updated_at = ? WHERE id = ?', [JSON.stringify(data), nowIso(), existing.id]);
+            const userData = safeJson(existing.data, '{}');
+            userData.firebasePasswordHash = passwordHash;
+            userData.firebaseSalt = salt;
+            await run(env, 'UPDATE users SET data = ?, updated_at = ? WHERE id = ?', [JSON.stringify(userData), nowIso(), existing.id]);
           }
           updated++;
         } else {
           if (!dryRun) {
             const uid = u.localId || randomId();
-            const data = { uid: uid, role: 'customer', profileCompleted: false, firebasePasswordHash: passwordHash, firebaseSalt: salt };
-            await run(env, 'INSERT OR REPLACE INTO users (id, email, password_hash, role, name, mobile, kyc_completed, bank_details_completed, data, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?)', [uid, email, 'customer', u.displayName || null, u.phoneNumber || null, JSON.stringify(data), nowIso(), nowIso()]);
+            const userData = { uid: uid, role: 'customer', profileCompleted: false, firebasePasswordHash: passwordHash, firebaseSalt: salt };
+            await run(env, 'INSERT OR REPLACE INTO users (id, email, password_hash, role, name, mobile, kyc_completed, bank_details_completed, data, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?)', [uid, email, 'customer', u.displayName || null, u.phoneNumber || null, JSON.stringify(userData), nowIso(), nowIso()]);
           }
           created++;
         }
@@ -558,12 +574,13 @@ export async function importAuthData(env, dryRun) {
         errors.push({ email: email, error: e.message });
       }
     }
-    pageToken = data.nextPageToken || null;
+    pageToken = respData.nextPageToken || null;
   } while (pageToken);
 
   return Object.assign(results, {
     project_config: { signer_key: signerKey ? 'stored' : 'missing', salt_separator: saltSeparator ? 'stored' : 'missing' },
-    summary: { total_auth_users: totalUsers, users_with_password: withPassword, updated: updated, created: created, failed: failed },
+    summary: { total_auth_users: totalUsers, users_with_password_hash: withPasswordHash, users_with_salt: withSalt, updated: updated, created: created, failed: failed },
+    sample_user: sampleUser,
     errors: errors
   });
 }
