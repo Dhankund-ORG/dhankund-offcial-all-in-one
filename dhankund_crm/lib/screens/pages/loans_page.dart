@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../firebase_service.dart';
+import '../../api_service.dart';
 import '../../theme/app_theme.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../cloudflare_r2_service.dart';
@@ -13,7 +12,7 @@ class LoansPage extends StatefulWidget {
 }
 
 class _LoansPageState extends State<LoansPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final ApiService _firestoreService = ApiService();
   final CloudflareR2Service _r2Service = CloudflareR2Service();
   bool _isLoading = false;
   List<Map<String, dynamic>> _applications = [];
@@ -103,7 +102,7 @@ class _LoansPageState extends State<LoansPage> {
       if (_selectedDateRange != null) {
         final timestamp = app['submitted_at'];
         if (timestamp == null) return false;
-        final date = (timestamp is Timestamp) ? timestamp.toDate() : DateTime.tryParse(timestamp.toString());
+        final date = DateTime.tryParse(timestamp.toString());
         if (date == null) return false;
         
         final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
@@ -740,7 +739,7 @@ class _LoansPageState extends State<LoansPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: amountController,
-                                decoration: const InputDecoration(labelText: 'Requested Loan Amount (₹) *'),
+                                decoration: const InputDecoration(labelText: 'Requested Loan Amount (â¹) *'),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
                               ),
                             ),
@@ -749,12 +748,12 @@ class _LoansPageState extends State<LoansPage> {
                               child: loanType == 'Personal Loan'
                                   ? TextFormField(
                                       controller: salaryController,
-                                      decoration: const InputDecoration(labelText: 'Monthly Income / Salary (₹)'),
+                                      decoration: const InputDecoration(labelText: 'Monthly Income / Salary (â¹)'),
                                     )
                                   : loanType == 'Business Loan'
                                       ? TextFormField(
                                           controller: turnoverController,
-                                          decoration: const InputDecoration(labelText: 'Annual Turnover (₹)'),
+                                          decoration: const InputDecoration(labelText: 'Annual Turnover (â¹)'),
                                         )
                                       : const SizedBox.shrink(),
                             ),
@@ -1478,7 +1477,7 @@ class _LoansPageState extends State<LoansPage> {
                         'applicant_cibil': applicantCibil,
                         'pan_number': panNumber.isNotEmpty ? panNumber : null,
                         'aadhaar_number': aadhaarNumber.isNotEmpty ? aadhaarNumber : null,
-                        'submitted_at': existingLead?['submitted_at'] ?? Timestamp.now(),
+                        'submitted_at': existingLead?['submitted_at'] ?? DateTime.now().toIso8601String(),
                       };
 
                       setState(() {
@@ -1929,10 +1928,10 @@ class _LoansPageState extends State<LoansPage> {
                           ),
                           items: const [
                             DropdownMenuItem(value: 'All', child: Text('All Amounts')),
-                            DropdownMenuItem(value: '< 5L', child: Text('Under ₹5 Lakh')),
-                            DropdownMenuItem(value: '5L - 15L', child: Text('₹5L - ₹15 Lakh')),
-                            DropdownMenuItem(value: '15L - 50L', child: Text('₹15L - ₹50 Lakh')),
-                            DropdownMenuItem(value: '> 50L', child: Text('Above ₹50 Lakh')),
+                            DropdownMenuItem(value: '< 5L', child: Text('Under â¹5 Lakh')),
+                            DropdownMenuItem(value: '5L - 15L', child: Text('â¹5L - â¹15 Lakh')),
+                            DropdownMenuItem(value: '15L - 50L', child: Text('â¹15L - â¹50 Lakh')),
+                            DropdownMenuItem(value: '> 50L', child: Text('Above â¹50 Lakh')),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -2179,14 +2178,14 @@ class _LoansPageState extends State<LoansPage> {
                                             const Text('REQUESTED AMOUNT', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
                                             const SizedBox(height: 4),
                                             Text(
-                                              '₹ ${app['loan_amount'] ?? '0'}',
+                                              'â¹ ${app['loan_amount'] ?? '0'}',
                                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppTheme.royalGold),
                                             ),
                                             if (isBusiness && app['turnover'] != null) ...[
                                               const SizedBox(height: 12),
                                               const Text('ANNUAL TURNOVER', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
                                               const SizedBox(height: 2),
-                                              Text('₹ ${app['turnover']}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                              Text('â¹ ${app['turnover']}', style: const TextStyle(fontWeight: FontWeight.w600)),
                                             ],
                                           ],
                                         ),
