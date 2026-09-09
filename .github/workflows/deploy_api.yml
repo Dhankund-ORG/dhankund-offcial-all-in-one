@@ -72,5 +72,8 @@ jobs:
 
       - name: Smoke test API health
         run: |
-          sleep 3
-          curl -fsS "https://dhankund-api.nssite.workers.dev/api/health" || exit 1
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "https://dhankund-api.nssite.workers.dev/api/health"; then echo "API health OK"; exit 0; fi
+            echo "attempt $i failed, retrying in 6s..."; sleep 6
+          done
+          echo "ERROR: API health check failed after retries"; exit 1
