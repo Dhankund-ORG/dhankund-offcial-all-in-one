@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../firebase_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../api_service.dart';
 
 class BroadcastPage extends StatefulWidget {
   const BroadcastPage({super.key});
@@ -11,7 +10,7 @@ class BroadcastPage extends StatefulWidget {
 }
 
 class _BroadcastPageState extends State<BroadcastPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final ApiService _firestoreService = ApiService();
   
   bool _sendWhatsapp = true;
   bool _sendEmail = true;
@@ -323,9 +322,10 @@ class _BroadcastPageState extends State<BroadcastPage> {
                                       separatorBuilder: (_, __) => const Divider(color: Colors.white10),
                                       itemBuilder: (context, index) {
                                         final item = _broadcastHistory[index];
-                                        final ts = item['timestamp'] as Timestamp?;
-                                        final dateStr = ts != null 
-                                          ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}'
+                                        final tsString = (item['timestamp'] == null) ? '' : item['timestamp'].toString();
+                                        final parsed = DateTime.tryParse(tsString);
+                                        final dateStr = parsed != null
+                                          ? parsed.day.toString() + '/' + parsed.month.toString() + '/' + parsed.year.toString()
                                           : 'Just now';
                                         
                                         return Padding(

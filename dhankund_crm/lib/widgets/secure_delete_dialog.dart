@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/app_theme.dart';
+import '../api_service.dart';
 
 class SecureDeleteDialog extends StatefulWidget {
   final String title;
@@ -43,36 +43,20 @@ class _SecureDeleteDialogState extends State<SecureDeleteDialog> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null && user.email != null) {
-        // Re-authenticate Admin
-        AuthCredential credential = EmailAuthProvider.credential(
-          email: user.email!,
-          password: password,
-        );
-        await user.reauthenticateWithCredential(credential);
-        
-        // Authentication successful, proceed with deletion
-        await widget.onDeleteConfirmed();
-        
-        if (mounted) {
-          Navigator.of(context).pop(true); // Return true indicating success
-        }
-      } else {
-        setState(() => _errorMessage = 'Admin not logged in.');
+      await ApiService().verifyPassword(password);
+      await widget.onDeleteConfirmed();
+      if (mounted) {
+        Navigator.of(context).pop(true);
       }
-    } on FirebaseAuthException catch (e) {
-      debugPrint("Re-authentication failed: $e");
-      setState(() {
-        if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-          _errorMessage = 'Incorrect password. Deletion denied.';
-        } else {
-          _errorMessage = 'Authentication failed: ${e.message}';
-        }
-      });
+    } on ApiException catch (e) {
+      if (e.message.toLowerCase().contains('password')) {
+        _errorMessage = 'Incorrect password. Deletion denied.';
+      } else {
+        _errorMessage = e.message;
+      }
     } catch (e) {
-      debugPrint("Delete operation failed: $e");
-      setState(() => _errorMessage = 'An error occurred during deletion.');
+      debugPrint('Delete operation failed: ' + e.toString());
+      _errorMessage = 'An error occurred during deletion.';
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -163,7 +147,7 @@ class _SecureDeleteDialogState extends State<SecureDeleteDialog> {
             backgroundColor: AppTheme.rubyRed,
             foregroundColor: Colors.white,
           ),
-          child: _isLoading 
+          child: _isLoading
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
               : const Text('Secure Delete'),
         ),

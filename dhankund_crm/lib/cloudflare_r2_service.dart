@@ -1,45 +1,35 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'api_service.dart';
 
 class CloudflareR2Service {
-  // Use the official site domain or fallback to localhost for dev
-  late String baseUrl;
+  String get baseUrl => ApiClient.baseUrl;
 
-  CloudflareR2Service() {
-    // We can define CLOUDFLARE_API_BASE_URL in .env (e.g. https://dhankund.com)
-    baseUrl = (dotenv.env['CLOUDFLARE_API_BASE_URL'] ?? 'https://dhankund.com').trim();
-  }
-
-  /// Upload a document to Cloudflare R2 via Pages Function
   Future<String?> uploadDocument(String fileName, Uint8List fileBytes) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/upload?filename=$fileName');
-      
-      final response = await http.post(
-        uri,
-        body: fileBytes,
-        headers: {
-          'Content-Type': 'application/octet-stream',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['url']; // Returns the download API URL or public URL
-      } else {
-        debugPrint("Error uploading to R2: ${response.body}");
+      final uri = Uri.parse(baseUrl + '/api/v1/upload?filename=' + Uri.encodeQueryComponent(fileName));
+      final headers = <String, String>{
+        'Content-Type': 'application/octet-stream',
+        if (ApiClient.token != null) 'Authorization': 'Bearer ' + ApiClient.token!,
+      };
+      final response = await http.post(uri, headers: headers, body: fileBytes);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data['url'] != null) {
+          return data['url'].toString();
+        }
         return null;
       }
+      debugPrint('R2 upload failed: ' + response.statusCode.toString() + ' ' + response.body);
+      return null;
     } catch (e) {
-      debugPrint("Exception uploading document: $e");
+      debugPrint('R2 upload error: ' + e.toString());
       return null;
     }
   }
 
-  /// Get a download URL for a document (This is now just the API endpoint)
   Future<String?> getBankerDocumentUrl(String documentKey) async {
-    return '$baseUrl/api/download/$documentKey';
+    return baseUrl + '/api/v1/download/' + documentKey;
   }
 }

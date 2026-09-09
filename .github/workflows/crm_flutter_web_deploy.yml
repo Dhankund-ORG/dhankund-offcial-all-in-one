@@ -27,29 +27,49 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Dependencies
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Worker Dependencies
+        run: npm install
+
+      - name: Install Flutter Dependencies
         run: flutter pub get
 
-      - name: Validate Secrets
+      - name: Validate Required Secrets
         run: |
-          if [ -z "${{ secrets.CRM_FIREBASE_WEB }}" ]; then
-            echo "ERROR: CRM_FIREBASE_WEB secret is missing or empty. Please add it to GitHub Secrets."
-            exit 1
-          fi
+          if [ -z "${{ secrets.D1_DATABASE_ID }}" ]; then echo "ERROR: D1_DATABASE_ID is missing"; exit 1; fi
+          if [ -z "${{ secrets.SESSION_SECRET }}" ]; then echo "ERROR: SESSION_SECRET is missing"; exit 1; fi
+          if [ -z "${{ secrets.ADMIN_EMAIL }}" ]; then echo "ERROR: ADMIN_EMAIL is missing"; exit 1; fi
+          if [ -z "${{ secrets.ADMIN_PASSWORD }}" ]; then echo "ERROR: ADMIN_PASSWORD is missing"; exit 1; fi
+
+      - name: Configure Wrangler (D1 database id)
+        run: |
+          sed -i "s#FILL_ME_D1_DATABASE_ID#${{ secrets.D1_DATABASE_ID }}#g" wrangler.toml
 
       - name: Create config.env file
         run: |
-          echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > config.env
-          echo "AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}" >> config.env
-          echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> config.env
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> config.env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> config.env
-          
-          DSA_WEB=$(echo '${{ secrets.DSA_FIREBASE_WEB }}' | tr -d '\n' | tr -d '\r')
-          echo "DSA_FIREBASE_WEB='${DSA_WEB}'" >> config.env
-          
-          CRM_WEB=$(echo '${{ secrets.CRM_FIREBASE_WEB }}' | tr -d '\n' | tr -d '\r')
-          echo "CRM_FIREBASE_WEB='${CRM_WEB}'" >> config.env
+          echo "API_BASE_URL=${{ secrets.API_BASE_URL }}" > config.env
+          echo "CLOUDFLARE_API_BASE_URL=${{ secrets.API_BASE_URL }}" >> config.env
+
+      - name: Apply D1 schema
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 execute dhankund-crm --remote --file=schema.sql
+
+      - name: Configure Worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "${{ secrets.SESSION_SECRET }}" | npx wrangler secret put SESSION_SECRET
+          echo "${{ secrets.ADMIN_EMAIL }}" | npx wrangler secret put ADMIN_EMAIL
+          echo "${{ secrets.ADMIN_PASSWORD }}" | npx wrangler secret put ADMIN_PASSWORD
+          if [ -n "${{ secrets.FIREBASE_PROJECT_ID }}" ]; then echo "${{ secrets.FIREBASE_PROJECT_ID }}" | npx wrangler secret put FIREBASE_PROJECT_ID; fi
+          if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | npx wrangler secret put FIREBASE_SERVICE_ACCOUNT; fi
 
       - name: Build Flutter Web
         run: flutter build web --release

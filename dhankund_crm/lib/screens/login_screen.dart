@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final VoidCallback? onLogin;
+  const LoginScreen({super.key, this.onLogin});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -31,6 +32,10 @@ class _LoginScreenState extends State<LoginScreen> {
         _isLoading = false;
         _errorMessage = error;
       });
+    }
+
+    if (error == null && mounted) {
+      widget.onLogin?.call();
     }
   }
 

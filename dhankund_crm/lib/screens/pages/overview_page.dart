@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../firebase_service.dart';
+import '../../api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/stat_card.dart';
@@ -15,7 +15,7 @@ class OverviewPage extends StatefulWidget {
 }
 
 class _OverviewPageState extends State<OverviewPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final ApiService _firestoreService = ApiService();
   bool _isLoading = true;
   Map<String, dynamic> _metrics = {};
   List<Map<String, dynamic>> _recentDsa = [];
@@ -134,8 +134,8 @@ class _OverviewPageState extends State<OverviewPage> {
                     ),
                     StatCard(
                       title: 'TOTAL DISBURSED PAYOUT',
-                      value: '₹${disbursedVal.toStringAsFixed(0)}',
-                      subtitle: '₹${pendingVal.toStringAsFixed(0)} Processing',
+                      value: 'â¹${disbursedVal.toStringAsFixed(0)}',
+                      subtitle: 'â¹${pendingVal.toStringAsFixed(0)} Processing',
                       icon: Icons.account_balance_wallet,
                       iconColor: Colors.lightBlueAccent,
                       trendText: 'Wallet',
@@ -187,7 +187,7 @@ class _OverviewPageState extends State<OverviewPage> {
       child: SizedBox(
         height: 350,
         child: CustomChart(
-          title: 'Partner Referral Earnings Growth (₹)',
+          title: 'Partner Referral Earnings Growth (â¹)',
           data: const [30000, 45000, 60000, 95000, 110000, 150000],
           labels: const ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
         ),

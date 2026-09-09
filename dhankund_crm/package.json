@@ -1,0 +1,10 @@
+{
+  "name": "dhankund-crm-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hono.js API for Dhankund CRM (Cloudflare Workers + D1 + R2 + FCM)",
+  "dependencies": {
+    "hono": "^4.6.14"
+  }
+}
