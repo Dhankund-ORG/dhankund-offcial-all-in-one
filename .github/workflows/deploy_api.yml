@@ -1,0 +1,76 @@
+name: Deploy Shared API Worker
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'worker.js'
+      - 'worker/**'
+      - 'schema.sql'
+      - 'package.json'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy_api.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Validate Required Secrets
+        run: |
+          if [ -z "${{ secrets.D1_DATABASE_ID }}" ]; then echo "ERROR: D1_DATABASE_ID is missing"; exit 1; fi
+          if [ -z "${{ secrets.SESSION_SECRET }}" ]; then echo "ERROR: SESSION_SECRET is missing"; exit 1; fi
+          if [ -z "${{ secrets.ADMIN_EMAIL }}" ]; then echo "ERROR: ADMIN_EMAIL is missing"; exit 1; fi
+          if [ -z "${{ secrets.ADMIN_PASSWORD }}" ]; then echo "ERROR: ADMIN_PASSWORD is missing"; exit 1; fi
+
+      - name: Configure Wrangler (D1 database id)
+        run: sed -i "s#FILL_ME_D1_DATABASE_ID#${{ secrets.D1_DATABASE_ID }}#g" wrangler.toml
+
+      - name: Apply D1 schema
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 execute dhankund-crm --remote --file=schema.sql
+
+      - name: Configure Worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf %s "$SESSION_SECRET" | npx wrangler secret put SESSION_SECRET
+          printf %s "$ADMIN_EMAIL" | npx wrangler secret put ADMIN_EMAIL
+          printf %s "$ADMIN_PASSWORD" | npx wrangler secret put ADMIN_PASSWORD
+          if [ -n "$FIREBASE_PROJECT_ID" ]; then printf %s "$FIREBASE_PROJECT_ID" | npx wrangler secret put FIREBASE_PROJECT_ID; fi
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then printf %s "$FIREBASE_SERVICE_ACCOUNT" | npx wrangler secret put FIREBASE_SERVICE_ACCOUNT; fi
+
+      - name: Deploy to Cloudflare Workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      - name: Smoke test API health
+        run: |
+          sleep 3
+          curl -fsS "https://dhankund-api.nssite.workers.dev/api/health" || exit 1
