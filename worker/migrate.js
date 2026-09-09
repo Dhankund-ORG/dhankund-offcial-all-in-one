@@ -1,4 +1,4 @@
-// worker/migrate.js â Firestore to D1 migration module
+// worker/migrate.js Ã¢ÂÂ Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
@@ -152,15 +152,37 @@ async function readCollection(accessToken, projectId, collection) {
 
 function mapUser(doc) {
   const id = doc.uid || doc._id;
-  const topKeys = new Set(['_id', 'uid', 'email', 'role', 'name', 'mobile', 'kycCompleted', 'bankDetailsCompleted', 'createdAt', 'updatedAt', 'created_at', 'updated_at', 'passwordHash', 'password_hash']);
+  const knownKeys = new Set(['_id', 'uid', 'email', 'role', 'name', 'mobile',
+    'kycCompleted', 'bankDetailsCompleted', 'profileCompleted', 'profilePictureUrl', 'fcmToken',
+    'kycPan', 'kycAadhaar', 'kycDocUrl',
+    'bankName', 'bankAccountHolder', 'bankAccountNumber', 'bankIfsc', 'bankProofUrl',
+    'gender', 'company', 'address', 'currentExp', 'totalExp', 'segment', 'profession', 'about',
+    'partnerName', 'partnerMobile', 'gumastaUrl', 'idCardUrl',
+    'managerName', 'managerMobile', 'areaManagerName', 'areaManagerMobile',
+    'nomineeName', 'officeAddress',
+    'createdAt', 'updatedAt', 'created_at', 'updated_at', 'passwordHash', 'password_hash']);
   const extra = {};
-  for (const [k, v] of Object.entries(doc)) { if (!topKeys.has(k)) extra[k] = v; }
+  for (const [k, v] of Object.entries(doc)) { if (!knownKeys.has(k)) extra[k] = v; }
   if (!extra.uid) extra.uid = id;
   return {
     id: id, email: doc.email || null, password_hash: doc.passwordHash || doc.password_hash || null,
     role: doc.role || null, name: doc.name || null, mobile: doc.mobile || null,
     kyc_completed: doc.kycCompleted ? 1 : 0, bank_details_completed: doc.bankDetailsCompleted ? 1 : 0,
-    data: JSON.stringify(extra),
+    profile_completed: doc.profileCompleted ? 1 : 0,
+    profile_picture_url: doc.profilePictureUrl || null,
+    fcm_token: doc.fcmToken || null,
+    kyc_pan: doc.kycPan || null, kyc_aadhaar: doc.kycAadhaar || null, kyc_doc_url: doc.kycDocUrl || null,
+    bank_name: doc.bankName || null, bank_account_holder: doc.bankAccountHolder || null,
+    bank_account_number: doc.bankAccountNumber || null, bank_ifsc: doc.bankIfsc || null, bank_proof_url: doc.bankProofUrl || null,
+    gender: doc.gender || null, company: doc.company || null, address: doc.address || null,
+    current_experience: doc.currentExp || null, total_experience: doc.totalExp || null,
+    segment: doc.segment || null, profession: doc.profession || null, about: doc.about || null,
+    partner_name: doc.partnerName || null, partner_mobile: doc.partnerMobile || null,
+    gumasta_url: doc.gumastaUrl || null, id_card_url: doc.idCardUrl || null,
+    manager_name: doc.managerName || null, manager_mobile: doc.managerMobile || null,
+    area_manager_name: doc.areaManagerName || null, area_manager_mobile: doc.areaManagerMobile || null,
+    nominee_name: doc.nomineeName || null, office_address: doc.officeAddress || null,
+    data: Object.keys(extra).length > 0 ? JSON.stringify(extra) : null,
     created_at: toIso(doc.createdAt) || toIso(doc.created_at) || null,
     updated_at: toIso(doc.updatedAt) || toIso(doc.updated_at) || null
   };
@@ -201,12 +223,26 @@ function mapReferral(doc) {
 }
 
 function mapRegistration(doc, role) {
-  const data = Object.assign({}, doc);
-  delete data._id; delete data.uid; delete data.userId; delete data.role;
-  delete data.status; delete data.timestamp; delete data.created_at;
+  const knownKeys = new Set(['_id', 'uid', 'userId', 'role', 'status', 'timestamp', 'created_at',
+    'name', 'mobile', 'email', 'gender', 'company', 'address',
+    'currentExp', 'totalExp', 'segment', 'profession', 'about',
+    'partnerName', 'partnerMobile', 'gumastaUrl', 'idCardUrl',
+    'managerName', 'managerMobile', 'areaManagerName', 'areaManagerMobile',
+    'nomineeName', 'officeAddress']);
+  const extra = {};
+  for (const [k, v] of Object.entries(doc)) { if (!knownKeys.has(k)) extra[k] = v; }
   return {
-    id: doc._id, uid: doc.uid || doc.userId || null, role: role,
-    status: doc.status || 'pending', data: JSON.stringify(data),
+    id: doc._id, uid: doc.uid || doc.userId || null, role: role, status: doc.status || 'pending',
+    name: doc.name || null, mobile: doc.mobile || null, email: doc.email || null,
+    gender: doc.gender || null, company: doc.company || null, address: doc.address || null,
+    current_experience: doc.currentExp || null, total_experience: doc.totalExp || null,
+    segment: doc.segment || null, profession: doc.profession || null, about: doc.about || null,
+    partner_name: doc.partnerName || null, partner_mobile: doc.partnerMobile || null,
+    gumasta_url: doc.gumastaUrl || null, id_card_url: doc.idCardUrl || null,
+    manager_name: doc.managerName || null, manager_mobile: doc.managerMobile || null,
+    area_manager_name: doc.areaManagerName || null, area_manager_mobile: doc.areaManagerMobile || null,
+    nominee_name: doc.nomineeName || null, office_address: doc.officeAddress || null,
+    data: Object.keys(extra).length > 0 ? JSON.stringify(extra) : null,
     created_at: toIso(doc.timestamp) || toIso(doc.created_at) || null
   };
 }
@@ -268,10 +304,25 @@ function mapBroadcast(doc) {
 // ==================== Table Schema & Collection Map ====================
 
 const TABLE_COLUMNS = {
-  users: ['id', 'email', 'password_hash', 'role', 'name', 'mobile', 'kyc_completed', 'bank_details_completed', 'data', 'created_at', 'updated_at'],
+  users: ['id', 'email', 'password_hash', 'role', 'name', 'mobile', 'kyc_completed', 'bank_details_completed',
+    'profile_completed', 'profile_picture_url', 'fcm_token',
+    'kyc_pan', 'kyc_aadhaar', 'kyc_doc_url',
+    'bank_name', 'bank_account_holder', 'bank_account_number', 'bank_ifsc', 'bank_proof_url',
+    'gender', 'company', 'address', 'current_experience', 'total_experience',
+    'segment', 'profession', 'about',
+    'partner_name', 'partner_mobile', 'gumasta_url', 'id_card_url',
+    'manager_name', 'manager_mobile', 'area_manager_name', 'area_manager_mobile',
+    'nominee_name', 'office_address',
+    'data', 'created_at', 'updated_at'],
   loan_applications: ['id', 'loan_type', 'full_name', 'pan_number', 'aadhaar_number', 'mobile_number', 'email', 'loan_amount', 'salary', 'turnover', 'father_name', 'mother_name', 'marital_status', 'spouse_name', 'occupation', 'personal_email', 'official_email', 'current_address', 'office_address', 'ref1_name', 'ref1_mobile', 'ref1_address', 'ref2_name', 'ref2_mobile', 'ref2_address', 'applicant_documents', 'co_applicants', 'status', 'login_company_name', 'bank_executive_name', 'gender', 'applicant_cibil', 'submitted_at', 'updated_at'],
   referrals: ['id', 'referrer_id', 'friend_name', 'friend_mobile', 'friend_email', 'relationship', 'loan_type', 'estimated_amount', 'consent_given', 'status', 'created_at'],
-  registrations: ['id', 'uid', 'role', 'status', 'data', 'created_at'],
+  registrations: ['id', 'uid', 'role', 'status',
+    'name', 'mobile', 'email', 'gender', 'company', 'address',
+    'current_experience', 'total_experience', 'segment', 'profession', 'about',
+    'partner_name', 'partner_mobile', 'gumasta_url', 'id_card_url',
+    'manager_name', 'manager_mobile', 'area_manager_name', 'area_manager_mobile',
+    'nominee_name', 'office_address',
+    'data', 'created_at'],
   admin_posts: ['id', 'uid', 'name', 'title', 'content', 'imageUrl', 'timestamp'],
   news_feed: ['id', 'uid', 'name', 'role', 'company', 'profilePictureUrl', 'mobile', 'content', 'imageUrl', 'likes', 'timestamp'],
   statuses: ['id', 'uid', 'name', 'role', 'company', 'mobile', 'text', 'gradientIndex', 'mediaUrl', 'mediaType', 'profilePictureUrl', 'timestamp'],
@@ -515,4 +566,80 @@ export async function importAuthData(env, dryRun) {
     summary: { total_auth_users: totalUsers, users_with_password: withPassword, updated: updated, created: created, failed: failed },
     errors: errors
   });
+}
+
+// ==================== Schema Migration (Add Missing Columns) ====================
+
+const SCHEMA_COLUMNS = {
+  users: [
+    ['profile_completed', 'INTEGER DEFAULT 0'],
+    ['profile_picture_url', 'TEXT'],
+    ['fcm_token', 'TEXT'],
+    ['kyc_pan', 'TEXT'],
+    ['kyc_aadhaar', 'TEXT'],
+    ['kyc_doc_url', 'TEXT'],
+    ['bank_name', 'TEXT'],
+    ['bank_account_holder', 'TEXT'],
+    ['bank_account_number', 'TEXT'],
+    ['bank_ifsc', 'TEXT'],
+    ['bank_proof_url', 'TEXT'],
+    ['gender', 'TEXT'],
+    ['company', 'TEXT'],
+    ['address', 'TEXT'],
+    ['current_experience', 'TEXT'],
+    ['total_experience', 'TEXT'],
+    ['segment', 'TEXT'],
+    ['profession', 'TEXT'],
+    ['about', 'TEXT'],
+    ['partner_name', 'TEXT'],
+    ['partner_mobile', 'TEXT'],
+    ['gumasta_url', 'TEXT'],
+    ['id_card_url', 'TEXT'],
+    ['manager_name', 'TEXT'],
+    ['manager_mobile', 'TEXT'],
+    ['area_manager_name', 'TEXT'],
+    ['area_manager_mobile', 'TEXT'],
+    ['nominee_name', 'TEXT'],
+    ['office_address', 'TEXT']
+  ],
+  registrations: [
+    ['name', 'TEXT'],
+    ['mobile', 'TEXT'],
+    ['email', 'TEXT'],
+    ['gender', 'TEXT'],
+    ['company', 'TEXT'],
+    ['address', 'TEXT'],
+    ['current_experience', 'TEXT'],
+    ['total_experience', 'TEXT'],
+    ['segment', 'TEXT'],
+    ['profession', 'TEXT'],
+    ['about', 'TEXT'],
+    ['partner_name', 'TEXT'],
+    ['partner_mobile', 'TEXT'],
+    ['gumasta_url', 'TEXT'],
+    ['id_card_url', 'TEXT'],
+    ['manager_name', 'TEXT'],
+    ['manager_mobile', 'TEXT'],
+    ['area_manager_name', 'TEXT'],
+    ['area_manager_mobile', 'TEXT'],
+    ['nominee_name', 'TEXT'],
+    ['office_address', 'TEXT']
+  ]
+};
+
+export async function migrateSchema(env) {
+  const results = {};
+  for (const [table, columns] of Object.entries(SCHEMA_COLUMNS)) {
+    const rows = await all(env, 'PRAGMA table_info(' + table + ')');
+    const existing = new Set(rows.map(function (r) { return r.name; }));
+    const added = [];
+    for (const [colName, colType] of columns) {
+      if (!existing.has(colName)) {
+        await run(env, 'ALTER TABLE ' + table + ' ADD COLUMN ' + colName + ' ' + colType);
+        added.push(colName);
+      }
+    }
+    results[table] = { existing_columns: existing.size, added: added, added_count: added.length };
+  }
+  return { migrated_at: nowIso(), results: results };
 }
