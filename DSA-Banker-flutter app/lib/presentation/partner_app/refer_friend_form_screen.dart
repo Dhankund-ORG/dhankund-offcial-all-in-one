@@ -1,99 +1,40 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:my_flutter_app/services/api_service.dart';
+import 'package:my_flutter_app/presentation/partner_app/thank_you_screen.dart' as ref;
+import 'package:url_launcher/url_launcher.dart';
 
 class ReferFriendFormScreen extends StatefulWidget {
   const ReferFriendFormScreen({super.key});
-
   @override
   State<ReferFriendFormScreen> createState() => _ReferFriendFormScreenState();
 }
 
 class _ReferFriendFormScreenState extends State<ReferFriendFormScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _api = ApiService();
   final _nameController = TextEditingController();
   final _mobileController = TextEditingController();
   final _emailController = TextEditingController();
-  final _amountController = TextEditingController();
-
-  String _relationship = 'Friend';
-  String _selectedLoanType = 'Personal Loan';
-  bool _hasConsent = false;
+  final _loanAmountController = TextEditingController();
+  String? _selectedRelationship;
+  String? _selectedLoanType;
+  bool _consentGiven = false;
   bool _isLoading = false;
+  final List<String> _relationships = ['Friend', 'Colleague', 'Family', 'Relative', 'Neighbor', 'Acquaintance'];
+  final List<String> _loanTypes = ['Personal Loan', 'Business Loan', 'Home Loan', 'Auto Loan', 'Credit Card', 'Other'];
 
-  final List<String> _relationships = [
-    'Friend',
-    'Family',
-    'Colleague',
-    'Other',
-  ];
-
-  final List<String> _loanTypes = [
-    'Personal Loan',
-    'Home Loan',
-    'Business Loan',
-    'Mortgage Loan',
-    'Car Loan',
-    'Commercial Vehicle Loan',
-    'CC/OD Limit',
-    'Commercial Construction Loan',
-    'Education Loan',
-    'Gold Loan',
-    'Project Loan',
-    'Machinery Loan',
-    'Others',
-  ];
+  @override
+  void dispose() { _nameController.dispose(); _mobileController.dispose(); _emailController.dispose(); _loanAmountController.dispose(); super.dispose(); }
 
   Future<void> _submitReferral() async {
     if (!_formKey.currentState!.validate()) return;
-
-    if (!_hasConsent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please obtain and check the consent box to proceed.'),
-        ),
-      );
-      return;
-    }
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You must be logged in to refer a friend.'),
-        ),
-      );
-      return;
-    }
-
+    if (!_consentGiven) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please give consent to refer'))); return; }
     setState(() => _isLoading = true);
-
     try {
-      await FirebaseFirestore.instance.collection('referrals').add({
-        'referrer_id': user.uid,
-        'friend_name': _nameController.text,
-        'friend_mobile': _mobileController.text,
-        'friend_email': _emailController.text,
-        'relationship': _relationship,
-        'loan_type': _selectedLoanType,
-        'estimated_amount': _amountController.text,
-        'consent_given': _hasConsent,
-        'status': 'Invited', // Initial status
-        'created_at': FieldValue.serverTimestamp(),
-      });
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Referral submitted successfully!')),
-        );
-      }
+      await _api.createReferral(friendName: _nameController.text.trim(), friendMobile: _mobileController.text.trim(), friendEmail: _emailController.text.trim(), relationship: _selectedRelationship ?? 'Friend', loanType: _selectedLoanType ?? 'Personal Loan', estimatedAmount: _loanAmountController.text.trim(), consentGiven: true, status: 'Invited');
+      if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ref.ThankYouScreen()));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -103,209 +44,30 @@ class _ReferFriendFormScreenState extends State<ReferFriendFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
-      appBar: AppBar(
-        title: const Text(
-          'Refer a New Friend',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildLabel('Full Name *'),
-              _buildTextField(
-                controller: _nameController,
-                hint: 'Friend\'s full name',
-                validator: (value) =>
-                    value!.isEmpty ? 'Name is required' : null,
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('Mobile Number *'),
-              _buildTextField(
-                controller: _mobileController,
-                hint: '10-digit mobile number',
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value!.isEmpty) return 'Mobile number is required';
-                  if (!RegExp(r'^[0-9]{10}$').hasMatch(value))
-                    return 'Invalid mobile number';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('Email Address (Optional)'),
-              _buildTextField(
-                controller: _emailController,
-                hint: 'friend@email.com',
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('Relationship'),
-              _buildDropdown(
-                value: _relationship,
-                items: _relationships,
-                onChanged: (val) => setState(() => _relationship = val!),
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('Loan Type *'),
-              _buildDropdown(
-                value: _selectedLoanType,
-                items: _loanTypes,
-                onChanged: (val) => setState(() => _selectedLoanType = val!),
-              ),
-              const SizedBox(height: 16),
-
-              _buildLabel('Estimated Loan Amount'),
-              _buildTextField(
-                controller: _amountController,
-                hint: 'Enter amount',
-                keyboardType: TextInputType.number,
-                prefix: '₹ ',
-              ),
-              const SizedBox(height: 24),
-
-              // Consent Section
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _hasConsent
-                        ? const Color(0xFF4A3AFF)
-                        : Colors.grey.shade300,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Checkbox(
-                      value: _hasConsent,
-                      onChanged: (val) => setState(() => _hasConsent = val!),
-                      activeColor: const Color(0xFF4A3AFF),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        "I have my friend's permission to share their contact details for a loan inquiry.",
-                        style: TextStyle(fontSize: 13, color: Colors.black87),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitReferral,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4A3AFF),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Submit Referral',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text('Refer a Friend', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)), backgroundColor: Colors.transparent, elevation: 0, leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black87), onPressed: () => Navigator.of(context).pop())),
+      body: SingleChildScrollView(padding: const EdgeInsets.all(20.0), child: Form(key: _formKey, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('Refer a friend and earn ₹5000 for each successful referral!', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.black87)),
+        const SizedBox(height: 24),
+        _buildLabel('Friend Name *'), _buildTextField(_nameController, 'Enter your friend name', Icons.person),
+        const SizedBox(height: 16), _buildLabel('Friend Mobile No. *'), _buildTextField(_mobileController, 'Enter mobile number', Icons.phone, keyboardType: TextInputType.phone, validator: (v) => (v == null || !RegExp(r'^[0-9]{10}$').hasMatch(v.trim())) ? 'Enter valid 10-digit number' : null),
+        const SizedBox(height: 16), _buildLabel('Friend Email (Optional)'), _buildTextField(_emailController, 'Enter email address', Icons.email, keyboardType: TextInputType.emailAddress),
+        const SizedBox(height: 16), _buildLabel('Relationship *'), _buildDropdown(_selectedRelationship, _relationships, 'Select Relationship', (v) => setState(() => _selectedRelationship = v)),
+        const SizedBox(height: 16), _buildLabel('Loan Type *'), _buildDropdown(_selectedLoanType, _loanTypes, 'Select Loan Type', (v) => setState(() => _selectedLoanType = v)),
+        const SizedBox(height: 16), _buildLabel('Estimated Loan Amount (Optional)'), _buildTextField(_loanAmountController, 'Enter estimated amount', Icons.attach_money, keyboardType: TextInputType.number),
+        const SizedBox(height: 16),
+        CheckboxListTile(value: _consentGiven, onChanged: (v) => setState(() => _consentGiven = v ?? false), title: const Text('I have my friend\'s consent to share their details', style: TextStyle(fontSize: 14)), activeColor: const Color(0xFF4A3AFF)),
+        const SizedBox(height: 24),
+        SizedBox(width: double.infinity, height: 52, child: ElevatedButton(onPressed: _isLoading ? null : _submitReferral, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A3AFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0), child: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Text('Submit Referral', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)))),
+        const SizedBox(height: 16),
+      ])),
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-      ),
-    );
+  Widget _buildLabel(String text) => Align(alignment: Alignment.centerLeft, child: Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.black87))));
+  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, {TextInputType keyboardType = TextInputType.text, String? Function(String?)? validator}) {
+    return Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))]), child: TextFormField(controller: controller, keyboardType: keyboardType, validator: validator ?? (validator != null ? validator : null), decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, color: const Color(0xFF4A3AFF)), border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16))));
   }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    TextInputType keyboardType = TextInputType.text,
-    String? prefix,
-    String? Function(String?)? validator,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        validator: validator,
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixText: prefix,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdown({
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          items: items
-              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
+  Widget _buildDropdown(String? value, List<String> items, String hint, Function(String?) onChanged) {
+    return Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))]), padding: const EdgeInsets.symmetric(horizontal: 16), child: DropdownButtonFormField<String>(value: value, hint: Text(hint), decoration: const InputDecoration(border: InputBorder.none), items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: onChanged, validator: (v) => v == null ? 'Please select' : null));
   }
 }
