@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../firebase_service.dart';
+import '../../api_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
 
@@ -12,7 +12,7 @@ class CommunityPage extends StatefulWidget {
 
 class _CommunityPageState extends State<CommunityPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final FirestoreService _firestoreService = FirestoreService();
+  final ApiService _firestoreService = ApiService();
 
   bool _isLoading = false;
   List<Map<String, dynamic>> _adminPosts = [];
