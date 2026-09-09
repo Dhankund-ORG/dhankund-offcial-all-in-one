@@ -17,6 +17,8 @@ class _MigrationPageState extends State<MigrationPage> {
   Map<String, dynamic>? _diffResult;
   Map<String, dynamic>? _importResult;
   String? _error;
+  Map<String, dynamic>? _authResult;
+  bool _isImportingAuth = false;
   String _selectedCollection = 'All Collections';
 
   static const List<String> _collections = [
@@ -46,6 +48,16 @@ class _MigrationPageState extends State<MigrationPage> {
       setState(() { _importResult = result; _isMigrating = false; });
     } catch (e) {
       setState(() { _error = e.toString(); _isMigrating = false; });
+    }
+  }
+
+  Future<void> _importAuth(bool dryRun) async {
+    setState(() { _isImportingAuth = true; _error = null; _authResult = null; });
+    try {
+      final result = await _api.importAuthData(dryRun: dryRun);
+      setState(() { _authResult = result; _isImportingAuth = false; });
+    } catch (e) {
+      setState(() { _error = e.toString(); _isImportingAuth = false; });
     }
   }
 
@@ -126,6 +138,14 @@ class _MigrationPageState extends State<MigrationPage> {
                     label: Text(_isMigrating ? 'Migrating...' : 'Migrate All Data'),
                     style: ElevatedButton.styleFrom(backgroundColor: AppTheme.emeraldGreen),
                   ),
+                  ElevatedButton.icon(
+                    onPressed: _isImportingAuth ? null : () => _importAuth(false),
+                    icon: _isImportingAuth
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                      : const Icon(Icons.password, size: 18),
+                    label: Text(_isImportingAuth ? 'Importing...' : 'Import Passwords'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+                  ),
                 ]),
               ],
             ),
@@ -145,6 +165,10 @@ class _MigrationPageState extends State<MigrationPage> {
           if (_importResult != null) ...[
             const SizedBox(height: 24),
             _buildImportResults(),
+          ],
+          if (_authResult != null) ...[
+            const SizedBox(height: 24),
+            _buildAuthResults(),
           ],
         ],
       ),
@@ -296,6 +320,43 @@ class _MigrationPageState extends State<MigrationPage> {
     ]);
   }
 
+  Widget _buildAuthResults() {
+    final summary = (_authResult!['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+    final errors = (_authResult!['errors'] as List?)?.cast<Map>() ?? [];
+    final isDryRun = _authResult!['dry_run'] == true;
+    final projectConfig = (_authResult!['project_config'] as Map?)?.cast<String, dynamic>() ?? {};
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Firebase Auth Import ${isDryRun ? '(Dry Run)' : ''}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+      const SizedBox(height: 8),
+      Text('Project: ${_authResult!['project_id'] ?? '-'}  |  Signer Key: ${projectConfig['signer_key'] ?? '-'}  |  Salt Separator: ${projectConfig['salt_separator'] ?? '-'}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+      const SizedBox(height: 16),
+      LayoutBuilder(builder: (context, constraints) {
+        int count = constraints.maxWidth > 800 ? 4 : 2;
+        return GridView.count(crossAxisCount: count, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 2.0, children: [
+          _summaryCard('Auth Users', '${summary['total_auth_users'] ?? 0}', Icons.people, Colors.blue),
+          _summaryCard('With Password', '${summary['users_with_password'] ?? 0}', Icons.lock, Colors.green),
+          _summaryCard('Updated', '${summary['updated'] ?? 0}', Icons.update, Colors.orange),
+          _summaryCard('Failed', '${summary['failed'] ?? 0}', Icons.error, Colors.red),
+        ]);
+      }),
+      const SizedBox(height: 16),
+      GlassCard(padding: 16.0, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Created: ${summary['created'] ?? 0}  |  Updated: ${summary['updated'] ?? 0}  |  Failed: ${summary['failed'] ?? 0}', style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        if (errors.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Errors (${errors.length})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+          const SizedBox(height: 4),
+          ...errors.take(10).map((e) => Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('${e['email']}: ${e['error']}', style: const TextStyle(color: Colors.red, fontSize: 12)))),
+        ],
+      ])),
+      const SizedBox(height: 12),
+      GlassCard(padding: 16.0, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.info, color: Colors.amber, size: 16),
+        const SizedBox(width: 8),
+        Expanded(child: Text('After importing passwords, users can login with their Firebase credentials. On first login, the password is verified via Firebase scrypt and immediately upgraded to PBKDF2. Subsequent logins use D1 directly.', style: const TextStyle(color: Colors.amber, fontSize: 12))),
+      ])),
+    ]);
+  }
   Widget _summaryCard(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),

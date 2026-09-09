@@ -519,4 +519,11 @@ class ApiService {
     final data = await ApiClient.post(path, {});
     return (data as Map).cast<String, dynamic>();
   }
+
+  Future<Map<String, dynamic>> importAuthData({bool dryRun = false}) async {
+    var path = '/api/v1/migrate/import-auth';
+    if (dryRun) { path += '?dry_run=true'; }
+    final data = await ApiClient.post(path, {});
+    return (data as Map).cast<String, dynamic>();
+  }
 }

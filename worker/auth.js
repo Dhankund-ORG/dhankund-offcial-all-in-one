@@ -1,3 +1,5 @@
+import { scryptSync, createHmac } from 'node:crypto';
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -65,5 +67,31 @@ export async function verifySession(token, secret) {
     return payload;
   } catch (e) {
     return null;
+  }
+}
+
+// ==================== Firebase Auth Scrypt Verification ====================
+// Verifies a password against Firebase Auth's modified scrypt hash.
+// Firebase uses: scrypt(password, salt+saltSeparator, N=16384, r=8, p=1, 32 bytes)
+// followed by HMAC-SHA256 with the project's signerKey.
+// After successful verification, the caller should upgrade to PBKDF2 via hashPassword().
+export function verifyFirebasePassword(password, firebaseHashB64, saltB64, signerKeyB64, saltSeparatorB64) {
+  try {
+    const salt = Buffer.from(saltB64, 'base64');
+    const signerKey = Buffer.from(signerKeyB64, 'base64');
+    const saltSeparator = Buffer.from(saltSeparatorB64 || 'Bw==', 'base64');
+    const storedHash = Buffer.from(firebaseHashB64, 'base64');
+    const saltWithSeparator = Buffer.concat([salt, saltSeparator]);
+    const intermediate = scryptSync(Buffer.from(password, 'utf8'), saltWithSeparator, 32, {
+      N: 16384,
+      r: 8,
+      p: 1,
+      maxmem: 128 * 1024 * 1024
+    });
+    const computedHash = createHmac('sha256', signerKey).update(intermediate).digest();
+    return computedHash.equals(storedHash);
+  } catch (e) {
+    console.error('Firebase password verify error:', e.message);
+    return false;
   }
 }

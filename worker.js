@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { all, first, run, insertRow, updateRow, safeJson, nowIso, randomId } from './worker/db.js';
-import { hashPassword, verifyPassword, signSession, verifySession } from './worker/auth.js';
+import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebasePassword } from './worker/auth.js';
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
-import { computeDiff, exportData, importData } from './worker/migrate.js';
+import { computeDiff, exportData, importData, importAuthData } from './worker/migrate.js';
 
 const app = new Hono();
 
@@ -128,7 +128,25 @@ app.post('/api/v1/auth/login', async function (c) {
   if (!user.password_hash) {
     const adminEmail = (c.env.ADMIN_EMAIL || '').toString().trim().toLowerCase();
     if ((c.env.ADMIN_PASSWORD || '').toString() === password && email === adminEmail) { const hash = await hashPassword(password); await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash }); user.password_hash = hash; }
-    else { return c.json({ error: 'Invalid email or password' }, 401); }
+    else {
+      // Try Firebase Auth password verification (for migrated users)
+      const userData = safeJson(user.data, {});
+      if (userData.firebasePasswordHash) {
+        let fbOk = false;
+        try {
+          const signerKeyRow = await first(c.env, "SELECT value FROM migration_config WHERE key = 'firebase_signer_key'");
+          const saltSepRow = await first(c.env, "SELECT value FROM migration_config WHERE key = 'firebase_salt_separator'");
+          if (signerKeyRow && signerKeyRow.value) {
+            fbOk = verifyFirebasePassword(password, userData.firebasePasswordHash, userData.firebaseSalt, signerKeyRow.value, saltSepRow ? saltSepRow.value : 'Bw==');
+          }
+        } catch (e) { console.error('Firebase password verify error:', e.message); }
+        if (fbOk) {
+          const hash = await hashPassword(password);
+          await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash, updated_at: nowIso() });
+          user.password_hash = hash;
+        } else { return c.json({ error: 'Invalid email or password' }, 401); }
+      } else { return c.json({ error: 'Invalid email or password' }, 401); }
+    }
   }
   const ok = await verifyPassword(password, user.password_hash);
   if (!ok) return c.json({ error: 'Invalid email or password' }, 401);
@@ -250,4 +268,12 @@ app.post('/api/v1/migrate/import', requireAdmin, async function (c) {
   } catch (e) { return c.json({ error: e.message }, 500); }
 });
 
+// ==================== Firebase Auth Migration ====================
+app.post('/api/v1/migrate/import-auth', requireAdmin, async function (c) {
+  try {
+    const dryRun = c.req.query('dry_run') === 'true' || c.req.query('dryRun') === 'true';
+    const result = await importAuthData(c.env, dryRun);
+    return c.json(result);
+  } catch (e) { return c.json({ error: e.message }, 500); }
+});
 export default app;
