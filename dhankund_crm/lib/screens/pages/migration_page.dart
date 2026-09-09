@@ -19,6 +19,8 @@ class _MigrationPageState extends State<MigrationPage> {
   String? _error;
   Map<String, dynamic>? _authResult;
   bool _isImportingAuth = false;
+  Map<String, dynamic>? _schemaResult;
+  bool _isMigratingSchema = false;
   String _selectedCollection = 'All Collections';
 
   static const List<String> _collections = [
@@ -58,6 +60,16 @@ class _MigrationPageState extends State<MigrationPage> {
       setState(() { _authResult = result; _isImportingAuth = false; });
     } catch (e) {
       setState(() { _error = e.toString(); _isImportingAuth = false; });
+    }
+  }
+
+  Future<void> _runSchemaMigration() async {
+    setState(() { _isMigratingSchema = true; _error = null; _schemaResult = null; });
+    try {
+      final result = await _api.migrateSchema();
+      setState(() { _schemaResult = result; _isMigratingSchema = false; });
+    } catch (e) {
+      setState(() { _error = e.toString(); _isMigratingSchema = false; });
     }
   }
 
@@ -146,6 +158,14 @@ class _MigrationPageState extends State<MigrationPage> {
                     label: Text(_isImportingAuth ? 'Importing...' : 'Import Passwords'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
                   ),
+                  ElevatedButton.icon(
+                    onPressed: _isMigratingSchema ? null : _runSchemaMigration,
+                    icon: _isMigratingSchema
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                      : const Icon(Icons.schema, size: 18),
+                    label: Text(_isMigratingSchema ? 'Updating...' : 'Update Schema'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                  ),
                 ]),
               ],
             ),
@@ -169,6 +189,10 @@ class _MigrationPageState extends State<MigrationPage> {
           if (_authResult != null) ...[
             const SizedBox(height: 24),
             _buildAuthResults(),
+          ],
+          if (_schemaResult != null) ...[
+            const SizedBox(height: 24),
+            _buildSchemaResults(),
           ],
         ],
       ),
@@ -320,6 +344,45 @@ class _MigrationPageState extends State<MigrationPage> {
     ]);
   }
 
+  Widget _buildSchemaResults() {
+    final results = (_schemaResult!['results'] as Map?)?.cast<String, dynamic>() ?? {};
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Schema Migration Results', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.indigo)),
+      const SizedBox(height: 8),
+      Text('Migrated at: ' + (_schemaResult!['migrated_at'] ?? '-').toString(), style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+      const SizedBox(height: 16),
+      ...results.entries.map((entry) {
+        final tableData = (entry.value as Map).cast<String, dynamic>();
+        final added = (tableData['added'] as List?)?.cast() ?? [];
+        final existingCount = tableData['existing_columns'] ?? 0;
+        final addedCount = tableData['added_count'] ?? 0;
+        return Padding(padding: const EdgeInsets.only(bottom: 12), child: GlassCard(padding: 16.0, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(entry.key.toString() + ' table', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo)),
+          const SizedBox(height: 4),
+          Text('Existing columns: ' + existingCount.toString() + '  |  Added: ' + addedCount.toString(), style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+          if (added.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, runSpacing: 4, children: added.map((col) => Chip(
+              label: Text(col.toString(), style: const TextStyle(fontSize: 11)),
+              backgroundColor: Colors.indigo.withOpacity(0.15),
+              side: BorderSide.none,
+              visualDensity: VisualDensity.compact,
+            )).toList()),
+          ] else ...[
+            const SizedBox(height: 4),
+            Text('All columns already exist.', style: const TextStyle(color: Colors.green, fontSize: 12)),
+          ],
+        ])),
+        );
+      }),
+      const SizedBox(height: 8),
+      GlassCard(padding: 16.0, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.info, color: Colors.amber, size: 16),
+        const SizedBox(width: 8),
+        Expanded(child: Text('After updating the schema, run Migrate All Data to populate the new columns.', style: const TextStyle(color: Colors.amber, fontSize: 12))),
+      ])),
+    ]);
+  }
   Widget _buildAuthResults() {
     final summary = (_authResult!['summary'] as Map?)?.cast<String, dynamic>() ?? {};
     final errors = (_authResult!['errors'] as List?)?.cast<Map>() ?? [];
