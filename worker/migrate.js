@@ -1,4 +1,4 @@
-// worker/migrate.js ÃÂ¢ÃÂÃÂ Firestore to D1 migration module
+// worker/migrate.js ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
@@ -71,7 +71,7 @@ async function getIdentityToolkitAccessToken(env) {
   const nowSec = Math.floor(Date.now() / 1000);
   const tokenUri = sa.token_uri || 'https://oauth2.googleapis.com/token';
   const header = { alg: 'RS256', typ: 'JWT' };
-  const claims = { iss: sa.client_email, scope: 'https://www.googleapis.com/auth/identitytoolkit', aud: tokenUri, iat: nowSec, exp: nowSec + 3600 };
+  const claims = { iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit', aud: tokenUri, iat: nowSec, exp: nowSec + 3600 };
   const assertion = await signJwtRs256(sa.private_key, header, claims);
   const res = await fetch(tokenUri, {
     method: 'POST',
@@ -529,8 +529,11 @@ export async function importAuthData(env, dryRun) {
       const body = await res.text();
       throw new Error('Identity Toolkit list users failed: ' + res.status + ' ' + body.slice(0, 500));
     }
-    const respData = await res.json();
-    const users = respData.users || [];
+    const respText = await res.text();
+    var respData = {};
+    try { respData = JSON.parse(respText); } catch(e) { respData = { parseError: e.message, rawText: respText.slice(0, 300) }; }
+    const users = respData.users || respData.accounts || [];
+    if (totalUsers === 0) { results._raw_diag = { status: res.status, respKeys: Object.keys(respData), usersCount: users.length, respPreview: respText.slice(0, 300) }; }
     for (const u of users) {
       totalUsers++;
       if (!sampleUser && totalUsers <= 3) {
@@ -576,6 +579,56 @@ export async function importAuthData(env, dryRun) {
     }
     pageToken = respData.nextPageToken || null;
   } while (pageToken);
+
+  // Fallback: if v1 returned 0 users, try admin/v2 endpoint
+  if (totalUsers === 0) {
+    try {
+      const v2Res = await fetch('https://identitytoolkit.googleapis.com/admin/v2/projects/' + projectId + '/accounts:batchGet?pageSize=1000', {
+        headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
+      });
+      if (v2Res.ok) {
+        const v2Text = await v2Res.text();
+        const v2Data = JSON.parse(v2Text);
+        const v2Users = v2Data.accounts || v2Data.users || [];
+        results._v2_diag = { status: v2Res.status, respKeys: Object.keys(v2Data), usersCount: v2Users.length, respPreview: v2Text.slice(0, 300) };
+        for (const u of v2Users) {
+          totalUsers++;
+          if (!sampleUser) {
+            sampleUser = { email: u.email || 'absent', hasPasswordHash: !!u.passwordHash, passwordHashLength: u.passwordHash ? u.passwordHash.length : 0, providers: (u.providerUserInfo || []).map(function(p) { return p.providerId; }) };
+          }
+          const email = (u.email || '').toString().toLowerCase();
+          const passwordHash = u.passwordHash || null;
+          const salt = u.salt || null;
+          if (passwordHash) withPasswordHash++;
+          if (salt) withSalt++;
+          if (!email || !passwordHash || !salt) continue;
+          try {
+            const existing = await first(env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
+            if (existing) {
+              if (!dryRun) {
+                const userData = safeJson(existing.data, '{}');
+                userData.firebasePasswordHash = passwordHash;
+                userData.firebaseSalt = salt;
+                await run(env, 'UPDATE users SET data = ?, updated_at = ? WHERE id = ?', [JSON.stringify(userData), nowIso(), existing.id]);
+              }
+              updated++;
+            } else {
+              if (!dryRun) {
+                const uid = u.localId || u.name || randomId();
+                const userData = { uid: uid, role: 'customer', profileCompleted: false, firebasePasswordHash: passwordHash, firebaseSalt: salt };
+                await run(env, 'INSERT OR REPLACE INTO users (id, email, password_hash, role, name, mobile, kyc_completed, bank_details_completed, data, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?)', [uid, email, 'customer', u.displayName || null, u.phoneNumber || null, JSON.stringify(userData), nowIso(), nowIso()]);
+              }
+              created++;
+            }
+          } catch (e) { failed++; errors.push({ email: email, error: e.message }); }
+        }
+      } else {
+        results._v2_diag = { status: v2Res.status, error: 'admin/v2 endpoint failed' };
+      }
+    } catch (e) {
+      results._v2_diag = { error: e.message };
+    }
+  }
 
   return Object.assign(results, {
     project_config: { signer_key: signerKey ? 'stored' : 'missing', salt_separator: saltSeparator ? 'stored' : 'missing' },
