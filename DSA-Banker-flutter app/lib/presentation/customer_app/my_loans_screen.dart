@@ -1,247 +1,73 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'loan_detail_screen.dart';
+import 'package:my_flutter_app/services/api_service.dart';
+import 'package:my_flutter_app/presentation/customer_app/loan_selection_screen.dart';
 
 class MyLoansScreen extends StatefulWidget {
   const MyLoansScreen({super.key});
-
   @override
   State<MyLoansScreen> createState() => _MyLoansScreenState();
 }
 
-class _MyLoansScreenState extends State<MyLoansScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _MyLoansScreenState extends State<MyLoansScreen> {
+  final _api = ApiService();
+  List<Map<String, dynamic>> _loans = [];
+  bool _isLoading = true;
+  Timer? _pollTimer;
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+  void initState() { super.initState(); _loadLoans(); _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadLoans()); }
+  @override
+  void dispose() { _pollTimer?.cancel(); super.dispose(); }
+
+  Future<void> _loadLoans() async {
+    try {
+      final list = await _api.fetchMyLoans();
+      if (mounted) setState(() { _loans = list; _isLoading = false; });
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved': case 'disbursed': return const Color(0xFF27AE60);
+      case 'rejected': return Colors.redAccent;
+      case 'processing': case 'in review': return Colors.blue;
+      default: return Colors.orange;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
-      appBar: AppBar(
-        title: const Text(
-          'My Loans',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: const Color(0xFF4A3AFF),
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: const Color(0xFF4A3AFF),
-          tabs: const [
-            Tab(text: 'Active'),
-            Tab(text: 'Applications'),
-            Tab(text: 'History'),
-          ],
-        ),
+      appBar: AppBar(title: const Text('My Loans', style: TextStyle(color: Color(0xFF4A3AFF), fontWeight: FontWeight.bold)), backgroundColor: Colors.white, elevation: 0, centerTitle: true),
+      body: RefreshIndicator(
+        color: const Color(0xFF4A3AFF),
+        onRefresh: _loadLoans,
+        child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A3AFF)))
+          : _loans.isEmpty
+            ? ListView(children: [const SizedBox(height: 200), Center(child: Column(children: [Icon(Icons.assignment_outlined, size: 64, color: Colors.grey[300]), const SizedBox(height: 16), const Text('No loan applications yet', style: TextStyle(color: Colors.grey, fontSize: 16))]))],)
+            : ListView.builder(padding: const EdgeInsets.all(20.0), itemCount: _loans.length, itemBuilder: (context, index) {
+                final loan = _loans[index];
+                final status = (loan['status'] ?? 'Pending').toString();
+                final color = _statusColor(status);
+                return Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text(loan['loan_type'] ?? 'Loan', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87))), Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Text(status, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)))]),
+                  const SizedBox(height: 12), const Divider(),
+                  const SizedBox(height: 12),
+                  if ((loan['full_name'] ?? '').toString().isNotEmpty) _buildInfoRow('Applicant', loan['full_name']),
+                  if ((loan['loan_amount'] ?? '').toString().isNotEmpty) _buildInfoRow('Amount', '₹${loan['loan_amount']}'),
+                  if ((loan['mobile_number'] ?? '').toString().isNotEmpty) _buildInfoRow('Mobile', loan['mobile_number']),
+                  _buildInfoRow('Submitted', (loan['submitted_at'] ?? '').toString().substring(0, (loan['submitted_at'] ?? '').toString().length > 10 ? 10 : (loan['submitted_at'] ?? '').toString().length)),
+                ]));
+              }),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildLoanList('Active'), // Active Loans
-          _buildLoanList('Applications'), // Pending Applications
-          _buildLoanList('History'), // Closed or Rejected
-        ],
-      ),
+      floatingActionButton: FloatingActionButton.extended(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LoanSelectionScreen())), backgroundColor: const Color(0xFF4A3AFF), icon: const Icon(Icons.add, color: Colors.white), label: const Text('Apply New Loan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
     );
   }
 
-  Widget _buildLoanList(String category) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null)
-      return const Center(child: Text('Please login to view loans'));
-
-    Query query = FirebaseFirestore.instance
-        .collection('loan_applications')
-        .where(
-          'email',
-          isEqualTo: user.email,
-        ); // Filtering by user email for simplicity
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError)
-          return Center(child: Text('Error: ${snapshot.error}'));
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final docs = snapshot.data!.docs;
-
-        // Filter locally based on category
-        final filteredDocs = docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = data['status'] ?? 'Submitted';
-          if (category == 'Active') return status == 'Disbursed';
-          if (category == 'Applications') {
-            return ['Submitted', 'Under Review', 'Approved'].contains(status);
-          }
-          if (category == 'History') {
-            return ['Closed', 'Rejected'].contains(status);
-          }
-          return false;
-        }).toList();
-
-        if (filteredDocs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.assignment_late_outlined,
-                  size: 64,
-                  color: Colors.grey.shade300,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No $category Loans Found',
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: filteredDocs.length,
-          itemBuilder: (context, index) {
-            final data = filteredDocs[index].data() as Map<String, dynamic>;
-            final docId = filteredDocs[index].id;
-            return _buildLoanCard(data, docId);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildLoanCard(Map<String, dynamic> data, String docId) {
-    String status = data['status'] ?? 'Submitted';
-    String loanType = data['loan_type'] ?? 'Personal Loan';
-    String amount = data['loan_amount'] ?? '0';
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                LoanDetailScreen(loanData: data, docId: docId),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  loanType,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                _buildStatusChip(status),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Amount: ₹$amount',
-              style: const TextStyle(color: Colors.black87, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            if (['Submitted', 'Under Review', 'Approved'].contains(status))
-              _buildSimpleProgressTracker(status),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(String status) {
-    Color color = Colors.blue;
-    if (status == 'Under Review') color = Colors.orange;
-    if (status == 'Approved') color = Colors.teal;
-    if (status == 'Disbursed') color = Colors.green;
-    if (status == 'Rejected') color = Colors.red;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSimpleProgressTracker(String currentStatus) {
-    final stages = ['Submitted', 'Under Review', 'Approved', 'Disbursed'];
-    int currentIndex = stages.indexOf(currentStatus);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Status Tracker',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: (currentIndex + 1) / stages.length,
-          backgroundColor: Colors.grey.shade200,
-          color: const Color(0xFF4A3AFF),
-          minHeight: 6,
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ],
-    );
-  }
+  Widget _buildInfoRow(String label, dynamic value) => Padding(padding: const EdgeInsets.only(bottom: 8.0), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13)), const SizedBox(width: 12), Flexible(child: Text(value?.toString() ?? '-', textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.black87)))]));
 }
