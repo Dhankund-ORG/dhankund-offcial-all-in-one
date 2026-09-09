@@ -388,10 +388,15 @@ class _MigrationPageState extends State<MigrationPage> {
     final errors = (_authResult!['errors'] as List?)?.cast<Map>() ?? [];
     final isDryRun = _authResult!['dry_run'] == true;
     final projectConfig = (_authResult!['project_config'] as Map?)?.cast<String, dynamic>() ?? {};
+    final errorField = _authResult!['error'];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Firebase Auth Import ${isDryRun ? '(Dry Run)' : ''}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
       const SizedBox(height: 8),
       Text('Project: ${_authResult!['project_id'] ?? '-'}  |  Signer Key: ${projectConfig['signer_key'] ?? '-'}  |  Salt Separator: ${projectConfig['salt_separator'] ?? '-'}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+      if (errorField != null) ...[
+        const SizedBox(height: 8),
+        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6)), child: Text('ERROR: ' + errorField.toString(), style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold))),
+      ],
       const SizedBox(height: 16),
       LayoutBuilder(builder: (context, constraints) {
         int count = constraints.maxWidth > 800 ? 4 : 2;
@@ -407,9 +412,9 @@ class _MigrationPageState extends State<MigrationPage> {
         Text('Created: ${summary['created'] ?? 0}  |  Updated: ${summary['updated'] ?? 0}  |  Failed: ${summary['failed'] ?? 0}', style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
         if (errors.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Errors (${errors.length})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+          Text('Diagnostics (' + errors.length.toString() + ')', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
           const SizedBox(height: 4),
-          ...errors.take(10).map((e) => Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('${e['email']}: ${e['error']}', style: const TextStyle(color: Colors.red, fontSize: 12)))),
+          ...errors.map((e) => Padding(padding: const EdgeInsets.only(bottom: 3), child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.amber.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text('[' + e['email'].toString() + '] ' + e['error'].toString(), style: const TextStyle(color: Colors.amber, fontSize: 11))))),
         ],
       ])),
       const SizedBox(height: 12),
