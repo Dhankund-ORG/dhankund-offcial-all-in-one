@@ -38,7 +38,10 @@ export const endpoints = [
   { method: 'PUT', path: '/api/v1/bank-policies/{id}', auth: 'admin', summary: 'Update bank policy (admin)' },
   { method: 'GET', path: '/api/v1/broadcasts', auth: 'admin', summary: 'List broadcast history (admin)' },
   { method: 'POST', path: '/api/v1/broadcasts', auth: 'admin', summary: 'Create broadcast (admin)' },
-  { method: 'POST', path: '/api/v1/push', auth: 'admin', summary: 'Send an FCM push notification (admin)' }
+  { method: 'POST', path: '/api/v1/push', auth: 'admin', summary: 'Send an FCM push notification (admin)' },
+  { method: 'GET', path: '/api/v1/migrate/diff', auth: 'admin', summary: 'Compare Firestore vs D1 data (admin)' },
+  { method: 'GET', path: '/api/v1/migrate/export', auth: 'admin', summary: 'Export Firestore data as JSON backup (admin)' },
+  { method: 'POST', path: '/api/v1/migrate/import', auth: 'admin', summary: 'Import all Firestore data into D1 (admin)' }
 ];
 
 export function routeIndex() {
