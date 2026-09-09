@@ -402,7 +402,8 @@ class _MigrationPageState extends State<MigrationPage> {
         int count = constraints.maxWidth > 800 ? 4 : 2;
         return GridView.count(crossAxisCount: count, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 2.0, children: [
           _summaryCard('Auth Users', '${summary['total_auth_users'] ?? 0}', Icons.people, Colors.blue),
-          _summaryCard('With Password', '${summary['users_with_password'] ?? 0}', Icons.lock, Colors.green),
+          _summaryCard('With Password', '${summary['users_with_password_hash'] ?? 0}', Icons.lock, Colors.green),
+          _summaryCard('With Salt', '${summary['users_with_salt'] ?? 0}', Icons.shield, Colors.teal),
           _summaryCard('Updated', '${summary['updated'] ?? 0}', Icons.update, Colors.orange),
           _summaryCard('Failed', '${summary['failed'] ?? 0}', Icons.error, Colors.red),
         ]);

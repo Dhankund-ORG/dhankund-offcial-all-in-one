@@ -1,4 +1,4 @@
-// worker/migrate.js ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Firestore to D1 migration module
+// worker/migrate.js ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
@@ -496,7 +496,7 @@ export async function importAuthData(env, dryRun) {
   let saltSeparator = null;
   try {
     errors.push({ email: 'STEP 1', error: 'OAuth2 token obtained, length=' + token.length + '. Fetching project config...' });
-    const configRes = await fetch('https://identitytoolkit.googleapis.com/v1/projects/' + projectId, {
+    const configRes = await fetch('https://identitytoolkit.googleapis.com/v1/projects/' + projectId + '/config', {
       headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
     });
     if (!configRes.ok) {
@@ -511,6 +511,7 @@ export async function importAuthData(env, dryRun) {
     errors.push({ email: 'STEP 1 OK', error: 'Project config fetched. signerKey=' + (signerKey ? 'present' : 'missing') + ', saltSeparator=' + (saltSeparator || 'missing') + '. Config keys: ' + Object.keys(config).join(',') });
   } catch (e) {
     errors.push({ email: 'STEP 1 ERROR', error: e.message });
+    saltSeparator = saltSeparator || 'Bw==';
   }
 
   // 2. Store config in D1 migration_config table
@@ -635,6 +636,8 @@ export async function importAuthData(env, dryRun) {
       results._v2_diag = { error: e.message };
     }
   }
+
+  errors.push({ email: 'STEP 3', error: 'Processing complete. total_auth_users=' + totalUsers + ', users_with_password_hash=' + withPasswordHash + ', users_with_salt=' + withSalt + ', updated=' + updated + ', created=' + created + ', failed=' + failed });
 
   return Object.assign(results, {
     project_config: { signer_key: signerKey ? 'stored' : 'missing', salt_separator: saltSeparator ? 'stored' : 'missing' },
