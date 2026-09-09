@@ -1,34 +1,19 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
-import 'dart:io' as io;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:my_flutter_app/services/aws_s3_service.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io' as io;
+import 'package:my_flutter_app/services/api_service.dart';
+import 'package:my_flutter_app/services/cloudflare_r2_service.dart';
 
-const List<LinearGradient> statusGradients = [
-  LinearGradient(
-    colors: [Color(0xFF4A3AFF), Color(0xFF6C5DD3)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  ),
-  LinearGradient(
-    colors: [Color(0xFFFF5F6D), Color(0xFFFFC371)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  ),
-  LinearGradient(
-    colors: [Color(0xFF11998E), Color(0xFF38EF7D)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  ),
-  LinearGradient(
-    colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  ),
+const List<List<Color>> gradientStories = [
+  [Color(0xFF4A3AFF), Color(0xFF6C5DD3)],
+  [Color(0xFF27AE60), Color(0xFF2ECC71)],
+  [Color(0xFFE17055), Color(0xFFFDCB6E)],
+  [Color(0xFF0984E3), Color(0xFF74B9FF)],
+  [Color(0xFFE84393), Color(0xFFFD79A8)],
+  [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+  [Color(0xFFD63031), Color(0xFFFAB1A0)],
+  [Color(0xFF00B894), Color(0xFF55EFC4)],
 ];
 
 class StatusCircle extends StatelessWidget {
@@ -37,99 +22,35 @@ class StatusCircle extends StatelessWidget {
   final bool isMe;
   final String? profilePictureUrl;
   final VoidCallback onTap;
-
-  const StatusCircle({
-    super.key,
-    required this.label,
-    required this.hasActiveStatus,
-    required this.isMe,
-    this.profilePictureUrl,
-    required this.onTap,
-  });
-
+  const StatusCircle({super.key, required this.label, required this.hasActiveStatus, required this.isMe, this.profilePictureUrl, required this.onTap});
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.only(right: 16),
-        child: Column(
-          children: [
-            Stack(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: hasActiveStatus
-                        ? const LinearGradient(
-                            colors: [Color(0xFFE1306C), Color(0xFFC13584), Color(0xFFF77737)],
-                            begin: Alignment.bottomLeft,
-                            end: Alignment.topRight,
-                          )
-                        : null,
-                    border: !hasActiveStatus
-                        ? Border.all(color: Colors.grey.shade300, width: 1.5)
-                        : null,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: CircleAvatar(
-                      radius: 26,
-                      backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1),
-                      backgroundImage: profilePictureUrl != null
-                          ? NetworkImage(profilePictureUrl!)
-                          : null,
-                      child: profilePictureUrl == null
-                          ? Icon(
-                              isMe ? Icons.person : Icons.person_outline,
-                              color: const Color(0xFF4A3AFF),
-                              size: 26,
-                            )
-                          : null,
-                    ),
-                  ),
-                ),
+      child: Container(
+        margin: const EdgeInsets.only(right: 16),
+        width: 70,
+        child: Column(children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: hasActiveStatus ? const LinearGradient(colors: [Color(0xFF4A3AFF), Color(0xFF6C5DD3)]) : null,
+              border: hasActiveStatus ? null : Border.all(color: Colors.grey[300]!, width: 2),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: Stack(children: [
+                CircleAvatar(radius: 28, backgroundColor: const Color(0x1A4A3AFF), backgroundImage: profilePictureUrl != null ? NetworkImage(profilePictureUrl!) : null, child: profilePictureUrl == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
                 if (isMe && !hasActiveStatus)
-                  Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4A3AFF),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 14,
-                      ),
-                    ),
-                  ),
-              ],
+                  Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Color(0xFF4A3AFF), shape: BoxShape.circle), child: const Icon(Icons.add, color: Colors.white, size: 12))),
+              ]),
             ),
-            const SizedBox(height: 6),
-            SizedBox(
-              width: 70,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.black87)),
+        ]),
       ),
     );
   }
@@ -138,112 +59,62 @@ class StatusCircle extends StatelessWidget {
 class AddStatusDialog extends StatefulWidget {
   final Map<String, dynamic> userProfile;
   final String uid;
-
-  const AddStatusDialog({
-    super.key,
-    required this.userProfile,
-    required this.uid,
-  });
-
+  final VoidCallback? onStatusAdded;
+  const AddStatusDialog({super.key, required this.userProfile, required this.uid, this.onStatusAdded});
   @override
   State<AddStatusDialog> createState() => _AddStatusDialogState();
 }
 
 class _AddStatusDialogState extends State<AddStatusDialog> {
-  final TextEditingController _textController = TextEditingController();
-  int _selectedGradientIndex = 0;
-  bool _isLoading = false;
-  String? _mediaUrl;
-  String _mediaType = 'text'; // 'text' | 'image' | 'video'
-  bool _isUploadingMedia = false;
+  final _textController = TextEditingController();
+  int _selectedGradient = 0;
+  PlatformFile? _selectedFile;
+  bool _isSaving = false;
+  final _api = ApiService();
 
   @override
-  void dispose() {
-    _textController.dispose();
-    super.dispose();
-  }
+  void dispose() { _textController.dispose(); super.dispose(); }
 
-  Future<void> _pickAndUploadMedia(String type) async {
+  Future<void> _pickImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: type == 'image' ? FileType.image : FileType.video,
-      );
-
-      if (result != null) {
-        final file = result.files.single;
-        
-        Uint8List? fileBytes = file.bytes;
-        if (fileBytes == null && file.path != null) {
-          fileBytes = await io.File(file.path!).readAsBytes();
-        }
-
-        if (fileBytes != null) {
-          setState(() {
-            _isUploadingMedia = true;
-            _mediaType = type;
-          });
-
-          final extension = file.extension ?? (type == 'image' ? 'jpg' : 'mp4');
-          final url = await AwsS3Service.uploadFile(
-            bytes: fileBytes,
-            folderPath: 'status_media',
-            extension: extension,
-          );
-
-          setState(() {
-            _mediaUrl = url;
-            _isUploadingMedia = false;
-          });
-        }
-      }
+      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      if (result != null) setState(() => _selectedFile = result.files.single);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isUploadingMedia = false;
-          _mediaType = 'text';
-          _mediaUrl = null;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to upload media: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image: \$e')));
     }
   }
 
   Future<void> _postStatus() async {
     final text = _textController.text.trim();
-    if (text.isEmpty && _mediaUrl == null) return;
-
-    setState(() => _isLoading = true);
-
+    if (text.isEmpty && _selectedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please write something or add a photo')));
+      return;
+    }
+    setState(() => _isSaving = true);
+    String? mediaUrl;
+    String mediaType = 'text';
     try {
-      await FirebaseFirestore.instance.collection('statuses').add({
-        'uid': widget.uid,
-        'name': widget.userProfile['name'] ?? 'Anonymous',
-        'role': widget.userProfile['role'] ?? 'User',
-        'company': widget.userProfile['company'] ?? '',
-        'mobile': widget.userProfile['mobile'] ?? '',
-        'text': text,
-        'gradientIndex': _selectedGradientIndex,
-        'mediaUrl': _mediaUrl,
-        'mediaType': _mediaType,
-        'profilePictureUrl': widget.userProfile['profilePictureUrl'],
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      if (_selectedFile != null) {
+        final extension = _selectedFile!.extension ?? 'jpg';
+        Uint8List fileBytes;
+        if (kIsWeb || _selectedFile!.bytes != null) {
+          fileBytes = _selectedFile!.bytes!;
+        } else {
+          fileBytes = await io.File(_selectedFile!.path!).readAsBytes();
+        }
+        mediaUrl = await CloudflareR2Service().uploadFile(bytes: fileBytes, folderPath: 'status_media', extension: extension);
+        mediaType = 'image';
+      }
+      await _api.createStatus(text: text, gradientIndex: _selectedGradient, mediaUrl: mediaUrl, mediaType: mediaType);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Status updated successfully!')),
-        );
+        widget.onStatusAdded?.call();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Status posted!')));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to post status: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to post status: \$e')));
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -253,284 +124,52 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         padding: const EdgeInsets.all(20),
-        width: MediaQuery.of(context).size.width * 0.9,
         constraints: const BoxConstraints(maxHeight: 480),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Post a Status',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF4A3AFF),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.grey),
-                  onPressed: () => Navigator.pop(context),
-                )
-              ],
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('Add Status', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF4A3AFF))),
+              IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
+            ]),
+            const Divider(),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(gradient: LinearGradient(colors: gradientStories[_selectedGradient]), borderRadius: BorderRadius.circular(16)),
+              child: TextField(controller: _textController, maxLines: 3, style: const TextStyle(color: Colors.white, fontSize: 16), decoration: const InputDecoration(hintText: 'Type your status...', hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none)),
             ),
             const SizedBox(height: 12),
-            // Preview box
-            Flexible(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: _mediaType == 'text' ? statusGradients[_selectedGradientIndex] : null,
-                  color: _mediaType != 'text' ? Colors.black87 : null,
-                  image: _mediaType == 'image' && _mediaUrl != null
-                      ? DecorationImage(
-                          image: NetworkImage(_mediaUrl!),
-                          fit: BoxFit.cover,
-                          colorFilter: ColorFilter.mode(
-                            Colors.black.withOpacity(0.4),
-                            BlendMode.darken,
-                          ),
-                        )
-                      : null,
-                  borderRadius: BorderRadius.circular(15),
+            SizedBox(
+              height: 50,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: gradientStories.length,
+                itemBuilder: (context, index) => GestureDetector(
+                  onTap: () => setState(() => _selectedGradient = index),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 10),
+                    width: 50,
+                    decoration: BoxDecoration(gradient: LinearGradient(colors: gradientStories[index]), shape: BoxShape.circle, border: _selectedGradient == index ? Border.all(color: Colors.black, width: 3) : null),
+                  ),
                 ),
-                padding: const EdgeInsets.all(16),
-                alignment: Alignment.center,
-                child: _isUploadingMedia
-                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (_mediaType == 'video' && _mediaUrl != null)
-                            const Icon(Icons.video_library, size: 48, color: Colors.white70),
-                          TextField(
-                            controller: _textController,
-                            maxLines: 3,
-                            maxLength: 120,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                            decoration: InputDecoration(
-                              hintText: _mediaType == 'text'
-                                  ? "What rates or offers today?"
-                                  : "Add a caption...",
-                              hintStyle: const TextStyle(color: Colors.white70),
-                              border: InputBorder.none,
-                              counterText: "",
-                            ),
-                            onChanged: (text) => setState(() {}),
-                          ),
-                        ],
-                      ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${_textController.text.length}/120 characters',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-              ],
             ),
             const SizedBox(height: 12),
-            // Media buttons row
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _pickAndUploadMedia('image'),
-                  icon: const Icon(Icons.image_outlined),
-                  label: const Text('Image'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _mediaType == 'image' ? const Color(0xFF4A3AFF) : Colors.black87,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () => _pickAndUploadMedia('video'),
-                  icon: const Icon(Icons.video_collection_outlined),
-                  label: const Text('Video'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _mediaType == 'video' ? const Color(0xFF4A3AFF) : Colors.black87,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                if (_mediaType != 'text') ...[
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    onPressed: () {
-                      setState(() {
-                        _mediaType = 'text';
-                        _mediaUrl = null;
-                      });
-                    },
-                  ),
-                ],
-              ],
-            ),
-            if (_mediaType == 'text') ...[
-              const SizedBox(height: 8),
-              const Text(
-                'Select Theme Background',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: List.generate(statusGradients.length, (index) {
-                  final isSelected = _selectedGradientIndex == index;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedGradientIndex = index),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 12),
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        gradient: statusGradients[index],
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: const Color(0xFF4A3AFF), width: 3)
-                            : null,
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ],
-            const SizedBox(height: 16),
+            if (_selectedFile != null)
+              Stack(children: [
+                ClipRRect(borderRadius: BorderRadius.circular(10), child: kIsWeb ? Image.memory(_selectedFile!.bytes!, height: 120, width: double.infinity, fit: BoxFit.cover) : Image.file(io.File(_selectedFile!.path!), height: 120, width: double.infinity, fit: BoxFit.cover)),
+                Positioned(right: 8, top: 8, child: GestureDetector(onTap: () => setState(() => _selectedFile = null), child: Container(decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(4), child: const Icon(Icons.close, color: Colors.white, size: 18)))),
+              ])
+            else
+              OutlinedButton.icon(onPressed: _pickImage, icon: const Icon(Icons.photo_library, color: Color(0xFF27AE60)), label: const Text('Add Photo (Optional)')),
+            const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _isLoading || _isUploadingMedia || (_textController.text.trim().isEmpty && _mediaUrl == null)
-                  ? null
-                  : _postStatus,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4A3AFF),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                minimumSize: const Size(double.infinity, 48),
-                elevation: 0,
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text(
-                      'Share status',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
+              onPressed: _isSaving ? null : _postStatus,
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A3AFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), minimumSize: const Size(double.infinity, 48)),
+              child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Post Status', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ),
-          ],
+          ]),
         ),
-      ),
-    );
-  }
-}
-
-class StoryProgressIndicators extends StatefulWidget {
-  final int itemCount;
-  final int currentIndex;
-  final bool isPaused;
-  final VoidCallback onCompleted;
-
-  const StoryProgressIndicators({
-    super.key,
-    required this.itemCount,
-    required this.currentIndex,
-    required this.isPaused,
-    required this.onCompleted,
-  });
-
-  @override
-  State<StoryProgressIndicators> createState() => _StoryProgressIndicatorsState();
-}
-
-class _StoryProgressIndicatorsState extends State<StoryProgressIndicators> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 5),
-    );
-
-    _animationController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        widget.onCompleted();
-      }
-    });
-
-    _updatePlayState();
-  }
-
-  @override
-  void didUpdateWidget(covariant StoryProgressIndicators oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentIndex != widget.currentIndex) {
-      _animationController.reset();
-      _animationController.forward();
-    }
-    _updatePlayState();
-  }
-
-  void _updatePlayState() {
-    if (widget.isPaused) {
-      _animationController.stop();
-    } else {
-      _animationController.forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: Row(
-        children: List.generate(widget.itemCount, (index) {
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: index < widget.currentIndex
-                  ? const LinearProgressIndicator(
-                      value: 1.0,
-                      backgroundColor: Colors.white24,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      minHeight: 3,
-                    )
-                  : index > widget.currentIndex
-                      ? const LinearProgressIndicator(
-                          value: 0.0,
-                          backgroundColor: Colors.white24,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          minHeight: 3,
-                        )
-                      : AnimatedBuilder(
-                          animation: _animationController,
-                          builder: (context, child) {
-                            return LinearProgressIndicator(
-                              value: _animationController.value,
-                              backgroundColor: Colors.white24,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                              minHeight: 3,
-                            );
-                          },
-                        ),
-            ),
-          );
-        }),
       ),
     );
   }
@@ -542,424 +181,91 @@ class StatusViewerDialog extends StatefulWidget {
   final String userCompany;
   final List<Map<String, dynamic>> statuses;
   final String currentUid;
-
-  const StatusViewerDialog({
-    super.key,
-    required this.userName,
-    required this.userRole,
-    required this.userCompany,
-    required this.statuses,
-    required this.currentUid,
-  });
-
+  const StatusViewerDialog({super.key, required this.userName, required this.userRole, required this.userCompany, required this.statuses, required this.currentUid});
   @override
   State<StatusViewerDialog> createState() => _StatusViewerDialogState();
 }
 
 class _StatusViewerDialogState extends State<StatusViewerDialog> {
-  int _currentIndex = 0;
-  bool _isPaused = false;
+  late PageController _pageController;
+  int _currentPage = 0;
+  final _api = ApiService();
 
   @override
-  void initState() {
-    super.initState();
-  }
+  void initState() { super.initState(); _pageController = PageController(); }
 
-  void _onStoryCompleted() {
-    if (_currentIndex < widget.statuses.length - 1) {
-      setState(() {
-        _currentIndex++;
-      });
-    } else {
-      Navigator.pop(context);
+  @override
+  void dispose() { _pageController.dispose(); super.dispose(); }
+
+  Future<void> _deleteStatus(String id) async {
+    try {
+      await _api.deleteStatus(id);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete: \$e')));
     }
   }
 
-  void _onTapDown(TapDownDetails details) {
-    setState(() {
-      _isPaused = true;
-    });
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    final width = MediaQuery.of(context).size.width;
-    final dx = details.globalPosition.dx;
-
-    setState(() {
-      _isPaused = false;
-      if (dx < width * 0.3) {
-        if (_currentIndex > 0) {
-          _currentIndex--;
-        }
-      } else {
-        if (_currentIndex < widget.statuses.length - 1) {
-          _currentIndex++;
-        } else {
-          Navigator.pop(context);
-        }
-      }
-    });
-  }
-
-  void _onLongPress() {
-    setState(() {
-      _isPaused = true;
-    });
-  }
-
-  void _onLongPressEnd() {
-    setState(() {
-      _isPaused = false;
-    });
-  }
-
-  String _formatTimeAgo(dynamic timestamp) {
-    if (timestamp == null) return '';
-    DateTime dateTime;
-    if (timestamp is Timestamp) {
-      dateTime = timestamp.toDate();
-    } else if (timestamp is DateTime) {
-      dateTime = timestamp;
-    } else {
+  String _formatTime(dynamic ts) {
+    if (ts == null) return '';
+    try {
+      final dt = DateTime.parse(ts.toString());
+      final diff = DateTime.now().difference(dt);
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
+    } catch (_) {
       return '';
     }
-    
-    final diff = DateTime.now().difference(dateTime);
-    if (diff.inMinutes < 1) {
-      return 'just now';
-    } else if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    } else {
-      return '${diff.inDays}d ago';
-    }
-  }
-
-  Future<void> _deleteStatus(String statusId) async {
-    try {
-      await FirebaseFirestore.instance.collection('statuses').doc(statusId).delete();
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Status deleted successfully!')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete status: $e')),
-        );
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentStatus = widget.statuses[_currentIndex];
-    final text = currentStatus['text'] ?? '';
-    final mediaUrl = currentStatus['mediaUrl'] as String?;
-    final mediaType = currentStatus['mediaType'] ?? 'text';
-    final gradientIdx = currentStatus['gradientIndex'] ?? 0;
-    final timestamp = currentStatus['timestamp'];
-    final statusDocId = currentStatus['id'] as String?;
-    final isOwnStatus = currentStatus['uid'] == widget.currentUid;
-    final mobile = currentStatus['mobile'] ?? '';
-
     return Dialog(
       insetPadding: EdgeInsets.zero,
-      backgroundColor: Colors.transparent,
-      child: GestureDetector(
-        onTapDown: _onTapDown,
-        onTapUp: _onTapUp,
-        onLongPress: _onLongPress,
-        onLongPressEnd: (details) => _onLongPressEnd(),
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            gradient: mediaType == 'text'
-                ? statusGradients[gradientIdx % statusGradients.length]
-                : null,
-            color: mediaType != 'text' ? Colors.black : null,
+      backgroundColor: Colors.black,
+      child: SizedBox(
+        width: double.infinity,
+        height: double.infinity,
+        child: Stack(children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.statuses.length,
+            onPageChanged: (i) => setState(() => _currentPage = i),
+            itemBuilder: (context, index) {
+              final status = widget.statuses[index];
+              final text = (status['text'] ?? '').toString();
+              final gradientIndex = (status['gradientIndex'] ?? 0) as int;
+              final gradient = gradientStories[gradientIndex % gradientStories.length];
+              final mediaUrl = status['mediaUrl'];
+              final mediaType = (status['mediaType'] ?? 'text').toString();
+              final isOwn = (status['uid'] ?? '') == widget.currentUid;
+              return Container(
+                decoration: BoxDecoration(gradient: LinearGradient(colors: gradient, begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+                child: Stack(children: [
+                  if (mediaUrl != null && mediaUrl.toString().isNotEmpty && mediaType == 'image')
+                    Center(child: Image.network(mediaUrl.toString(), fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 64, color: Colors.white54))),
+                  if (text.isNotEmpty)
+                    Center(child: Padding(padding: const EdgeInsets.all(32), child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w500)))),
+                  Positioned(top: 40, left: 16, right: 16, child: Row(children: [
+                    const CircleAvatar(backgroundColor: Colors.white24, child: Icon(Icons.person, color: Colors.white)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(widget.userName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${widget.userRole} - ${_formatTime(status['timestamp'])}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ])),
+                    if (isOwn) IconButton(icon: const Icon(Icons.delete, color: Colors.white), onPressed: () => _deleteStatus((status['id'] ?? '').toString())),
+                    IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                  ])),
+                  Positioned(bottom: 0, left: 0, right: 0, child: LinearProgressIndicator(value: (_currentPage + 1) / widget.statuses.length, backgroundColor: Colors.white24, valueColor: const AlwaysStoppedAnimation<Color>(Colors.white), minHeight: 3)),
+                ]),
+              );
+            },
           ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Top Progress Indicators
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: StoryProgressIndicators(
-                    itemCount: widget.statuses.length,
-                    currentIndex: _currentIndex,
-                    isPaused: _isPaused,
-                    onCompleted: _onStoryCompleted,
-                  ),
-                ),
-                
-                // Header (User info, close button, delete button)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.white24,
-                        backgroundImage: currentStatus['profilePictureUrl'] != null
-                            ? NetworkImage(currentStatus['profilePictureUrl'])
-                            : null,
-                        child: currentStatus['profilePictureUrl'] == null
-                            ? Text(
-                                widget.userName.isNotEmpty ? widget.userName[0].toUpperCase() : 'U',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.userName,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                            Text(
-                              "${widget.userRole} • ${widget.userCompany} • ${_formatTimeAgo(timestamp)}",
-                              style: const TextStyle(color: Colors.white70, fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (isOwnStatus && statusDocId != null)
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.white70),
-                          onPressed: () => _deleteStatus(statusDocId),
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Main Status Content
-                Expanded(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (mediaType == 'image' && mediaUrl != null)
-                        Positioned.fill(
-                          child: Image.network(
-                            mediaUrl,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      if (mediaType == 'video' && mediaUrl != null)
-                        Positioned.fill(
-                          child: StatusVideoPlayer(
-                            videoUrl: mediaUrl,
-                            isPaused: _isPaused,
-                          ),
-                        ),
-                      if (mediaType == 'text')
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
-                            child: Text(
-                              text,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                height: 1.4,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      if (mediaType != 'text' && text.isNotEmpty)
-                        Positioned(
-                          bottom: 24,
-                          left: 24,
-                          right: 24,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              text,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                height: 1.4,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                // Quick Actions Footer (Only if not own status)
-                if (!isOwnStatus && mobile.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.transparent, Colors.black.withOpacity(0.4)],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final Uri launchUri = Uri(
-                                scheme: 'tel',
-                                path: mobile,
-                              );
-                              final scaffoldMessenger = ScaffoldMessenger.of(context);
-                              try {
-                                await launchUrl(launchUri);
-                              } catch (e) {
-                                scaffoldMessenger.showSnackBar(
-                                  SnackBar(content: Text('Could not call: $e')),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.phone),
-                            label: const Text('Call'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4A3AFF),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              String cleanNumber = mobile.replaceAll(RegExp(r'[^0-9]'), '');
-                              if (cleanNumber.length == 10) {
-                                cleanNumber = '91$cleanNumber';
-                              }
-                              final Uri whatsappUri = Uri.parse("https://wa.me/$cleanNumber");
-                              final scaffoldMessenger = ScaffoldMessenger.of(context);
-                              try {
-                                await launchUrl(
-                                  whatsappUri,
-                                  mode: LaunchMode.externalApplication,
-                                );
-                              } catch (e) {
-                                scaffoldMessenger.showSnackBar(
-                                  SnackBar(content: Text('Could not open WhatsApp: $e')),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.message),
-                            label: const Text('WhatsApp'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF27AE60),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class StatusVideoPlayer extends StatefulWidget {
-  final String videoUrl;
-  final bool isPaused;
-
-  const StatusVideoPlayer({
-    super.key,
-    required this.videoUrl,
-    required this.isPaused,
-  });
-
-  @override
-  State<StatusVideoPlayer> createState() => _StatusVideoPlayerState();
-}
-
-class _StatusVideoPlayerState extends State<StatusVideoPlayer> {
-  late VideoPlayerController _controller;
-  bool _isInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeVideo();
-  }
-
-  void _initializeVideo() {
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-      ..initialize().then((_) {
-        if (mounted) {
-          setState(() {
-            _isInitialized = true;
-          });
-          if (!widget.isPaused) {
-            _controller.play();
-          }
-          _controller.setLooping(false);
-        }
-      });
-  }
-
-  @override
-  void didUpdateWidget(covariant StatusVideoPlayer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.videoUrl != widget.videoUrl) {
-      _controller.dispose();
-      _isInitialized = false;
-      _initializeVideo();
-    } else if (_isInitialized) {
-      if (widget.isPaused) {
-        _controller.pause();
-      } else {
-        _controller.play();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
-    }
-    return Center(
-      child: AspectRatio(
-        aspectRatio: _controller.value.aspectRatio,
-        child: VideoPlayer(_controller),
+          if (widget.statuses.length > 1) ...[
+            Positioned(left: 4, top: 0, bottom: 0, child: GestureDetector(onTap: () { if (_currentPage > 0) _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); }, child: const SizedBox(width: 60, child: Icon(Icons.chevron_left, color: Colors.white54)))),
+            Positioned(right: 4, top: 0, bottom: 0, child: GestureDetector(onTap: () { if (_currentPage < widget.statuses.length - 1) _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); }, child: const SizedBox(width: 60, child: Icon(Icons.chevron_right, color: Colors.white54)))),
+          ],
+        ]),
       ),
     );
   }

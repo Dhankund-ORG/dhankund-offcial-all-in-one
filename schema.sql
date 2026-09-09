@@ -1,4 +1,3 @@
-
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE,
@@ -164,5 +163,8 @@ CREATE TABLE IF NOT EXISTS fcm_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_registrations_role ON registrations (role);
+CREATE INDEX IF NOT EXISTS idx_registrations_uid ON registrations (uid);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 CREATE INDEX IF NOT EXISTS idx_loans_submitted_at ON loan_applications (submitted_at);
+CREATE INDEX IF NOT EXISTS idx_loans_email ON loan_applications (email);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id);

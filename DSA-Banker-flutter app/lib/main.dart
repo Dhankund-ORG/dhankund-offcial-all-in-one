@@ -1,65 +1,18 @@
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:my_flutter_app/services/api_service.dart';
 import 'package:my_flutter_app/presentation/shared/root_wrapper.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Load the AWS credentials from the config.env file safely
   try {
     await dotenv.load(fileName: "config.env");
   } catch (e) {
     debugPrint("Failed to load config.env file: $e");
   }
-  
-  String? jsonStr;
-  try {
-    if (kIsWeb) {
-      jsonStr = dotenv.env['DSA_FIREBASE_WEB'];
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      jsonStr = dotenv.env['DSA_FIREBASE_ANDROID'];
-    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-      jsonStr = dotenv.env['DSA_FIREBASE_IOS'];
-    }
-
-    if (jsonStr != null && jsonStr.isNotEmpty) {
-      Map<String, dynamic> config = {};
-      try {
-        config = jsonDecode(jsonStr);
-      } catch (e) {
-        // Fallback for JS object formats or unquoted keys/values
-        final RegExp keyRegex = RegExp(r'([a-zA-Z0-9_]+)\s*:\s*["\u0027]?([^,"\u0027}\s]+)["\u0027]?');
-        for (final match in keyRegex.allMatches(jsonStr)) {
-          config[match.group(1)!] = match.group(2);
-        }
-      }
-
-      await Firebase.initializeApp(
-        options: FirebaseOptions(
-          apiKey: config['apiKey'] ?? "",
-          authDomain: config['authDomain'],
-          databaseURL: config['databaseURL'],
-          projectId: config['projectId'] ?? "",
-          storageBucket: config['storageBucket'],
-          messagingSenderId: config['messagingSenderId'] ?? "",
-          appId: config['appId'] ?? "",
-          measurementId: config['measurementId'],
-        ),
-      );
-    } else {
-      debugPrint("Warning: No Firebase JSON configuration found for this platform.");
-      // On Web, calling initializeApp without options throws.
-      if (!kIsWeb) {
-        await Firebase.initializeApp(); // Fallback to native config if present
-      }
-    }
-  } catch (e, stack) {
-    debugPrint("Firebase initialization failed: $e\n$stack");
-  }
-  
+  ApiClient.init();
+  await ApiClient.loadSession();
   runApp(const MyApp());
 }
 
@@ -116,35 +69,13 @@ class MyApp extends StatelessWidget {
           filled: true,
           fillColor: const Color(0xFFF8F9FB),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          hintStyle: const TextStyle(
-            color: Color(0xFF8896A6),
-            fontSize: 14,
-          ),
-          labelStyle: const TextStyle(
-            color: Color(0xFF5F6D7E),
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE6E8EC)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE6E8EC)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF4A3AFF), width: 1.5),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFD63031), width: 1),
-          ),
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFD63031), width: 1.5),
-          ),
+          hintStyle: const TextStyle(color: Color(0xFF8896A6), fontSize: 14),
+          labelStyle: const TextStyle(color: Color(0xFF5F6D7E), fontSize: 14, fontWeight: FontWeight.w500),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE6E8EC))),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE6E8EC))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF4A3AFF), width: 1.5)),
+          errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD63031), width: 1)),
+          focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD63031), width: 1.5)),
         ),
         cardTheme: CardThemeData(
           color: Colors.white,
