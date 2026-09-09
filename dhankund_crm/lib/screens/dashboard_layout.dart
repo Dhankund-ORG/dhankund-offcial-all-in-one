@@ -9,6 +9,7 @@ import 'pages/community_page.dart';
 import 'pages/broadcast_page.dart';
 import 'pages/leads_report_page.dart';
 import 'pages/banker_policies_page.dart';
+import 'pages/migration_page.dart';
 
 class DashboardLayout extends StatefulWidget {
   const DashboardLayout({super.key});
@@ -30,6 +31,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     'Broadcast',
     'Leads Report',
     'Banker Policies',
+    'Data Migration',
   ];
 
   final List<IconData> _tabsIcons = [
@@ -42,6 +44,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     Icons.campaign_outlined,
     Icons.analytics_outlined,
     Icons.policy_outlined,
+    Icons.cloud_sync_outlined,
   ];
 
   late List<Widget> _pages;
@@ -63,6 +66,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
       const BroadcastPage(),
       const LeadsReportPage(),
       const BankerPoliciesPage(),
+      const MigrationPage(),
     ];
   }
 
