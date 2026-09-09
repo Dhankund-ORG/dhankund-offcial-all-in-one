@@ -110,7 +110,7 @@ class _GeneralLoanFormScreenState extends State<GeneralLoanFormScreen> {
         const SizedBox(height: 16),
         _buildFormCard(),
         const SizedBox(height: 24),
-      ]))),
+      ])))),
     );
   }
 
