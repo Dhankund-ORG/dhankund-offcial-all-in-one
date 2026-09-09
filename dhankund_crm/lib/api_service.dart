@@ -526,4 +526,9 @@ class ApiService {
     final data = await ApiClient.post(path, {});
     return (data as Map).cast<String, dynamic>();
   }
+
+  Future<Map<String, dynamic>> migrateSchema() async {
+    final data = await ApiClient.post('/api/v1/migrate/schema', {});
+    return (data as Map).cast<String, dynamic>();
+  }
 }
