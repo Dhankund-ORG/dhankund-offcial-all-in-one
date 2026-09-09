@@ -209,7 +209,7 @@ class _MigrationPageState extends State<MigrationPage> {
             Text('ID: ${s['id']}  ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             Expanded(child: Text('Fields: ${(s['fields'] as List).join(', ')}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary))),
           ])),
-        ])));
+        ]))));
       }),
       if (errors.isNotEmpty) ...[
         const SizedBox(height: 16),
@@ -250,7 +250,7 @@ class _MigrationPageState extends State<MigrationPage> {
             const SizedBox(width: 8),
             Expanded(child: Text(w.toString(), style: const TextStyle(color: Colors.amber, fontSize: 12))),
           ])),
-        ])),
+        ]))),
         const SizedBox(height: 16),
       ],
       GlassCard(padding: 16.0, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
