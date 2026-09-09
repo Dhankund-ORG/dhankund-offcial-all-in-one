@@ -20,6 +20,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Check Worker JS syntax (shared root backend)
+        working-directory: ${{ github.workspace }}
+        run: |
+          for f in worker.js worker/db.js worker/auth.js worker/fcm.js worker/openapi.js; do
+            cp "$f" "/tmp/check_$(basename "$f" .js).mjs"
+            node --check "/tmp/check_$(basename "$f" .js).mjs" || exit 1
+          done
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
