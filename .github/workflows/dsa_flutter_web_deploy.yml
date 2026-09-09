@@ -1,9 +1,12 @@
-name: Deploy Flutter Web to Cloudflare Workers with Assets
+name: Deploy DSA Web (static frontend)
 
 on:
   push:
     branches:
       - master
+    paths:
+      - 'DSA-Banker-flutter app/**'
+      - '.github/workflows/dsa_flutter_web_deploy.yml'
   workflow_dispatch:
 
 permissions:
@@ -30,26 +33,14 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Validate Secrets
+      - name: Validate API Base URL Secret
         run: |
-          if [ -z "${{ secrets.DSA_FIREBASE_WEB }}" ]; then
-            echo "ERROR: DSA_FIREBASE_WEB secret is missing or empty. Please add it to GitHub Secrets."
-            exit 1
-          fi
+          if [ -z "${{ secrets.API_BASE_URL }}" ]; then echo "ERROR: API_BASE_URL is missing (should point to the shared API worker)"; exit 1; fi
 
       - name: Create config.env file
         run: |
-          echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > config.env
-          echo "AWS_S3_REGION=${{ secrets.AWS_S3_REGION }}" >> config.env
-          echo "AWS_S3_ENDPOINT=${{ secrets.AWS_S3_ENDPOINT }}" >> config.env
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> config.env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> config.env
-          
-          DSA_WEB=$(echo '${{ secrets.DSA_FIREBASE_WEB }}' | tr -d '\n' | tr -d '\r')
-          echo "DSA_FIREBASE_WEB='${DSA_WEB}'" >> config.env
-          
-          CRM_WEB=$(echo '${{ secrets.CRM_FIREBASE_WEB }}' | tr -d '\n' | tr -d '\r')
-          echo "CRM_FIREBASE_WEB='${CRM_WEB}'" >> config.env
+          echo "API_BASE_URL=${{ secrets.API_BASE_URL }}" > config.env
+          echo "CLOUDFLARE_API_BASE_URL=${{ secrets.API_BASE_URL }}" >> config.env
 
       - name: Build Flutter Web
         run: flutter build web --release
