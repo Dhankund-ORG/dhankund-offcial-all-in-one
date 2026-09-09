@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../firebase_service.dart';
+import '../../api_service.dart';
 
 class LeadsReportPage extends StatefulWidget {
   const LeadsReportPage({super.key});
@@ -10,7 +10,7 @@ class LeadsReportPage extends StatefulWidget {
 }
 
 class _LeadsReportPageState extends State<LeadsReportPage> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final ApiService _firestoreService = ApiService();
   
   List<Map<String, dynamic>> _allLeads = [];
   List<Map<String, dynamic>> _eligibleLeads = [];
@@ -145,7 +145,7 @@ class _LeadsReportPageState extends State<LeadsReportPage> {
         issues.add({
           'type': 'WARNING',
           'title': 'GST Turnover Variance',
-          'desc': 'Declared turnover (₹${lead['turnover']}) has a 15% variance compared to 3B filings.',
+          'desc': 'Declared turnover (â¹${lead['turnover']}) has a 15% variance compared to 3B filings.',
           'icon': Icons.receipt_long,
           'color': Colors.orange,
         });
@@ -164,7 +164,7 @@ class _LeadsReportPageState extends State<LeadsReportPage> {
         issues.add({
           'type': 'WARNING',
           'title': 'Salary Credit Variance',
-          'desc': 'Declared salary (₹${lead['salary']}) is higher than average monthly net banking credits.',
+          'desc': 'Declared salary (â¹${lead['salary']}) is higher than average monthly net banking credits.',
           'icon': Icons.money,
           'color': Colors.orange,
         });
@@ -296,7 +296,7 @@ class _LeadsReportPageState extends State<LeadsReportPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('You are about to route applicant ${lead['full_name']} (Loan Amount: ₹${lead['loan_amount']}) directly to partner banker:', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+            Text('You are about to route applicant ${lead['full_name']} (Loan Amount: â¹${lead['loan_amount']}) directly to partner banker:', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
@@ -428,7 +428,7 @@ class _LeadsReportPageState extends State<LeadsReportPage> {
                                               spacing: 12,
                                               runSpacing: 4,
                                               children: [
-                                                Text('Amount: ₹${lead['loan_amount'] ?? '0'}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                                                Text('Amount: â¹${lead['loan_amount'] ?? '0'}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                                                 Text('CIBIL: ${lead['applicant_cibil']}', style: TextStyle(color: (lead['applicant_cibil'] ?? 0) >= 700 ? AppTheme.emeraldGreen : Colors.orange, fontWeight: FontWeight.bold, fontSize: 13)),
                                                 if (lead['pan_number'] != null)
                                                   Text('PAN: ${lead['pan_number']}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
@@ -756,7 +756,7 @@ class _LeadsReportPageState extends State<LeadsReportPage> {
                 if ((rec['cons'] as List).isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0),
-                    child: Text('⚠️ ${(rec['cons'] as List).first}', style: const TextStyle(color: Colors.orangeAccent, fontSize: 11)),
+                    child: Text('â ï¸ ${(rec['cons'] as List).first}', style: const TextStyle(color: Colors.orangeAccent, fontSize: 11)),
                   ),
               ],
             ),
