@@ -198,6 +198,11 @@ app.get('/api/v1/admin-posts', auth, async function (c) { const rows = await all
 app.post('/api/v1/admin-posts', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'admin_posts', { id: id, uid: me.sub, name: isAdminRole(me.role) ? 'Admin' : (me.name || 'User'), title: b.title || null, content: b.content || null, imageUrl: b.imageUrl || null, timestamp: nowIso() }); return c.json({ success: true, id: id }); });
 app.delete('/api/v1/admin-posts/:id', auth, async function (c) { const me = c.get('user'); const id = c.req.param('id'); if (isAdminRole(me.role)) { await run(c.env, 'DELETE FROM admin_posts WHERE id = ?', [id]); } else { await run(c.env, 'DELETE FROM admin_posts WHERE id = ? AND uid = ?', [id, me.sub]); } return c.json({ success: true }); });
 
+app.get('/api/v1/directory', auth, async function (c) {
+  const role = roleKey(c.req.query('role') || 'partner');
+  const rows = await all(c.env, "SELECT * FROM registrations WHERE lower(role) = lower(?) AND lower(status) = 'approved' ORDER BY created_at DESC", [role]);
+  return c.json(rows.map(rowToRegistration));
+});
 app.get('/api/v1/bank-policies', auth, async function (c) { const rows = await all(c.env, 'SELECT * FROM bank_policies ORDER BY updated_at DESC'); return c.json(rows); });
 
 app.post('/api/v1/devices', async function (c) { const b = await readJson(c); if (!b.token) return c.json({ error: 'token is required' }, 400); const now = nowIso(); const existing = await first(c.env, 'SELECT token FROM fcm_tokens WHERE token = ?', [String(b.token)]); if (existing) { await updateRow(c.env, 'fcm_tokens', 'token', String(b.token), { user_id: b.user_id || null, platform: b.platform || null, updated_at: now }); } else { await insertRow(c.env, 'fcm_tokens', { token: String(b.token), user_id: b.user_id || null, platform: b.platform || null, created_at: now, updated_at: now }); } return c.json({ success: true }); });
