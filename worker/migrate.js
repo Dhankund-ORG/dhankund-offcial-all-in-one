@@ -1,8 +1,8 @@
-// worker/migrate.js — Firestore to D1 migration module
+// worker/migrate.js â Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
-import { all, run, nowIso } from './db.js';
+import { all, first, run, safeJson, nowIso, randomId } from './db.js';
 
 const encoder = new TextEncoder();
 
@@ -55,6 +55,34 @@ async function getFirestoreAccessToken(env) {
   cachedToken = data.access_token;
   cachedTokenExpiry = Date.now() + ((data.expires_in || 3600) - 60) * 1000;
   return cachedToken;
+}
+
+
+// ==================== Identity Toolkit OAuth2 Token ====================
+
+let cachedItToken = null;
+let cachedItTokenExpiry = 0;
+
+async function getIdentityToolkitAccessToken(env) {
+  if (cachedItToken && Date.now() < cachedItTokenExpiry) return cachedItToken;
+  const raw = env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT is not configured.');
+  const sa = JSON.parse(raw);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const tokenUri = sa.token_uri || 'https://oauth2.googleapis.com/token';
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const claims = { iss: sa.client_email, scope: 'https://www.googleapis.com/auth/identitytoolkit', aud: tokenUri, iat: nowSec, exp: nowSec + 3600 };
+  const assertion = await signJwtRs256(sa.private_key, header, claims);
+  const res = await fetch(tokenUri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + encodeURIComponent(assertion)
+  });
+  if (!res.ok) { const body = await res.text(); throw new Error('Identity Toolkit token exchange failed: ' + res.status + ' ' + body.slice(0, 500)); }
+  const data = await res.json();
+  cachedItToken = data.access_token;
+  cachedItTokenExpiry = Date.now() + ((data.expires_in || 3600) - 60) * 1000;
+  return cachedItToken;
 }
 
 function getProjectId(env) {
@@ -400,4 +428,91 @@ export async function importData(env, filterCollection, dryRun) {
   }
   return { project_id: projectId, imported_at: nowIso(), dry_run: !!dryRun,
     results: results, summary: summary, warnings: warnings, errors: errors };
+}
+
+// ==================== Public API: Import Auth Data ====================
+
+export async function importAuthData(env, dryRun) {
+  const token = await getIdentityToolkitAccessToken(env);
+  const projectId = getProjectId(env);
+  const results = { project_id: projectId, imported_at: nowIso(), dry_run: !!dryRun };
+  const errors = [];
+
+  // 1. Fetch project config (signerKey + saltSeparator for Firebase scrypt)
+  let signerKey = null;
+  let saltSeparator = null;
+  try {
+    const configRes = await fetch('https://identitytoolkit.googleapis.com/v1/projects/' + projectId, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (!configRes.ok) {
+      const body = await configRes.text();
+      throw new Error('Project config fetch failed: ' + configRes.status + ' ' + body.slice(0, 500));
+    }
+    const config = await configRes.json();
+    const hash = (config.signIn && config.signIn.hash) || {};
+    signerKey = hash.signerKey || null;
+    saltSeparator = hash.saltSeparator || 'Bw==';
+  } catch (e) {
+    return Object.assign(results, { error: 'Failed to fetch project config: ' + e.message, errors: errors });
+  }
+
+  // 2. Store config in D1 migration_config table
+  if (!dryRun) {
+    await run(env, 'CREATE TABLE IF NOT EXISTS migration_config (key TEXT PRIMARY KEY, value TEXT)');
+    if (signerKey) await run(env, 'INSERT OR REPLACE INTO migration_config (key, value) VALUES (?, ?)', ['firebase_signer_key', signerKey]);
+    if (saltSeparator) await run(env, 'INSERT OR REPLACE INTO migration_config (key, value) VALUES (?, ?)', ['firebase_salt_separator', saltSeparator]);
+  }
+
+  // 3. Fetch all Firebase Auth users with passwordHash + salt (paginated)
+  let pageToken = null;
+  let totalUsers = 0, withPassword = 0, updated = 0, created = 0, failed = 0;
+  do {
+    let url = 'https://identitytoolkit.googleapis.com/v1/projects/' + projectId + '/accounts:batchGet?maxResults=1000';
+    if (pageToken) url += '&nextPageToken=' + encodeURIComponent(pageToken);
+    const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error('Identity Toolkit list users failed: ' + res.status + ' ' + body.slice(0, 500));
+    }
+    const data = await res.json();
+    const users = data.users || [];
+    for (const u of users) {
+      totalUsers++;
+      const email = (u.email || '').toString().toLowerCase();
+      const passwordHash = u.passwordHash || null;
+      const salt = u.salt || null;
+      if (!email || !passwordHash || !salt) continue;
+      withPassword++;
+      try {
+        const existing = await first(env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
+        if (existing) {
+          if (!dryRun) {
+            const data = safeJson(existing.data, '{}');
+            data.firebasePasswordHash = passwordHash;
+            data.firebaseSalt = salt;
+            await run(env, 'UPDATE users SET data = ?, updated_at = ? WHERE id = ?', [JSON.stringify(data), nowIso(), existing.id]);
+          }
+          updated++;
+        } else {
+          if (!dryRun) {
+            const uid = u.localId || randomId();
+            const data = { uid: uid, role: 'customer', profileCompleted: false, firebasePasswordHash: passwordHash, firebaseSalt: salt };
+            await run(env, 'INSERT OR REPLACE INTO users (id, email, password_hash, role, name, mobile, kyc_completed, bank_details_completed, data, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?)', [uid, email, 'customer', u.displayName || null, u.phoneNumber || null, JSON.stringify(data), nowIso(), nowIso()]);
+          }
+          created++;
+        }
+      } catch (e) {
+        failed++;
+        errors.push({ email: email, error: e.message });
+      }
+    }
+    pageToken = data.nextPageToken || null;
+  } while (pageToken);
+
+  return Object.assign(results, {
+    project_config: { signer_key: signerKey ? 'stored' : 'missing', salt_separator: saltSeparator ? 'stored' : 'missing' },
+    summary: { total_auth_users: totalUsers, users_with_password: withPassword, updated: updated, created: created, failed: failed },
+    errors: errors
+  });
 }
