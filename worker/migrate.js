@@ -1,4 +1,4 @@
-// worker/migrate.js ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Firestore to D1 migration module
+// worker/migrate.js ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
@@ -495,19 +495,22 @@ export async function importAuthData(env, dryRun) {
   let signerKey = null;
   let saltSeparator = null;
   try {
+    errors.push({ email: 'STEP 1', error: 'OAuth2 token obtained, length=' + token.length + '. Fetching project config...' });
     const configRes = await fetch('https://identitytoolkit.googleapis.com/v1/projects/' + projectId, {
       headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
     });
     if (!configRes.ok) {
       const body = await configRes.text();
-      throw new Error('Project config fetch failed: ' + configRes.status + ' ' + body.slice(0, 500));
+      errors.push({ email: 'STEP 1 FAILED', error: 'Project config HTTP ' + configRes.status + ': ' + body.slice(0, 300) });
+      throw new Error('Project config fetch failed: ' + configRes.status);
     }
     const config = await configRes.json();
     const hash = (config.signIn && config.signIn.hash) || {};
     signerKey = hash.signerKey || null;
     saltSeparator = hash.saltSeparator || 'Bw==';
+    errors.push({ email: 'STEP 1 OK', error: 'Project config fetched. signerKey=' + (signerKey ? 'present' : 'missing') + ', saltSeparator=' + (saltSeparator || 'missing') + '. Config keys: ' + Object.keys(config).join(',') });
   } catch (e) {
-    return Object.assign(results, { error: 'Failed to fetch project config: ' + e.message, errors: errors });
+    errors.push({ email: 'STEP 1 ERROR', error: e.message });
   }
 
   // 2. Store config in D1 migration_config table
@@ -522,14 +525,17 @@ export async function importAuthData(env, dryRun) {
   do {
     let url = 'https://identitytoolkit.googleapis.com/v1/projects/' + projectId + '/accounts:batchGet?maxResults=1000';
     if (pageToken) url += '&nextPageToken=' + encodeURIComponent(pageToken);
+    if (totalUsers === 0) errors.push({ email: 'STEP 2', error: 'Fetching users from: ' + url });
     const res = await fetch(url, {
       headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
     });
     if (!res.ok) {
       const body = await res.text();
-      throw new Error('Identity Toolkit list users failed: ' + res.status + ' ' + body.slice(0, 500));
+      errors.push({ email: 'STEP 2 FAILED', error: 'HTTP ' + res.status + ': ' + body.slice(0, 300) });
+      throw new Error('Identity Toolkit list users failed: ' + res.status);
     }
     const respText = await res.text();
+    if (totalUsers === 0) errors.push({ email: 'STEP 2 OK', error: 'HTTP ' + res.status + '. Response length=' + respText.length + '. First 200 chars: ' + respText.slice(0, 200) });
     var respData = {};
     try { respData = JSON.parse(respText); } catch(e) { respData = { parseError: e.message, rawText: respText.slice(0, 300) }; }
     const users = respData.users || respData.accounts || [];
