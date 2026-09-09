@@ -96,23 +96,19 @@ class _BusinessLoanFormScreenState extends State<BusinessLoanFormScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: Colors.transparent, elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black87), onPressed: () => Navigator.of(context).pop()),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-          child: Form(
-            key: _formKey,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              _buildHeader(),
-              const SizedBox(height: 32),
-              _buildFormCard(),
-              const SizedBox(height: 24),
-            ]),
-          ),
+          child: Form(key: _formKey, child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            _buildHeader(),
+            const SizedBox(height: 32),
+            _buildFormCard(),
+            const SizedBox(height: 24),
+          ])),
         ),
       ),
     );
@@ -143,10 +139,10 @@ class _BusinessLoanFormScreenState extends State<BusinessLoanFormScreen> {
         _buildTextField(controller: _nameController, hint: 'Enter your name', validator: (v) => (v == null || v.trim().isEmpty) ? 'Please enter your name' : null),
         const SizedBox(height: 20),
         _buildLabel('Mobile No. *'),
-        _buildTextField(controller: _mobileController, hint: 'Enter 10-digit mobile number', keyboardType: TextInputType.phone, validator: (v) => (v == null || !RegExp(r'^[0-9]{10}\$').hasMatch(v.trim())) ? 'Please enter a valid 10-digit number' : null),
+        _buildTextField(controller: _mobileController, hint: 'Enter 10-digit mobile number', keyboardType: TextInputType.phone, validator: (v) => (v == null || !RegExp(r'^[0-9]{10}$').hasMatch(v.trim())) ? 'Please enter a valid 10-digit number' : null),
         const SizedBox(height: 20),
         _buildLabel('Mail ID (Optional)'),
-        _buildTextField(controller: _emailController, hint: 'Enter your email address', keyboardType: TextInputType.emailAddress, validator: (v) { if (v != null && v.trim().isNotEmpty && !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}\$').hasMatch(v.trim())) return 'Please enter a valid email address'; return null; }),
+        _buildTextField(controller: _emailController, hint: 'Enter your email address', keyboardType: TextInputType.emailAddress, validator: (v) { if (v != null && v.trim().isNotEmpty && !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v.trim())) return 'Please enter a valid email address'; return null; }),
         const SizedBox(height: 20),
         _buildLabel('Loan Amount *'),
         _buildTextField(controller: _amountController, hint: 'Enter required loan amount', prefix: 'Rs ', keyboardType: TextInputType.number, validator: (v) { if (v == null || v.trim().isEmpty) return 'Please enter loan amount'; final n = double.tryParse(v.trim()); return (n == null || n <= 0) ? 'Please enter a valid loan amount' : null; }),
@@ -172,8 +168,7 @@ class _BusinessLoanFormScreenState extends State<BusinessLoanFormScreen> {
         prefixText: prefix,
         prefixStyle: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.bold),
         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-        filled: true,
-        fillColor: Colors.grey.shade50,
+        filled: true, fillColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
