@@ -134,8 +134,8 @@ class _OverviewPageState extends State<OverviewPage> {
                     ),
                     StatCard(
                       title: 'TOTAL DISBURSED PAYOUT',
-                      value: 'â¹${disbursedVal.toStringAsFixed(0)}',
-                      subtitle: 'â¹${pendingVal.toStringAsFixed(0)} Processing',
+                      value: '₹${disbursedVal.toStringAsFixed(0)}',
+                      subtitle: '₹${pendingVal.toStringAsFixed(0)} Processing',
                       icon: Icons.account_balance_wallet,
                       iconColor: Colors.lightBlueAccent,
                       trendText: 'Wallet',
