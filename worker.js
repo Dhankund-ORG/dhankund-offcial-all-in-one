@@ -3,7 +3,7 @@ import { all, first, run, insertRow, updateRow, safeJson, nowIso, randomId } fro
 import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebasePassword } from './worker/auth.js';
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
-import { computeDiff, exportData, importData, importAuthData } from './worker/migrate.js';
+import { computeDiff, exportData, importData, importAuthData, migrateSchema } from './worker/migrate.js';
 
 const app = new Hono();
 
@@ -276,4 +276,12 @@ app.post('/api/v1/migrate/import-auth', requireAdmin, async function (c) {
     return c.json(result);
   } catch (e) { return c.json({ error: e.message }, 500); }
 });
+// ==================== Schema Migration ====================
+app.post('/api/v1/migrate/schema', requireAdmin, async function (c) {
+  try {
+    const result = await migrateSchema(c.env);
+    return c.json(result);
+  } catch (e) { return c.json({ error: e.message }, 500); }
+});
+
 export default app;
