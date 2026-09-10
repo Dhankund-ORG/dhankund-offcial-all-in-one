@@ -98,9 +98,19 @@ async function upsertUserFromRegistration(env, uid, role, userDetails) {
   delete data.id; delete data.status; delete data.timestamp; delete data._source_collection;
   const email = (details.email || '').toString().trim() || null;
   const name = (details.name || '').toString(); const mobile = (details.mobile || '').toString();
+  const cols = { role: role, name: name, mobile: mobile, profile_completed: 1,
+    gender: details.gender || null, company: details.company || null, address: details.address || null,
+    current_experience: details.currentExp || details.current_experience || null,
+    total_experience: details.totalExp || details.total_experience || null,
+    segment: details.segment || null, profession: details.profession || null, about: details.about || null,
+    partner_name: details.partnerName || details.partner_name || null, partner_mobile: details.partnerMobile || details.partner_mobile || null,
+    gumasta_url: details.gumastaUrl || details.gumasta_url || null, id_card_url: details.idCardUrl || details.id_card_url || null,
+    manager_name: details.managerName || details.manager_name || null, manager_mobile: details.managerMobile || details.manager_mobile || null,
+    area_manager_name: details.areaManagerName || details.area_manager_name || null, area_manager_mobile: details.areaManagerMobile || details.area_manager_mobile || null,
+    nominee_name: details.nomineeName || details.nominee_name || null, office_address: details.officeAddress || details.office_address || null };
   const existing = await first(env, 'SELECT id FROM users WHERE id = ?', [uid]);
-  if (existing) { await updateRow(env, 'users', 'id', uid, { role: role, name: name, mobile: mobile, data: JSON.stringify(data), updated_at: now }); }
-  else { await insertRow(env, 'users', { id: uid, email: email, role: role, name: name, mobile: mobile, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify(data), created_at: now, updated_at: now }); }
+  if (existing) { await updateRow(env, 'users', 'id', uid, Object.assign({ data: JSON.stringify(data), updated_at: now }, cols)); }
+  else { await insertRow(env, 'users', Object.assign({ id: uid, email: email, password_hash: null, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify(data), created_at: now, updated_at: now }, cols)); }
 }
 
 async function mergeUserData(env, uid, patch) {
@@ -310,8 +320,21 @@ app.get('/api/v1/me/referrals', auth, async function (c) { const me = c.get('use
 
 app.post('/api/v1/registrations', auth, async function (c) {
   const me = c.get('user'); const b = await readJson(c); const role = roleKey(b.role || 'customer'); const now = nowIso(); const id = randomId();
-  const data = Object.assign({}, b.details || {}, { uid: me.sub, email: me.email, role: role, timestamp: now }); delete data.id; delete data.status;
-  await insertRow(c.env, 'registrations', { id: id, uid: me.sub, role: role, status: 'pending', data: JSON.stringify(data), created_at: now });
+  const details = b.details || {};
+  const data = Object.assign({}, details, { uid: me.sub, email: me.email, role: role, timestamp: now }); delete data.id; delete data.status;
+  const regCols = { id: id, uid: me.sub, role: role, status: 'pending', data: JSON.stringify(data), created_at: now,
+    name: details.name || null, mobile: details.mobile || null, email: details.email || me.email || null,
+    gender: details.gender || null, company: details.company || null, address: details.address || null,
+    current_experience: details.currentExp || details.current_experience || null,
+    total_experience: details.totalExp || details.total_experience || null,
+    segment: details.segment || null, profession: details.profession || null, about: details.about || null,
+    partner_name: details.partnerName || details.partner_name || null, partner_mobile: details.partnerMobile || details.partner_mobile || null,
+    gumasta_url: details.gumastaUrl || details.gumasta_url || null,
+    id_card_url: details.idCardUrl || details.id_card_url || null,
+    manager_name: details.managerName || details.manager_name || null, manager_mobile: details.managerMobile || details.manager_mobile || null,
+    area_manager_name: details.areaManagerName || details.area_manager_name || null, area_manager_mobile: details.areaManagerMobile || details.area_manager_mobile || null,
+    nominee_name: details.nomineeName || details.nominee_name || null, office_address: details.officeAddress || details.office_address || null };
+  await insertRow(c.env, 'registrations', regCols);
   await upsertUserFromRegistration(c.env, me.sub, role, Object.assign({}, b.details || {}, { email: me.email }));
   return c.json({ success: true, id: id });
 });
