@@ -491,12 +491,4 @@ class ApiService {
   }
 
 
-
-    if (dryRun) { params.add('dry_run=true'); }
-    if (params.isNotEmpty) { path += '?' + params.join('&'); }
-    final data = await ApiClient.post(path, {});
-    return (data as Map).cast<String, dynamic>();
-  }
-
-
 }
