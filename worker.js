@@ -108,11 +108,39 @@ async function mergeUserData(env, uid, patch) {
   if (!row) throw new Error('user not found');
   const data = safeJson(row.data, {});
   const merged = Object.assign({}, data, patch, { updatedAt: nowIso() });
-  const extra = {};
-  if (patch.name != null) extra.name = String(patch.name);
-  if (patch.mobile != null) extra.mobile = String(patch.mobile);
-  if (patch.profilePictureUrl != null) extra.data = JSON.stringify(merged);
-  await updateRow(env, 'users', 'id', uid, Object.assign({ data: JSON.stringify(merged), updated_at: nowIso() }, extra));
+  const cols = {};
+  if (patch.name != null) cols.name = String(patch.name);
+  if (patch.mobile != null) cols.mobile = String(patch.mobile);
+  if (patch.gender != null) cols.gender = String(patch.gender);
+  if (patch.company != null) cols.company = String(patch.company);
+  if (patch.address != null) cols.address = String(patch.address);
+  if (patch.currentExperience != null) cols.current_experience = String(patch.currentExperience);
+  if (patch.totalExperience != null) cols.total_experience = String(patch.totalExperience);
+  if (patch.segment != null) cols.segment = String(patch.segment);
+  if (patch.profession != null) cols.profession = String(patch.profession);
+  if (patch.about != null) cols.about = String(patch.about);
+  if (patch.partnerName != null) cols.partner_name = String(patch.partnerName);
+  if (patch.partnerMobile != null) cols.partner_mobile = String(patch.partnerMobile);
+  if (patch.gumastaUrl != null) cols.gumasta_url = String(patch.gumastaUrl);
+  if (patch.idCardUrl != null) cols.id_card_url = String(patch.idCardUrl);
+  if (patch.managerName != null) cols.manager_name = String(patch.managerName);
+  if (patch.managerMobile != null) cols.manager_mobile = String(patch.managerMobile);
+  if (patch.areaManagerName != null) cols.area_manager_name = String(patch.areaManagerName);
+  if (patch.areaManagerMobile != null) cols.area_manager_mobile = String(patch.areaManagerMobile);
+  if (patch.nomineeName != null) cols.nominee_name = String(patch.nomineeName);
+  if (patch.officeAddress != null) cols.office_address = String(patch.officeAddress);
+  if (patch.profilePictureUrl != null) cols.profile_picture_url = String(patch.profilePictureUrl);
+  if (patch.fcmToken != null) cols.fcm_token = String(patch.fcmToken);
+  if (patch.kycPan != null) cols.kyc_pan = String(patch.kycPan);
+  if (patch.kycAadhaar != null) cols.kyc_aadhaar = String(patch.kycAadhaar);
+  if (patch.kycDocUrl != null) cols.kyc_doc_url = String(patch.kycDocUrl);
+  if (patch.bankName != null) cols.bank_name = String(patch.bankName);
+  if (patch.bankAccountHolder != null) cols.bank_account_holder = String(patch.bankAccountHolder);
+  if (patch.bankAccountNumber != null) cols.bank_account_number = String(patch.bankAccountNumber);
+  if (patch.bankIfsc != null) cols.bank_ifsc = String(patch.bankIfsc);
+  if (patch.bankProofUrl != null) cols.bank_proof_url = String(patch.bankProofUrl);
+  if (patch.profileCompleted != null) cols.profile_completed = patch.profileCompleted ? 1 : 0;
+  await updateRow(env, 'users', 'id', uid, Object.assign({ data: JSON.stringify(merged), updated_at: nowIso() }, cols));
   return merged;
 }
 
@@ -263,15 +291,17 @@ app.put('/api/v1/me/profile', auth, async function (c) { const me = c.get('user'
 
 app.post('/api/v1/me/kyc', auth, async function (c) {
   const me = c.get('user'); const b = await readJson(c);
-  await mergeUserData(c.env, me.sub, { kycCompleted: true, kycPan: (b.pan || '').toString().toUpperCase(), kycAadhaar: (b.aadhaar || '').toString(), kycDocUrl: (b.docUrl || '').toString() });
-  await updateRow(c.env, 'users', 'id', me.sub, { kyc_completed: 1, updated_at: nowIso() });
+  const kycPanVal = (b.pan || '').toString().toUpperCase(); const kycAadhaarVal = (b.aadhaar || '').toString(); const kycDocUrlVal = (b.docUrl || '').toString();
+  await mergeUserData(c.env, me.sub, { kycCompleted: true, kycPan: kycPanVal, kycAadhaar: kycAadhaarVal, kycDocUrl: kycDocUrlVal });
+  await updateRow(c.env, 'users', 'id', me.sub, { kyc_completed: 1, kyc_pan: kycPanVal, kyc_aadhaar: kycAadhaarVal, kyc_doc_url: kycDocUrlVal, updated_at: nowIso() });
   return c.json({ success: true });
 });
 
 app.post('/api/v1/me/bank', auth, async function (c) {
   const me = c.get('user'); const b = await readJson(c);
-  await mergeUserData(c.env, me.sub, { bankDetailsCompleted: true, bankName: (b.bankName || '').toString(), bankAccountHolder: (b.holderName || '').toString(), bankAccountNumber: (b.accountNumber || '').toString(), bankIfsc: (b.ifsc || '').toString().toUpperCase(), bankProofUrl: (b.proofUrl || '').toString() });
-  await updateRow(c.env, 'users', 'id', me.sub, { bank_details_completed: 1, updated_at: nowIso() });
+  const bankNameVal = (b.bankName || '').toString(); const holderVal = (b.holderName || '').toString(); const acctVal = (b.accountNumber || '').toString(); const ifscVal = (b.ifsc || '').toString().toUpperCase(); const proofVal = (b.proofUrl || '').toString();
+  await mergeUserData(c.env, me.sub, { bankDetailsCompleted: true, bankName: bankNameVal, bankAccountHolder: holderVal, bankAccountNumber: acctVal, bankIfsc: ifscVal, bankProofUrl: proofVal });
+  await updateRow(c.env, 'users', 'id', me.sub, { bank_details_completed: 1, bank_name: bankNameVal, bank_account_holder: holderVal, bank_account_number: acctVal, bank_ifsc: ifscVal, bank_proof_url: proofVal, updated_at: nowIso() });
   return c.json({ success: true });
 });
 
