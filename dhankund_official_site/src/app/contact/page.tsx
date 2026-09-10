@@ -1,9 +1,48 @@
+"use client";
+
+import { useState, FormEvent } from "react";
+
+type Status = "idle" | "submitting" | "success" | "error";
+
 export default function Contact() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<Status>("idle");
+  const [errorText, setErrorText] = useState("");
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setStatus("submitting");
+    setErrorText("");
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName, email, message }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Something went wrong. Please try again.");
+      }
+      setStatus("success");
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setMessage("");
+    } catch (err) {
+      setStatus("error");
+      setErrorText(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  }
+
   return (
     <div className="py-20 bg-slate-50">
       <div className="container mx-auto px-6 max-w-6xl">
         <h1 className="text-4xl lg:text-5xl font-bold text-slate-900 mb-12 text-center">Contact Us</h1>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Contact Information */}
           <div className="space-y-8">
@@ -12,7 +51,7 @@ export default function Contact() {
               <p className="text-slate-600 mb-8">
                 Have questions about our loan services or interested in joining our DSA network? We'd love to hear from you.
               </p>
-              
+
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-blue-100 text-primary rounded-full flex items-center justify-center flex-shrink-0">
@@ -23,7 +62,7 @@ export default function Contact() {
                     <p className="text-slate-600">Indore, Madhya Pradesh, India</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -36,33 +75,78 @@ export default function Contact() {
               </div>
             </div>
           </div>
-          
+
           {/* Contact Form */}
           <div className="bg-white p-8 md:p-10 rounded-2xl shadow-lg border border-slate-100">
             <h3 className="text-2xl font-bold text-slate-900 mb-6">Send us a Message</h3>
-            <form className="space-y-6">
+
+            {status === "success" && (
+              <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200 text-green-800">
+                Thank you! Your message has been sent. We'll get back to you soon.
+              </div>
+            )}
+            {status === "error" && (
+              <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
+                {errorText}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">First Name</label>
-                  <input type="text" className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="John" />
+                  <input
+                    type="text"
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                    placeholder="John"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Last Name</label>
-                  <input type="text" className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="Doe" />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                    placeholder="Doe"
+                  />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
-                <input type="email" className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="john@example.com" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                  placeholder="john@example.com"
+                />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Message</label>
-                <textarea rows={4} className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="How can we help you?"></textarea>
+                <textarea
+                  rows={4}
+                  required
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                  placeholder="How can we help you?"
+                />
               </div>
-              
-              <button type="button" className="btn-primary w-full">Send Message</button>
+
+              <button
+                type="submit"
+                disabled={status === "submitting"}
+                className="btn-primary w-full disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {status === "submitting" ? "Sending..." : "Send Message"}
+              </button>
             </form>
           </div>
         </div>
