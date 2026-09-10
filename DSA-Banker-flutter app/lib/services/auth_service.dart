@@ -32,4 +32,36 @@ class AuthService {
   }
 
   bool get isLoggedIn => ApiClient.token != null && ApiClient.token!.isNotEmpty;
+
+  Future<String?> forgotPassword(String email) async {
+    try {
+      await _api.forgotPassword(email);
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to send OTP. Please try again.';
+    }
+  }
+
+  Future<Map<String, dynamic>?> verifyOtp(String email, String otp) async {
+    try {
+      return await _api.verifyOtp(email, otp);
+    } on ApiException catch (e) {
+      return {'error': e.message};
+    } catch (_) {
+      return {'error': 'OTP verification failed.'};
+    }
+  }
+
+  Future<String?> resetPassword(String resetToken, String newPassword) async {
+    try {
+      await _api.resetPassword(resetToken, newPassword);
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Password reset failed. Please try again.';
+    }
+  }
 }
