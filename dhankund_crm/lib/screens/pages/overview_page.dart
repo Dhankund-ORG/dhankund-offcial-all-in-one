@@ -187,7 +187,7 @@ class _OverviewPageState extends State<OverviewPage> {
       child: SizedBox(
         height: 350,
         child: CustomChart(
-          title: 'Partner Referral Earnings Growth (â¹)',
+          title: 'Partner Referral Earnings Growth (₹)',
           data: const [30000, 45000, 60000, 95000, 110000, 150000],
           labels: const ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
         ),

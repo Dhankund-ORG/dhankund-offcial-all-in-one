@@ -739,7 +739,7 @@ class _LoansPageState extends State<LoansPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: amountController,
-                                decoration: const InputDecoration(labelText: 'Requested Loan Amount (â¹) *'),
+                                decoration: const InputDecoration(labelText: 'Requested Loan Amount (₹) *'),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
                               ),
                             ),
@@ -748,12 +748,12 @@ class _LoansPageState extends State<LoansPage> {
                               child: loanType == 'Personal Loan'
                                   ? TextFormField(
                                       controller: salaryController,
-                                      decoration: const InputDecoration(labelText: 'Monthly Income / Salary (â¹)'),
+                                      decoration: const InputDecoration(labelText: 'Monthly Income / Salary (₹)'),
                                     )
                                   : loanType == 'Business Loan'
                                       ? TextFormField(
                                           controller: turnoverController,
-                                          decoration: const InputDecoration(labelText: 'Annual Turnover (â¹)'),
+                                          decoration: const InputDecoration(labelText: 'Annual Turnover (₹)'),
                                         )
                                       : const SizedBox.shrink(),
                             ),
@@ -1928,10 +1928,10 @@ class _LoansPageState extends State<LoansPage> {
                           ),
                           items: const [
                             DropdownMenuItem(value: 'All', child: Text('All Amounts')),
-                            DropdownMenuItem(value: '< 5L', child: Text('Under â¹5 Lakh')),
-                            DropdownMenuItem(value: '5L - 15L', child: Text('â¹5L - â¹15 Lakh')),
-                            DropdownMenuItem(value: '15L - 50L', child: Text('â¹15L - â¹50 Lakh')),
-                            DropdownMenuItem(value: '> 50L', child: Text('Above â¹50 Lakh')),
+                            DropdownMenuItem(value: '< 5L', child: Text('Under ₹5 Lakh')),
+                            DropdownMenuItem(value: '5L - 15L', child: Text('₹5L - ₹15 Lakh')),
+                            DropdownMenuItem(value: '15L - 50L', child: Text('₹15L - ₹50 Lakh')),
+                            DropdownMenuItem(value: '> 50L', child: Text('Above ₹50 Lakh')),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -2178,20 +2178,13 @@ class _LoansPageState extends State<LoansPage> {
                                             const Text('REQUESTED AMOUNT', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
                                             const SizedBox(height: 4),
                                             Text(
-                                              'â¹ ${app['loan_amount'] ?? '0'}',
+                                              '₹ ${app['loan_amount'] ?? '0'}',
                                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppTheme.royalGold),
                                             ),
                                             if (isBusiness && app['turnover'] != null) ...[
                                               const SizedBox(height: 12),
                                               const Text('ANNUAL TURNOVER', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
                                               const SizedBox(height: 2),
-                                              Text('â¹ ${app['turnover']}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
                                 ],
                               ),
                             ),
