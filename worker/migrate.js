@@ -1,4 +1,4 @@
-// worker/migrate.js ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Firestore to D1 migration module
+// worker/migrate.js ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
@@ -496,19 +496,35 @@ export async function importAuthData(env, dryRun) {
   let saltSeparator = null;
   try {
     errors.push({ email: 'STEP 1', error: 'OAuth2 token obtained, length=' + token.length + '. Fetching project config...' });
-    const configRes = await fetch('https://identitytoolkit.googleapis.com/v1/projects/' + projectId + '/config', {
-      headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
-    });
-    if (!configRes.ok) {
-      const body = await configRes.text();
-      errors.push({ email: 'STEP 1 FAILED', error: 'Project config HTTP ' + configRes.status + ': ' + body.slice(0, 300) });
-      throw new Error('Project config fetch failed: ' + configRes.status);
+    // Try multiple endpoints for project config
+    var configUrls = [
+      'https://identitytoolkit.googleapis.com/v1/projects/' + projectId + '/config',
+      'https://identitytoolkit.googleapis.com/admin/v2/projects/' + projectId + '/config',
+      'https://identitytoolkit.googleapis.com/v1/projects/' + projectId
+    ];
+    for (var cu = 0; cu < configUrls.length; cu++) {
+      try {
+        const configRes = await fetch(configUrls[cu], {
+          headers: { Authorization: 'Bearer ' + token, 'X-Goog-User-Project': projectId }
+        });
+        if (configRes.ok) {
+          const config = await configRes.json();
+          const hash = (config.signIn && config.signIn.hash) || (config.signIn && config.signIn.passwordHashConfiguration) || {};
+          signerKey = hash.signerKey || null;
+          saltSeparator = hash.saltSeparator || 'Bw==';
+          errors.push({ email: 'STEP 1 OK', error: 'Config fetched from URL #' + (cu + 1) + '. signerKey=' + (signerKey ? 'present (len=' + signerKey.length + ')' : 'missing') + ', saltSeparator=' + (saltSeparator || 'missing') });
+          break;
+        } else {
+          errors.push({ email: 'STEP 1 TRY ' + (cu + 1), error: 'HTTP ' + configRes.status + ' from ' + configUrls[cu].slice(0, 80) });
+        }
+      } catch (e2) {
+        errors.push({ email: 'STEP 1 TRY ' + (cu + 1), error: e2.message });
+      }
     }
-    const config = await configRes.json();
-    const hash = (config.signIn && config.signIn.hash) || {};
-    signerKey = hash.signerKey || null;
-    saltSeparator = hash.saltSeparator || 'Bw==';
-    errors.push({ email: 'STEP 1 OK', error: 'Project config fetched. signerKey=' + (signerKey ? 'present' : 'missing') + ', saltSeparator=' + (saltSeparator || 'missing') + '. Config keys: ' + Object.keys(config).join(',') });
+    if (!signerKey) {
+      errors.push({ email: 'STEP 1 WARNING', error: 'signerKey NOT obtained from any endpoint. Password import still works, but verification needs manual signerKey. Use POST /api/v1/migrate/set-signer-key with { "signerKey": "..." } to set it manually.' });
+    }
+    saltSeparator = saltSeparator || 'Bw==';
   } catch (e) {
     errors.push({ email: 'STEP 1 ERROR', error: e.message });
     saltSeparator = saltSeparator || 'Bw==';
@@ -721,4 +737,14 @@ export async function migrateSchema(env) {
     results[table] = { existing_columns: existing.size, added: added, added_count: added.length };
   }
   return { migrated_at: nowIso(), results: results };
+}
+
+// ==================== Public API: Set Signer Key Manually ====================
+
+export async function setSignerKey(env, key, saltSep) {
+  await run(env, 'CREATE TABLE IF NOT EXISTS migration_config (key TEXT PRIMARY KEY, value TEXT)');
+  if (key) await run(env, 'INSERT OR REPLACE INTO migration_config (key, value) VALUES (?, ?)', ['firebase_signer_key', key]);
+  if (saltSep) await run(env, 'INSERT OR REPLACE INTO migration_config (key, value) VALUES (?, ?)', ['firebase_salt_separator', saltSep]);
+  const rows = await all(env, 'SELECT * FROM migration_config');
+  return { success: true, config_keys: rows.map(function(r) { return r.key; }), message: 'Signer key stored. Password verification is now ready.' };
 }
