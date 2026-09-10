@@ -148,4 +148,16 @@ class ApiService {
   Future<List<Map<String, dynamic>>> fetchBankPolicies() async { final data = await ApiClient.get('/api/v1/bank-policies'); return _asList(data); }
 
   Future<void> registerDevice(String token, {String? platform}) async { await ApiClient.post('/api/v1/devices', {'token': token, 'platform': platform}); }
+
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    return (await ApiClient.post('/api/v1/auth/forgot-password', {'email': email}) as Map<String, dynamic>).cast<String, dynamic>();
+  }
+
+  Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
+    return (await ApiClient.post('/api/v1/auth/verify-otp', {'email': email, 'otp': otp}) as Map<String, dynamic>).cast<String, dynamic>();
+  }
+
+  Future<Map<String, dynamic>> resetPassword(String resetToken, String newPassword) async {
+    return (await ApiClient.post('/api/v1/auth/reset-password', {'reset_token': resetToken, 'new_password': newPassword}) as Map<String, dynamic>).cast<String, dynamic>();
+  }
 }
