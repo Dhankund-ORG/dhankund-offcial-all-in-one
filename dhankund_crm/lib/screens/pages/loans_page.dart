@@ -2184,8 +2184,13 @@ class _LoansPageState extends State<LoansPage> {
                                             if (isBusiness && app['turnover'] != null) ...[
                                               const SizedBox(height: 12),
                                               const Text('ANNUAL TURNOVER', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
-                                              const SizedBox(height: 2),
-                                ],
+                                              Text('₹ ${app['turnover']}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                               ),
                             ),
                           );
