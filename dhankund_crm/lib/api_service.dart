@@ -491,35 +491,12 @@ class ApiService {
   }
 
 
-  Future<Map<String, dynamic>> exportFirestoreData({String? collection}) async {
-    final path = (collection != null && collection.isNotEmpty)
-        ? '/api/v1/migrate/export?collection=' + Uri.encodeComponent(collection)
-        : '/api/v1/migrate/export';
-    final data = await ApiClient.get(path);
-    return (data as Map).cast<String, dynamic>();
-  }
 
-  Future<Map<String, dynamic>> importFirestoreData({String? collection, bool dryRun = false}) async {
-    var path = '/api/v1/migrate/import';
-    final params = <String>[];
-    if (collection != null && collection.isNotEmpty) {
-      params.add('collection=' + Uri.encodeComponent(collection));
-    }
     if (dryRun) { params.add('dry_run=true'); }
     if (params.isNotEmpty) { path += '?' + params.join('&'); }
     final data = await ApiClient.post(path, {});
     return (data as Map).cast<String, dynamic>();
   }
 
-  Future<Map<String, dynamic>> importAuthData({bool dryRun = false}) async {
-    var path = '/api/v1/migrate/import-auth';
-    if (dryRun) { path += '?dry_run=true'; }
-    final data = await ApiClient.post(path, {});
-    return (data as Map).cast<String, dynamic>();
-  }
 
-  Future<Map<String, dynamic>> migrateSchema() async {
-    final data = await ApiClient.post('/api/v1/migrate/schema', {});
-    return (data as Map).cast<String, dynamic>();
-  }
 }
