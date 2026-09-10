@@ -23,7 +23,7 @@ jobs:
       - name: Check Worker JS syntax (shared root backend)
         working-directory: ${{ github.workspace }}
         run: |
-          for f in worker.js worker/db.js worker/auth.js worker/fcm.js worker/openapi.js ; do
+          for f in worker.js worker/db.js worker/auth.js worker/fcm.js worker/openapi.js; do
             cp "$f" "/tmp/check_$(basename "$f" .js).mjs"
             node --check "/tmp/check_$(basename "$f" .js).mjs" || exit 1
           done
