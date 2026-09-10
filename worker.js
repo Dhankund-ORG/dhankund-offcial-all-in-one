@@ -3,7 +3,7 @@ import { all, first, run, insertRow, updateRow, safeJson, nowIso, randomId } fro
 import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebasePassword } from './worker/auth.js';
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
-import { computeDiff, exportData, importData, importAuthData, migrateSchema } from './worker/migrate.js';
+import { computeDiff, exportData, importData, importAuthData, migrateSchema, setSignerKey } from './worker/migrate.js';
 
 const app = new Hono();
 
@@ -280,6 +280,15 @@ app.post('/api/v1/migrate/import-auth', requireAdmin, async function (c) {
 app.post('/api/v1/migrate/schema', requireAdmin, async function (c) {
   try {
     const result = await migrateSchema(c.env);
+    return c.json(result);
+  } catch (e) { return c.json({ error: e.message }, 500); }
+});
+
+// ==================== Manual Signer Key ====================
+app.post('/api/v1/migrate/set-signer-key', requireAdmin, async function (c) {
+  try {
+    const b = await readJson(c);
+    const result = await setSignerKey(c.env, b.signerKey || null, b.saltSeparator || null);
     return c.json(result);
   } catch (e) { return c.json({ error: e.message }, 500); }
 });
