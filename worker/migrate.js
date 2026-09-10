@@ -1,4 +1,4 @@
-// worker/migrate.js ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Firestore to D1 migration module
+// worker/migrate.js ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Firestore to D1 migration module
 // Reads from Firebase Firestore via REST API, compares with D1, and imports.
 // Reuses the RS256 JWT signing pattern from worker/fcm.js with datastore scope.
 
@@ -71,7 +71,7 @@ async function getIdentityToolkitAccessToken(env) {
   const nowSec = Math.floor(Date.now() / 1000);
   const tokenUri = sa.token_uri || 'https://oauth2.googleapis.com/token';
   const header = { alg: 'RS256', typ: 'JWT' };
-  const claims = { iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit', aud: tokenUri, iat: nowSec, exp: nowSec + 3600 };
+  const claims = { iss: sa.client_email, scope: 'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/identitytoolkit', aud: tokenUri, iat: nowSec, exp: nowSec + 3600 };
   const assertion = await signJwtRs256(sa.private_key, header, claims);
   const res = await fetch(tokenUri, {
     method: 'POST',
