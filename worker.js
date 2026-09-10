@@ -155,6 +155,68 @@ app.post('/api/v1/auth/login', async function (c) {
 
 app.get('/api/v1/auth/me', auth, async function (c) { const me = c.get('user'); const user = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]); if (!user) return c.json({ error: 'Not found' }, 404); return c.json({ id: user.id, email: user.email, role: user.role, name: user.name, mobile: user.mobile }); });
 app.post('/api/v1/auth/logout', auth, function (c) { return c.json({ success: true }); });
+
+// ==================== Forgot Password (Email OTP) ====================
+app.post('/api/v1/auth/forgot-password', async function (c) {
+  const body = await readJson(c);
+  const email = (body.email || '').toString().trim().toLowerCase();
+  if (!email) return c.json({ error: 'Email is required' }, 400);
+  const user = await first(c.env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
+  // Always return success (don't reveal if email exists)
+  if (!user) return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
+  // Generate 6-digit OTP
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await run(c.env, 'CREATE TABLE IF NOT EXISTS password_reset_otps (email TEXT NOT NULL, otp TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)');
+  await run(c.env, 'DELETE FROM password_reset_otps WHERE email = ?', [email]);
+  await run(c.env, 'INSERT INTO password_reset_otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)', [email, otp, expiresAt, nowIso()]);
+  // Send email via Cloudflare Email Service
+  try {
+    await c.env.SEB.send({
+      to: email,
+      from: 'noreply@dhankund.com',
+      subject: 'Dhankund - Password Reset OTP',
+      html: '<div style="font-family:Arial,sans-serif;max-width:400px;margin:0 auto;padding:20px"><h2 style="color:#6750A4">Password Reset</h2><p>Your OTP for password reset is:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#6750A4;text-align:center;padding:20px;background:#f5f5f5;border-radius:12px">' + otp + '</div><p>This OTP expires in 10 minutes.</p><p>If you did not request this, please ignore this email.</p></div>',
+      text: 'Your OTP for password reset is: ' + otp + '\n\nThis OTP expires in 10 minutes.\nIf you did not request this, please ignore this email.'
+    });
+  } catch (e) { console.error('Email send error:', e.message); return c.json({ error: 'Failed to send OTP email' }, 500); }
+  return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
+});
+
+app.post('/api/v1/auth/verify-otp', async function (c) {
+  const body = await readJson(c);
+  const email = (body.email || '').toString().trim().toLowerCase();
+  const otp = (body.otp || '').toString().trim();
+  if (!email || !otp) return c.json({ error: 'Email and OTP are required' }, 400);
+  const record = await first(c.env, 'SELECT * FROM password_reset_otps WHERE email = ? AND otp = ?', [email, otp]);
+  if (!record) return c.json({ error: 'Invalid OTP' }, 400);
+  if (new Date(record.expires_at).getTime() < Date.now()) {
+    await run(c.env, 'DELETE FROM password_reset_otps WHERE email = ?', [email]);
+    return c.json({ error: 'OTP expired. Please request a new one.' }, 400);
+  }
+  // Generate reset token (JWT, 15 min expiry)
+  const resetToken = await signSession({ email: email, purpose: 'password_reset', exp: Math.floor(Date.now() / 1000) + 900 }, c.env.SESSION_SECRET || '');
+  await run(c.env, 'DELETE FROM password_reset_otps WHERE email = ?', [email]);
+  return c.json({ success: true, reset_token: resetToken });
+});
+
+app.post('/api/v1/auth/reset-password', async function (c) {
+  const body = await readJson(c);
+  const resetToken = (body.reset_token || '').toString();
+  const newPassword = (body.new_password || '').toString();
+  if (!resetToken || !newPassword) return c.json({ error: 'Reset token and new password are required' }, 400);
+  if (newPassword.length < 6) return c.json({ error: 'Password must be at least 6 characters' }, 400);
+  const payload = await verifySession(resetToken, c.env.SESSION_SECRET || '');
+  if (!payload || payload.purpose !== 'password_reset') return c.json({ error: 'Invalid or expired reset token' }, 400);
+  const email = payload.email;
+  const user = await first(c.env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
+  if (!user) return c.json({ error: 'User not found' }, 404);
+  const hash = await hashPassword(newPassword);
+  await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash, updated_at: nowIso() });
+  // Also clear Firebase password hash since user has a new D1 password now
+  if (user.data) { const userData = safeJson(user.data, {}); if (userData.firebasePasswordHash) { delete userData.firebasePasswordHash; delete userData.firebaseSalt; await run(c.env, 'UPDATE users SET data = ? WHERE id = ?', [JSON.stringify(userData), user.id]); } }
+  return c.json({ success: true, message: 'Password reset successfully. You can now login with your new password.' });
+});
 app.post('/api/v1/auth/verify-password', auth, async function (c) { const body = await readJson(c); const me = c.get('user'); const user = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]); if (!user || !user.password_hash) return c.json({ error: 'Not found' }, 404); const ok = await verifyPassword((body.password || '').toString(), user.password_hash); if (!ok) return c.json({ error: 'Incorrect password' }, 401); return c.json({ success: true }); });
 
 app.get('/api/v1/me/profile', auth, async function (c) {
