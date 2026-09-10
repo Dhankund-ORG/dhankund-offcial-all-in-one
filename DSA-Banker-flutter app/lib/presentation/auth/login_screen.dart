@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_flutter_app/presentation/shared/custom_button.dart';
 import 'package:my_flutter_app/presentation/shared/social_button.dart';
 import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
 import 'package:my_flutter_app/presentation/shared/home_screen.dart';
 
 class LoginScreen extends StatelessWidget {
@@ -58,7 +59,9 @@ class LoginScreen extends StatelessWidget {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()));
+                  },
                   child: const Text('Forgot Password?'),
                 ),
               ),
