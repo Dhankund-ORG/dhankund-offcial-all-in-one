@@ -490,15 +490,6 @@ class ApiService {
     });
   }
 
-  // ==================== Firestore to D1 Migration ====================
-
-  Future<Map<String, dynamic>> fetchMigrationDiff({String? collection}) async {
-    final path = (collection != null && collection.isNotEmpty)
-        ? '/api/v1/migrate/diff?collection=' + Uri.encodeComponent(collection)
-        : '/api/v1/migrate/diff';
-    final data = await ApiClient.get(path);
-    return (data as Map).cast<String, dynamic>();
-  }
 
   Future<Map<String, dynamic>> exportFirestoreData({String? collection}) async {
     final path = (collection != null && collection.isNotEmpty)
