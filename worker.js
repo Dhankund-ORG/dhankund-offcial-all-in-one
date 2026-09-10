@@ -3,7 +3,6 @@ import { all, first, run, insertRow, updateRow, safeJson, nowIso, randomId } fro
 import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebasePassword } from './worker/auth.js';
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
-import { computeDiff, exportData, importData, importAuthData, migrateSchema, setSignerKey } from './worker/migrate.js';
 
 const app = new Hono();
 
@@ -246,51 +245,5 @@ app.get('/api/v1/broadcasts', requireAdmin, async function (c) { const rows = aw
 app.post('/api/v1/broadcasts', requireAdmin, async function (c) { const b = await readJson(c); const id = randomId(); const audiences = Array.isArray(b.audiences) ? b.audiences : []; const sendPush = !!b.send_push || !!b.sendPush; await insertRow(c.env, 'broadcast_history', { id: id, audiences: JSON.stringify(audiences), send_whatsapp: b.send_whatsapp ? 1 : 0, send_email: b.send_email ? 1 : 0, send_push: sendPush ? 1 : 0, subject: b.subject || null, message: b.message || null, recipient_count: (b.recipient_count != null) ? b.recipient_count : 0, timestamp: nowIso() }); let pushSent = 0; if (sendPush) { const tokens = await all(c.env, 'SELECT token FROM fcm_tokens'); for (const t of tokens) { try { await sendFcm(c.env, { token: t.token, title: b.subject || 'Dhankund', body: b.message || '', data: {} }); pushSent += 1; } catch (e) { console.error('push failed', e.message); } } } return c.json({ success: true, id: id, push_sent: pushSent }); });
 app.post('/api/v1/push', requireAdmin, async function (c) { const b = await readJson(c); if (!b.token) return c.json({ error: 'token is required' }, 400); await sendFcm(c.env, { token: String(b.token), title: b.title || '', body: b.body || '', data: b.data || {} }); return c.json({ success: true }); });
 
-// ==================== Firestore -> D1 Migration ====================
-app.get('/api/v1/migrate/diff', requireAdmin, async function (c) {
-  try {
-    const result = await computeDiff(c.env, c.req.query('collection') || null);
-    return c.json(result);
-  } catch (e) { return c.json({ error: e.message }, 500); }
-});
-app.get('/api/v1/migrate/export', requireAdmin, async function (c) {
-  try {
-    const result = await exportData(c.env, c.req.query('collection') || null);
-    return c.json(result);
-  } catch (e) { return c.json({ error: e.message }, 500); }
-});
-app.post('/api/v1/migrate/import', requireAdmin, async function (c) {
-  try {
-    const collection = c.req.query('collection') || null;
-    const dryRun = c.req.query('dry_run') === 'true' || c.req.query('dryRun') === 'true';
-    const result = await importData(c.env, collection, dryRun);
-    return c.json(result);
-  } catch (e) { return c.json({ error: e.message }, 500); }
-});
-
-// ==================== Firebase Auth Migration ====================
-app.post('/api/v1/migrate/import-auth', requireAdmin, async function (c) {
-  try {
-    const dryRun = c.req.query('dry_run') === 'true' || c.req.query('dryRun') === 'true';
-    const result = await importAuthData(c.env, dryRun);
-    return c.json(result);
-  } catch (e) { return c.json({ error: e.message }, 500); }
-});
-// ==================== Schema Migration ====================
-app.post('/api/v1/migrate/schema', requireAdmin, async function (c) {
-  try {
-    const result = await migrateSchema(c.env);
-    return c.json(result);
-  } catch (e) { return c.json({ error: e.message }, 500); }
-});
-
-// ==================== Manual Signer Key ====================
-app.post('/api/v1/migrate/set-signer-key', requireAdmin, async function (c) {
-  try {
-    const b = await readJson(c);
-    const result = await setSignerKey(c.env, b.signerKey || null, b.saltSeparator || null);
-    return c.json(result);
-  } catch (e) { return c.json({ error: e.message }, 500); }
-});
 
 export default app;
