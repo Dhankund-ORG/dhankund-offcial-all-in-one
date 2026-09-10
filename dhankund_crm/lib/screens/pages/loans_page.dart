@@ -2191,6 +2191,7 @@ class _LoansPageState extends State<LoansPage> {
                                       ),
                                     ],
                                   ),
+                                ],
                               ),
                             ),
                           );
