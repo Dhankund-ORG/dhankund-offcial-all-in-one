@@ -46,14 +46,46 @@ const requireAdmin = async function (c, next) { const p = await _verify(c); if (
 
 function rowToRegistration(row) {
   const data = safeJson(row.data, {});
-  const merged = Object.assign({}, data, { id: row.id, uid: row.uid, status: row.status, role: row.role, _source_collection: (row.role || 'partner') + '_registrations' });
+  function pick(col, key) { return (row[col] != null && row[col] !== '') ? row[col] : (data[key] != null ? data[key] : null); }
+  const merged = Object.assign({}, data, {
+    id: row.id, uid: row.uid, status: row.status, role: row.role,
+    _source_collection: (row.role || 'partner') + '_registrations',
+    name: pick('name', 'name') || '', email: pick('email', 'email') || '', mobile: pick('mobile', 'mobile') || '',
+    gender: pick('gender', 'gender'), company: pick('company', 'company'), address: pick('address', 'address'),
+    currentExp: pick('current_experience', 'currentExp'), totalExp: pick('total_experience', 'totalExp'),
+    segment: pick('segment', 'segment'), profession: pick('profession', 'profession'), about: pick('about', 'about'),
+    partnerName: pick('partner_name', 'partnerName'), partnerMobile: pick('partner_mobile', 'partnerMobile'),
+    gumastaUrl: pick('gumasta_url', 'gumastaUrl'), idCardUrl: pick('id_card_url', 'idCardUrl'),
+    managerName: pick('manager_name', 'managerName'), managerMobile: pick('manager_mobile', 'managerMobile'),
+    areaManagerName: pick('area_manager_name', 'areaManagerName'), areaManagerMobile: pick('area_manager_mobile', 'areaManagerMobile'),
+    nomineeName: pick('nominee_name', 'nomineeName'), officeAddress: pick('office_address', 'officeAddress'),
+  });
   if (!merged.timestamp) merged.timestamp = row.created_at || nowIso();
   return merged;
 }
 
 function rowToUser(row) {
   const data = safeJson(row.data, {});
-  return Object.assign({}, data, { id: row.id, uid: row.id, email: row.email, role: row.role, name: row.name || data.name || '', mobile: row.mobile || data.mobile || '', kycCompleted: !!row.kyc_completed, bankDetailsCompleted: !!row.bank_details_completed, profileCompleted: (data.profileCompleted == null) ? true : data.profileCompleted });
+  function pick(col, key) { return (row[col] != null && row[col] !== '') ? row[col] : (data[key] != null ? data[key] : null); }
+  return Object.assign({}, data, {
+    id: row.id, uid: row.id, email: row.email, role: row.role,
+    name: row.name || data.name || '', mobile: row.mobile || data.mobile || '',
+    kycCompleted: !!row.kyc_completed, bankDetailsCompleted: !!row.bank_details_completed,
+    profileCompleted: (row.profile_completed != null) ? !!row.profile_completed : ((data.profileCompleted == null) ? true : data.profileCompleted),
+    profilePictureUrl: pick('profile_picture_url', 'profilePictureUrl'),
+    fcmToken: pick('fcm_token', 'fcmToken'),
+    kycPan: pick('kyc_pan', 'kycPan'), kycAadhaar: pick('kyc_aadhaar', 'kycAadhaar'), kycDocUrl: pick('kyc_doc_url', 'kycDocUrl'),
+    bankName: pick('bank_name', 'bankName'), bankAccountHolder: pick('bank_account_holder', 'bankAccountHolder'),
+    bankAccountNumber: pick('bank_account_number', 'bankAccountNumber'), bankIfsc: pick('bank_ifsc', 'bankIfsc'), bankProofUrl: pick('bank_proof_url', 'bankProofUrl'),
+    gender: pick('gender', 'gender'), company: pick('company', 'company'), address: pick('address', 'address'),
+    currentExperience: pick('current_experience', 'currentExperience'), totalExperience: pick('total_experience', 'totalExperience'),
+    segment: pick('segment', 'segment'), profession: pick('profession', 'profession'), about: pick('about', 'about'),
+    partnerName: pick('partner_name', 'partnerName'), partnerMobile: pick('partner_mobile', 'partnerMobile'),
+    gumastaUrl: pick('gumasta_url', 'gumastaUrl'), idCardUrl: pick('id_card_url', 'idCardUrl'),
+    managerName: pick('manager_name', 'managerName'), managerMobile: pick('manager_mobile', 'managerMobile'),
+    areaManagerName: pick('area_manager_name', 'areaManagerName'), areaManagerMobile: pick('area_manager_mobile', 'areaManagerMobile'),
+    nomineeName: pick('nominee_name', 'nomineeName'), officeAddress: pick('office_address', 'officeAddress'),
+  });
 }
 
 function rowToLoan(row) { return Object.assign({}, row, { applicant_documents: safeJson(row.applicant_documents, null), co_applicants: safeJson(row.co_applicants, null) }); }
