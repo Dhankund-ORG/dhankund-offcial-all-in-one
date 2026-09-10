@@ -39,6 +39,9 @@ export const endpoints = [
   { method: 'GET', path: '/api/v1/broadcasts', auth: 'admin', summary: 'List broadcast history (admin)' },
   { method: 'POST', path: '/api/v1/broadcasts', auth: 'admin', summary: 'Create broadcast (admin)' },
   { method: 'POST', path: '/api/v1/push', auth: 'admin', summary: 'Send an FCM push notification (admin)' }
+  { method: 'POST', path: '/api/v1/auth/forgot-password', summary: 'Send OTP to email for password reset' },
+  { method: 'POST', path: '/api/v1/auth/verify-otp', summary: 'Verify OTP and get reset token' },
+  { method: 'POST', path: '/api/v1/auth/reset-password', summary: 'Reset password using reset token' }
 ];
 
 export function routeIndex() {
