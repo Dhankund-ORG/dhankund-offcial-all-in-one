@@ -1,7 +1,7 @@
 name: CI - CRM Flutter App
 
 on:
- pull_request:
+  pull_request:
     branches:
       - '**'
   push:
