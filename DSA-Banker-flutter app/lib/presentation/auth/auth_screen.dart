@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_flutter_app/services/auth_service.dart';
 import 'package:my_flutter_app/presentation/shared/root_wrapper.dart';
 import 'package:my_flutter_app/presentation/auth/biometric_auth_wrapper.dart';
+import 'package:my_flutter_app/presentation/auth/forgot_password_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -96,7 +97,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               ),
               const SizedBox(height: 24),
               SizedBox(
-                height: 320,
+                height: 380,
                 child: TabBarView(
                   controller: _tabController,
                   children: [
@@ -138,7 +139,24 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        if (isLogin)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                );
+              },
+              child: const Text(
+                'Forgot Password?',
+                style: TextStyle(color: Color(0xFF4A3AFF), fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ),
+          ),
+        const SizedBox(height: 4),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Enable Fingerprint Lock', style: TextStyle(fontSize: 14)),
