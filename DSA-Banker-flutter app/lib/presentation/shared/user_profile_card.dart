@@ -82,7 +82,7 @@ class UserProfileCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "$role • $company",
+                        "$role â¢ $company",
                         style: TextStyle(color: Colors.grey[600], fontSize: 13),
                       ),
                     ],
@@ -131,7 +131,7 @@ class UserProfileCard extends StatelessWidget {
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Could not initiate call: $e')),
+                            SnackBar(content: Text('Could not initiate call. Please try again.')),
                           );
                         }
                       }
@@ -165,7 +165,7 @@ class UserProfileCard extends StatelessWidget {
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Could not open WhatsApp: $e')),
+                            SnackBar(content: Text('Could not open WhatsApp. Please try again.')),
                           );
                         }
                       }
