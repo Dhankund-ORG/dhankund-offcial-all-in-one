@@ -1,4 +1,4 @@
-name: Android AAB Build (Play Store Release)
+name: Android AAB Build (Internal Testing Release)
 
 on:
   workflow_dispatch:
@@ -58,7 +58,7 @@ jobs:
       - name: Upload AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-aab
+          name: app-release-aab-internal
           path: 'DSA-Banker-flutter app/build/app/outputs/bundle/release/app-release.aab'
 
       - name: Upload to Google Play
@@ -67,5 +67,5 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
           packageName: com.dhankund.banker
           releaseFiles: 'DSA-Banker-flutter app/build/app/outputs/bundle/release/app-release.aab'
-          track: alpha
+          track: internal
           status: completed
