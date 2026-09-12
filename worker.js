@@ -16,8 +16,7 @@ app.use('*', async function (c, next) {
 
 app.onError(function (err, c) {
   console.error('API error', err);
-  const message = (err && err.message) ? err.message : 'Internal Server Error';
-  return c.json({ error: message }, 500);
+  return c.json({ error: 'Internal server error. Please try again later.' }, 500);
 });
 
 async function readJson(c) { try { return await c.req.json(); } catch (e) { return {}; } }
