@@ -31,7 +31,7 @@ class ApiClient {
 
   static void init() {
     var url = (dotenv.env['API_BASE_URL'] ?? dotenv.env['CLOUDFLARE_API_BASE_URL'] ?? '').trim();
-    if (url.isEmpty) { url = Uri.base.origin; }
+    if (url.isEmpty) { url = 'https://api.dhankund.com'; }
     if (url.endsWith('/')) { url = url.substring(0, url.length - 1); }
     baseUrl = url;
   }
