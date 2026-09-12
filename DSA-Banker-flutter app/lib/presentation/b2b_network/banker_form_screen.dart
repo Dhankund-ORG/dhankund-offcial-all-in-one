@@ -75,7 +75,7 @@ class _BankerFormScreenState extends State<BankerFormScreen> {
         Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const NewHomeScreen()), (route) => false);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration failed: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Registration failed. ' + friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
