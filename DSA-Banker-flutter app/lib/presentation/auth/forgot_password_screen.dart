@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:my_flutter_app/services/auth_service.dart';
 
@@ -19,9 +20,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _loading = false;
   String? _error;
   String? _resetToken;
+  int _resendCooldown = 0;
+  Timer? _resendTimer;
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _emailController.dispose();
     _otpController.dispose();
     _passwordController.dispose();
@@ -30,6 +34,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _sendOtp() async {
+    if (_loading || _resendCooldown > 0) return;
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       setState(() { _error = 'Please enter a valid email'; });
@@ -41,11 +46,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (err != null) {
       setState(() { _error = err; });
     } else {
+      _startResendCooldown();
       setState(() { _step = 1; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('OTP sent to your email')));
       }
     }
+  }
+
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    setState(() { _resendCooldown = 60; });
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) { timer.cancel(); return; }
+      setState(() {
+        _resendCooldown -= 1;
+        if (_resendCooldown <= 0) { timer.cancel(); }
+      });
+    });
   }
 
   Future<void> _verifyOtp() async {
@@ -122,7 +140,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const SizedBox(height: 24),
                 _buildButton('Verify OTP', _verifyOtp),
                 const SizedBox(height: 16),
-                TextButton(onPressed: _loading ? null : _sendOtp, child: const Text('Resend OTP')),
+                TextButton(
+                  onPressed: (_loading || _resendCooldown > 0) ? null : _sendOtp,
+                  child: Text(_resendCooldown > 0 ? 'Resend OTP in ${_resendCooldown}s' : 'Resend OTP'),
+                ),
               ],
               if (_step == 2) ...[
                 Icon(Icons.lock_open, size: 64, color: Colors.deepPurple.shade300),
