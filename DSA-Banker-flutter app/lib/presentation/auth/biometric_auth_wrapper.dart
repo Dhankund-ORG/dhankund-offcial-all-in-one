@@ -111,7 +111,7 @@ class _BiometricAuthWrapperState extends State<BiometricAuthWrapper> with Single
       BiometricAuthWrapper.authenticatedThisSession = false;
       await AuthService().logout();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error logging out: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error logging out. ' + friendlyErrorMessage(e))));
     }
   }
 

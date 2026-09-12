@@ -63,7 +63,7 @@ class _MyEarningsScreenState extends State<MyEarningsScreen> {
             try {
               await _api.submitKyc(pan: _panController.text.trim().toUpperCase(), aadhaar: _aadhaarController.text.trim(), docUrl: localKycDocUrl ?? '');
               if (context.mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('KYC Submitted & Approved successfully!'))); _loadData(); }
-            } catch (e) { setModalState(() => isSaving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating KYC: $e'))); }
+            } catch (e) { setModalState(() => isSaving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating KYC. ' + friendlyErrorMessage(e)))); }
           },
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A3AFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           child: isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text('Verify & Submit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
@@ -106,7 +106,7 @@ class _MyEarningsScreenState extends State<MyEarningsScreen> {
             try {
               await _api.submitBank(holderName: _holderNameController.text.trim(), bankName: _bankNameController.text.trim(), accountNumber: _accountNoController.text.trim(), ifsc: _ifscController.text.trim().toUpperCase(), proofUrl: localBankProofUrl ?? '');
               if (context.mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bank Details linked successfully!'))); _loadData(); }
-            } catch (e) { setModalState(() => isSaving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error linking bank: $e'))); }
+            } catch (e) { setModalState(() => isSaving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error linking bank. ' + friendlyErrorMessage(e)))); }
           },
           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A3AFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
           child: isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text('Link Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
@@ -124,8 +124,8 @@ class _MyEarningsScreenState extends State<MyEarningsScreen> {
     int totalEarnings = 0; int pendingEarnings = 0; List<Map<String, dynamic>> payoutList = [];
     for (var r in _referrals) {
       final status = (r['status'] ?? 'Invited').toString();
-      if (status == 'Earned') { totalEarnings += 5000; payoutList.add({'name': r['friend_name'] ?? 'Friend', 'loan_type': r['loan_type'] ?? 'Loan', 'amount': '₹5,000', 'status': 'Disbursed', 'color': Colors.green}); }
-      else if (status == 'Approved') { pendingEarnings += 5000; payoutList.add({'name': r['friend_name'] ?? 'Friend', 'loan_type': r['loan_type'] ?? 'Loan', 'amount': '₹5,000', 'status': 'Processing', 'color': Colors.orange}); }
+      if (status == 'Earned') { totalEarnings += 5000; payoutList.add({'name': r['friend_name'] ?? 'Friend', 'loan_type': r['loan_type'] ?? 'Loan', 'amount': 'â¹5,000', 'status': 'Disbursed', 'color': Colors.green}); }
+      else if (status == 'Approved') { pendingEarnings += 5000; payoutList.add({'name': r['friend_name'] ?? 'Friend', 'loan_type': r['loan_type'] ?? 'Loan', 'amount': 'â¹5,000', 'status': 'Processing', 'color': Colors.orange}); }
     }
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5F9),
@@ -135,17 +135,17 @@ class _MyEarningsScreenState extends State<MyEarningsScreen> {
         const SizedBox(height: 20),
         Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF4A3AFF), Color(0xFF6C5DD3)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: const Color(0xFF4A3AFF).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('TOTAL EARNINGS', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
-          const SizedBox(height: 8), Text('₹$totalEarnings', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8), Text('â¹$totalEarnings', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16), const Divider(color: Colors.white24, height: 1), const SizedBox(height: 16),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Received Amount', style: TextStyle(color: Colors.white70, fontSize: 11)), const SizedBox(height: 4), Text('₹$totalEarnings', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))]),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('Pending Payouts', style: TextStyle(color: Colors.white70, fontSize: 11)), const SizedBox(height: 4), Text('₹$pendingEarnings', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))]),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Received Amount', style: TextStyle(color: Colors.white70, fontSize: 11)), const SizedBox(height: 4), Text('â¹$totalEarnings', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))]),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [const Text('Pending Payouts', style: TextStyle(color: Colors.white70, fontSize: 11)), const SizedBox(height: 4), Text('â¹$pendingEarnings', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))]),
           ]),
         ])),
         const SizedBox(height: 28),
-        _buildTaskCard(title: '1. KYC Authentication', subtitle: kycCompleted ? 'PAN: ${_userData['kycPan'] ?? ''} • Aadhaar verified${(_userData['kycDocUrl'] != null && _userData['kycDocUrl'].toString().isNotEmpty) ? ' • Document uploaded' : ''}' : 'Complete identity verification to unlock commissions.', icon: Icons.verified_user_outlined, isDone: kycCompleted, onTap: () => _showKYCBottomSheet(context)),
+        _buildTaskCard(title: '1. KYC Authentication', subtitle: kycCompleted ? 'PAN: ${_userData['kycPan'] ?? ''} â¢ Aadhaar verified${(_userData['kycDocUrl'] != null && _userData['kycDocUrl'].toString().isNotEmpty) ? ' â¢ Document uploaded' : ''}' : 'Complete identity verification to unlock commissions.', icon: Icons.verified_user_outlined, isDone: kycCompleted, onTap: () => _showKYCBottomSheet(context)),
         const SizedBox(height: 16),
-        _buildTaskCard(title: '2. Add Bank Account Details', subtitle: bankDetailsCompleted ? '${_userData['bankName'] ?? ''} • A/C ****${(_userData['bankAccountNumber'] ?? '').toString().substring((_userData['bankAccountNumber'] ?? '').toString().length > 4 ? (_userData['bankAccountNumber'] ?? '').toString().length - 4 : 0)}${(_userData['bankProofUrl'] != null && _userData['bankProofUrl'].toString().isNotEmpty) ? ' • Bank proof uploaded' : ''}' : 'Provide banking details for direct payouts.', icon: Icons.account_balance_outlined, isDone: bankDetailsCompleted, onTap: () => _showBankDetailsBottomSheet(context)),
+        _buildTaskCard(title: '2. Add Bank Account Details', subtitle: bankDetailsCompleted ? '${_userData['bankName'] ?? ''} â¢ A/C ****${(_userData['bankAccountNumber'] ?? '').toString().substring((_userData['bankAccountNumber'] ?? '').toString().length > 4 ? (_userData['bankAccountNumber'] ?? '').toString().length - 4 : 0)}${(_userData['bankProofUrl'] != null && _userData['bankProofUrl'].toString().isNotEmpty) ? ' â¢ Bank proof uploaded' : ''}' : 'Provide banking details for direct payouts.', icon: Icons.account_balance_outlined, isDone: bankDetailsCompleted, onTap: () => _showBankDetailsBottomSheet(context)),
         const SizedBox(height: 32),
         const Text('REFERRAL LEDGER', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
         const SizedBox(height: 16),

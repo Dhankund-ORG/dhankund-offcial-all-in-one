@@ -80,7 +80,7 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
       final result = await FilePicker.platform.pickFiles(type: FileType.image);
       if (result != null) setState(() => _selectedFile = result.files.single);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image: \$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image. ' + friendlyErrorMessage(e))));
     }
   }
 
@@ -112,7 +112,7 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Status posted!')));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to post status: \$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to post status. ' + friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -202,7 +202,7 @@ class _StatusViewerDialogState extends State<StatusViewerDialog> {
       await _api.deleteStatus(id);
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete: \$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete. ' + friendlyErrorMessage(e))));
     }
   }
 

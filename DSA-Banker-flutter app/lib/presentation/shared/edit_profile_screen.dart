@@ -42,7 +42,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (updates.isNotEmpty) { await _api.updateProfile(updates); }
       if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'))); Navigator.pop(context, true); }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update profile: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update profile. ' + friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

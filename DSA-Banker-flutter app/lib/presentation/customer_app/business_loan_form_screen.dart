@@ -59,7 +59,7 @@ class _BusinessLoanFormScreenState extends State<BusinessLoanFormScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error submitting application: \$e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error submitting application. ' + friendlyErrorMessage(e))));
     }
   }
 

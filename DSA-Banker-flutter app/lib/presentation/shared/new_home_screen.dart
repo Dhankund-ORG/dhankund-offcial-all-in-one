@@ -160,7 +160,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     return Container(margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: Row(children: [
         const CircleAvatar(backgroundColor: Color(0xFF4A3AFF), child: Icon(Icons.campaign, color: Colors.white)),
-        const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text('Admin Announcement • $dateStr', style: const TextStyle(color: Colors.grey, fontSize: 12))])),
+        const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text('Admin Announcement â¢ $dateStr', style: const TextStyle(color: Colors.grey, fontSize: 12))])),
         if (_isAdmin) IconButton(icon: const Icon(Icons.delete_outline, color: Colors.grey), onPressed: () async { await _api.deleteAdminPost(docId); _refreshDirectory(); }),
       ])),
       Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF4A3AFF))), const SizedBox(height: 8), Text(content.toString(), style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.4))])),
@@ -215,7 +215,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     return Container(margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 12), child: Row(children: [
         CircleAvatar(radius: 20, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? NetworkImage(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
-        const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), Text('$authorRole • $authorCompany • ${_formatPostTime(timestamp)}', style: const TextStyle(color: Colors.grey, fontSize: 11))])),
+        const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), Text('$authorRole â¢ $authorCompany â¢ ${_formatPostTime(timestamp)}', style: const TextStyle(color: Colors.grey, fontSize: 11))])),
         if (postUid == myUid || _isAdmin) IconButton(icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20), onPressed: () async { final confirm = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete Post'), content: const Text('Are you sure you want to delete this post?'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red)))])); if (confirm == true) { await _api.deleteNewsFeedPost(docId); _refreshSocial(); } }),
       ])),
       if (content.toString().isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text(content.toString(), style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4))),
@@ -236,7 +236,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     if (cleanNumber.length == 10) cleanNumber = '91$cleanNumber';
     final text = Uri.encodeComponent("Hello $name, I saw your post on Dhankund Feed!");
     final Uri whatsappUri = Uri.parse("https://wa.me/$cleanNumber?text=$text");
-    try { await launchUrl(whatsappUri, mode: LaunchMode.externalApplication); } catch (e) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open WhatsApp: $e'))); }
+    try { await launchUrl(whatsappUri, mode: LaunchMode.externalApplication); } catch (e) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open WhatsApp. Please try again.'))); }
   }
 
   void _viewFullPostImage(BuildContext context, String imageUrl) {
@@ -284,7 +284,7 @@ class _AddAdminPostDialogState extends State<AddAdminPostDialog> {
         final url = await CloudflareR2Service().uploadFile(bytes: file.bytes!, folderPath: 'admin_posts_images', extension: extension);
         setState(() { _uploadedImageUrl = url; _isUploadingImage = false; });
       }
-    } catch (e) { setState(() => _isUploadingImage = false); if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to upload image: $e'))); }
+    } catch (e) { setState(() => _isUploadingImage = false); if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to upload image. ' + friendlyErrorMessage(e)))); }
   }
 
   Future<void> _savePost() async {
@@ -295,7 +295,7 @@ class _AddAdminPostDialogState extends State<AddAdminPostDialog> {
     try {
       await _api.createAdminPost(title: title, content: content, imageUrl: _uploadedImageUrl);
       if (mounted) { Navigator.pop(context); widget.onPosted?.call(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Announcement posted successfully!'))); }
-    } catch (e) { if (mounted) { setState(() => _isSaving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save announcement: $e'))); } }
+    } catch (e) { if (mounted) { setState(() => _isSaving = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save announcement. ' + friendlyErrorMessage(e)))); } }
   }
 
   @override
@@ -338,7 +338,7 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
   void dispose() { _contentController.dispose(); super.dispose(); }
 
   Future<void> _pickImage() async {
-    try { final result = await FilePicker.platform.pickFiles(type: FileType.image); if (result != null) setState(() => _selectedFile = result.files.single); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image: $e'))); }
+    try { final result = await FilePicker.platform.pickFiles(type: FileType.image); if (result != null) setState(() => _selectedFile = result.files.single); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image. ' + friendlyErrorMessage(e)))); }
   }
 
   Future<void> _submitPost() async {
@@ -355,7 +355,7 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
       }
       await _api.createNewsFeedPost(content: text, imageUrl: imageUrl);
       if (mounted) { Navigator.pop(context); widget.onPosted?.call(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post published successfully!'))); }
-    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to publish post: $e'))); }
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to publish post. ' + friendlyErrorMessage(e)))); }
     finally { if (mounted) setState(() => _isSaving = false); }
   }
 

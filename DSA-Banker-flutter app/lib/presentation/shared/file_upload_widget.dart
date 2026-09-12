@@ -63,7 +63,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Upload failed: $e')),
+            SnackBar(content: Text('Upload failed. Please try again.')),
           );
         }
       } finally {
