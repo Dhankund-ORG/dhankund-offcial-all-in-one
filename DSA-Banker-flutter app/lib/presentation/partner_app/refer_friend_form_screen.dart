@@ -44,7 +44,7 @@ class _ReferFriendFormScreenState extends State<ReferFriendFormScreen> {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ThankYouScreen()));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: \$e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
