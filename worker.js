@@ -233,10 +233,20 @@ app.post('/api/v1/auth/forgot-password', async function (c) {
   const user = await first(c.env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
   // Always return success (don't reveal if email exists)
   if (!user) return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
+  await run(c.env, 'CREATE TABLE IF NOT EXISTS password_reset_otps (email TEXT NOT NULL, otp TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)');
+  // Rate limit: send at most one OTP email per email address per 60 seconds.
+  const lastOtp = await first(c.env, 'SELECT created_at FROM password_reset_otps WHERE email = ?', [email]);
+  if (lastOtp && lastOtp.created_at) {
+    const elapsed = Date.now() - new Date(lastOtp.created_at).getTime();
+    const cooldownMs = 60 * 1000;
+    if (elapsed < cooldownMs) {
+      const waitSeconds = Math.ceil((cooldownMs - elapsed) / 1000);
+      return c.json({ error: 'Please wait ' + waitSeconds + ' seconds before requesting another OTP.' }, 429);
+    }
+  }
   // Generate 6-digit OTP
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  await run(c.env, 'CREATE TABLE IF NOT EXISTS password_reset_otps (email TEXT NOT NULL, otp TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)');
   await run(c.env, 'DELETE FROM password_reset_otps WHERE email = ?', [email]);
   await run(c.env, 'INSERT INTO password_reset_otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)', [email, otp, expiresAt, nowIso()]);
   // Send email via Cloudflare Email Service
