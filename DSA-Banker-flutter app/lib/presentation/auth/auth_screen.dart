@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:my_flutter_app/services/auth_service.dart';
+import 'package:my_flutter_app/services/api_service.dart';
 import 'package:my_flutter_app/presentation/shared/root_wrapper.dart';
 import 'package:my_flutter_app/presentation/auth/biometric_auth_wrapper.dart';
 import 'package:my_flutter_app/presentation/auth/forgot_password_screen.dart';
@@ -64,7 +65,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         }
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
