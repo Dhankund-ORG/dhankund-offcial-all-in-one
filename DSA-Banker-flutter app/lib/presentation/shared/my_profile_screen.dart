@@ -49,7 +49,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         if (mounted) { setState(() { _profile['profilePictureUrl'] = downloadUrl; }); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated successfully!'))); }
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to upload profile picture: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to upload profile picture. ' + friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -163,7 +163,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       Uint8List croppedBytes = byteData.buffer.asUint8List();
       if (mounted) Navigator.pop(context, croppedBytes);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error cropping image: $e")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not crop image. Please try again.')));
     } finally { if (mounted) setState(() => _isCropping = false); }
   }
 
