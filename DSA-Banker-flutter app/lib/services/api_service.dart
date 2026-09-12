@@ -10,6 +10,17 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Returns a message that is safe to show to end users.
+/// Server-side validation messages (ApiException) are shown as-is; any other
+/// error (network, timeout, unexpected exception) is hidden behind a generic message.
+String friendlyErrorMessage(Object error) {
+  if (error is ApiException) {
+    final m = error.message.trim();
+    if (m.isNotEmpty) return m;
+  }
+  return 'Something went wrong. Please try again.';
+}
+
 class ApiClient {
   static String baseUrl = '';
   static String? token;
