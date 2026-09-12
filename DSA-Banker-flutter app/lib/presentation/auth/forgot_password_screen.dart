@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:my_flutter_app/services/auth_service.dart';
-import 'login_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -87,7 +86,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset successfully! Please login.'), backgroundColor: Colors.green));
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }
   }
