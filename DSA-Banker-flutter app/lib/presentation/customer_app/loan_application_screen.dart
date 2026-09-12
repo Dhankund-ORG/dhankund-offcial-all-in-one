@@ -40,7 +40,7 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
       });
       if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const ThankYouScreen()));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error submitting application: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error submitting application. ' + friendlyErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -63,7 +63,7 @@ class _LoanApplicationScreenState extends State<LoanApplicationScreen> {
         const SizedBox(height: 16), _buildLabel('Full Name *'), _buildTextField(controller: _nameController, hint: 'Enter your full name'),
         const SizedBox(height: 16), _buildLabel('Mobile Number *'), _buildTextField(controller: _mobileController, hint: 'Enter your 10-digit mobile number', keyboardType: TextInputType.phone),
         const SizedBox(height: 16), _buildLabel('Email Address *'), _buildTextField(controller: _emailController, hint: 'Enter your email address', readOnly: true),
-        const SizedBox(height: 16), _buildLabel('Loan Amount *'), _buildTextField(controller: _amountController, hint: 'Enter loan amount', prefix: '₹ ', keyboardType: TextInputType.number),
+        const SizedBox(height: 16), _buildLabel('Loan Amount *'), _buildTextField(controller: _amountController, hint: 'Enter loan amount', prefix: 'â¹ ', keyboardType: TextInputType.number),
         const SizedBox(height: 16), _buildLabel('Complete Address *'), _buildTextField(controller: _addressController, hint: 'Enter your complete address with city, state and pincode', maxLines: 3),
         const SizedBox(height: 32),
         SizedBox(width: double.infinity, height: 56, child: ElevatedButton(onPressed: _isLoading ? null : _submitApplication, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A3AFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 2), child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text('Submit Application', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)))),
