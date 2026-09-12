@@ -175,7 +175,7 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
       body: Stack(children: [
         Column(children: [
           Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(20.0), child: Container(width: 300, height: 300, decoration: BoxDecoration(border: Border.all(color: Colors.white24, width: 1)), child: Stack(alignment: Alignment.center, children: [
-            Positioned.fill(child: RepaintBoundary(key: _cropKey, child: InteractiveViewer(boundaryMargin: const EdgeInsets.all(100), minScale: 1.0, maxScale: 5.0, child: _buildImageWidget()))),
+            Positioned.fill(child: RepaintBoundary(key: _cropKey, child: InteractiveViewer(boundaryMargin: EdgeInsets.zero, minScale: 1.0, maxScale: 5.0, child: _buildImageWidget()))),
             IgnorePointer(child: Positioned.fill(child: CustomPaint(painter: CropOverlayPainter()))),
           ]))))),
           Container(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32), color: Colors.black87, child: Column(children: [const Icon(Icons.crop_free, color: Colors.white70, size: 28), const SizedBox(height: 12), const Text('Pinch to Zoom & Drag to Position', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 8), Text('Only the area inside the circular border will be saved as your profile picture.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey[400], fontSize: 13))])),
@@ -186,8 +186,8 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
   }
 
   Widget _buildImageWidget() {
-    if (kIsWeb) { if (widget.file.bytes != null) return Image.memory(widget.file.bytes!, fit: BoxFit.contain); }
-    else { if (widget.file.path != null) return Image.file(io.File(widget.file.path!), fit: BoxFit.contain); else if (widget.file.bytes != null) return Image.memory(widget.file.bytes!, fit: BoxFit.contain); }
+    if (kIsWeb) { if (widget.file.bytes != null) return Image.memory(widget.file.bytes!, fit: BoxFit.cover); }
+    else { if (widget.file.path != null) return Image.file(io.File(widget.file.path!), fit: BoxFit.cover); else if (widget.file.bytes != null) return Image.memory(widget.file.bytes!, fit: BoxFit.cover); }
     return const Center(child: Text("Could not load image", style: TextStyle(color: Colors.white)));
   }
 }
@@ -197,11 +197,11 @@ class CropOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black.withOpacity(0.5);
     final outerPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final innerPath = Path()..addOval(Rect.fromCircle(center: Offset(size.width / 2, size.height / 2), radius: size.width / 2 - 4));
+    final innerPath = Path()..addOval(Rect.fromCircle(center: Offset(size.width / 2, size.height / 2), radius: size.width / 2));
     final path = Path.combine(PathOperation.difference, outerPath, innerPath);
     canvas.drawPath(path, paint);
     final borderPaint = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.0;
-    canvas.drawCircle(Offset(size.width / 2, size.height / 2), size.width / 2 - 4, borderPaint);
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), size.width / 2, borderPaint);
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
