@@ -192,7 +192,18 @@ class _StatusViewerDialogState extends State<StatusViewerDialog> {
   final _api = ApiService();
 
   @override
-  void initState() { super.initState(); _pageController = PageController(); }
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (var status in widget.statuses) {
+        final url = status['mediaUrl']?.toString();
+        if (url != null && url.isNotEmpty && status['mediaType'] == 'image') {
+          precacheImage(NetworkImage(url), context);
+        }
+      }
+    });
+  }
 
   @override
   void dispose() { _pageController.dispose(); super.dispose(); }
@@ -242,10 +253,35 @@ class _StatusViewerDialogState extends State<StatusViewerDialog> {
               return Container(
                 decoration: BoxDecoration(gradient: LinearGradient(colors: gradient, begin: Alignment.topCenter, end: Alignment.bottomCenter)),
                 child: Stack(children: [
-                  if (mediaUrl != null && mediaUrl.toString().isNotEmpty && mediaType == 'image')
-                    Center(child: Image.network(mediaUrl.toString(), fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 64, color: Colors.white54))),
-                  if (text.isNotEmpty)
-                    Center(child: Padding(padding: const EdgeInsets.all(32), child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w500)))),
+                  Column(
+                    children: [
+                      const SizedBox(height: 100),
+                      if (mediaUrl != null && mediaUrl.toString().isNotEmpty && mediaType == 'image')
+                        Expanded(
+                          child: Center(
+                            child: Image.network(
+                              mediaUrl.toString(),
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, progress) => progress == null ? child : const Center(child: CircularProgressIndicator(color: Colors.white)),
+                              errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
+                            ),
+                          ),
+                        )
+                      else if (text.isNotEmpty)
+                        const Spacer(),
+                      if (text.isNotEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          decoration: BoxDecoration(color: (mediaUrl != null && mediaUrl.toString().isNotEmpty) ? Colors.black54 : Colors.transparent),
+                          child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500)),
+                        ),
+                      if (mediaUrl != null && mediaUrl.toString().isNotEmpty && mediaType == 'image')
+                        const SizedBox(height: 32)
+                      else if (text.isNotEmpty)
+                        const Spacer(),
+                    ],
+                  ),
                   Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [
                     const CircleAvatar(backgroundColor: Colors.white24, child: Icon(Icons.person, color: Colors.white)),
                     const SizedBox(width: 12),
