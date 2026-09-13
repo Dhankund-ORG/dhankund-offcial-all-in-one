@@ -18,6 +18,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _mobileController = TextEditingController();
+  String _selectedRole = 'Customer';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   bool _isFingerprintEnabled = true;
@@ -34,6 +36,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _mobileController.dispose();
     super.dispose();
   }
 
@@ -49,7 +52,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       if (isLogin) {
         error = await auth.login(_emailController.text.trim(), _passwordController.text.trim());
       } else {
-        error = await auth.signup(_emailController.text.trim(), _passwordController.text.trim(), 'customer', _nameController.text.trim());
+        error = await auth.signup(_emailController.text.trim(), _passwordController.text.trim(), _selectedRole.toLowerCase(), _nameController.text.trim(), _mobileController.text.trim());
       }
       if (error != null) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
@@ -98,7 +101,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               ),
               const SizedBox(height: 24),
               SizedBox(
-                height: 380,
+                height: 520,
                 child: TabBarView(
                   controller: _tabController,
                   children: [
@@ -120,6 +123,15 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       children: [
         if (!isLogin) ...[
           TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person_outline))),
+          const SizedBox(height: 16),
+          TextField(controller: _mobileController, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Mobile Number', prefixIcon: Icon(Icons.phone_outlined))),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _selectedRole,
+            decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.badge_outlined)),
+            items: ['Customer', 'DSA', 'Banker'].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+            onChanged: (val) { if (val != null) setState(() => _selectedRole = val); },
+          ),
           const SizedBox(height: 16),
         ],
         TextField(

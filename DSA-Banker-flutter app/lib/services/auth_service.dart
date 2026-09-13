@@ -4,9 +4,9 @@ class AuthService {
   final ApiService _api = ApiService();
 
   /// Returns null on success, error message on failure.
-  Future<String?> signup(String email, String password, String role, String name) async {
+  Future<String?> signup(String email, String password, String role, String name, String mobile) async {
     try {
-      await _api.signup(email: email, password: password, role: role, name: name);
+      await _api.signup(email: email, password: password, role: role, name: name, mobile: mobile);
       return null;
     } on ApiException catch (e) {
       return e.message;

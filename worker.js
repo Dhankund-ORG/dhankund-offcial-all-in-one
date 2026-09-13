@@ -169,15 +169,15 @@ app.get('/docs', function (c) { return c.html(docsHtml()); });
 app.post('/api/v1/auth/signup', async function (c) {
   const b = await readJson(c);
   const email = (b.email || '').toString().trim().toLowerCase(); const password = (b.password || '').toString();
-  const role = roleKey(b.role || 'customer'); const name = (b.name || '').toString();
+  const role = roleKey(b.role || 'customer'); const name = (b.name || '').toString(); const mobile = (b.mobile || '').toString();
   if (!email || !password) return c.json({ error: 'Email and password are required' }, 400);
   if (password.length < 6) return c.json({ error: 'Password must be at least 6 characters' }, 400);
   const existing = await first(c.env, 'SELECT id FROM users WHERE lower(email) = lower(?)', [email]);
   if (existing) return c.json({ error: 'An account with this email already exists' }, 409);
   const now = nowIso(); const uid = randomId(); const hash = await hashPassword(password);
-  await insertRow(c.env, 'users', { id: uid, email: email, password_hash: hash, role: role, name: name, mobile: '', kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify({ uid: uid, role: role, name: name, profileCompleted: false, createdAt: now }), created_at: now, updated_at: now });
+  await insertRow(c.env, 'users', { id: uid, email: email, password_hash: hash, role: role, name: name, mobile: mobile, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify({ uid: uid, role: role, name: name, mobile: mobile, profileCompleted: false, createdAt: now }), created_at: now, updated_at: now });
   const token = await signSession({ sub: uid, email: email, role: role, name: name, exp: Math.floor(Date.now() / 1000) + (8 * 60 * 60) }, c.env.SESSION_SECRET || '');
-  return c.json({ token: token, user: { id: uid, email: email, role: role, name: name } });
+  return c.json({ token: token, user: { id: uid, email: email, role: role, name: name, mobile: mobile } });
 });
 
 app.post('/api/v1/auth/login', async function (c) {

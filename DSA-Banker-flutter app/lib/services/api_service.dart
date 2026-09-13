@@ -28,6 +28,7 @@ class ApiClient {
   static String? currentUserEmail;
   static String? currentUserRole;
   static String? currentUserName;
+  static String? currentUserMobile;
 
   static void init() {
     var url = (dotenv.env['API_BASE_URL'] ?? dotenv.env['CLOUDFLARE_API_BASE_URL'] ?? '').trim();
@@ -44,11 +45,12 @@ class ApiClient {
       currentUserEmail = prefs.getString('dsa_session_email');
       currentUserRole = prefs.getString('dsa_session_role');
       currentUserName = prefs.getString('dsa_session_name');
+      currentUserMobile = prefs.getString('dsa_session_mobile');
     } catch (_) {}
   }
 
-  static Future<void> saveSession(String t, String uid, String email, String role, String name) async {
-    token = t; currentUserId = uid; currentUserEmail = email; currentUserRole = role; currentUserName = name;
+  static Future<void> saveSession(String t, String uid, String email, String role, String name, [String mobile = '']) async {
+    token = t; currentUserId = uid; currentUserEmail = email; currentUserRole = role; currentUserName = name; currentUserMobile = mobile;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('dsa_session_token', t);
@@ -56,11 +58,12 @@ class ApiClient {
       await prefs.setString('dsa_session_email', email);
       await prefs.setString('dsa_session_role', role);
       await prefs.setString('dsa_session_name', name);
+      await prefs.setString('dsa_session_mobile', mobile);
     } catch (_) {}
   }
 
   static Future<void> clearSession() async {
-    token = null; currentUserId = null; currentUserEmail = null; currentUserRole = null; currentUserName = null;
+    token = null; currentUserId = null; currentUserEmail = null; currentUserRole = null; currentUserName = null; currentUserMobile = null;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('dsa_session_token');
@@ -68,6 +71,7 @@ class ApiClient {
       await prefs.remove('dsa_session_email');
       await prefs.remove('dsa_session_role');
       await prefs.remove('dsa_session_name');
+      await prefs.remove('dsa_session_mobile');
     } catch (_) {}
   }
 
@@ -108,11 +112,11 @@ List<Map<String, dynamic>> _asList(dynamic data) {
 }
 
 class ApiService {
-  Future<Map<String, dynamic>> signup({required String email, required String password, required String role, String name = ''}) async {
-    final data = await ApiClient.post('/api/v1/auth/signup', {'email': email, 'password': password, 'role': role, 'name': name}) as Map<String, dynamic>;
+  Future<Map<String, dynamic>> signup({required String email, required String password, required String role, String name = '', String mobile = ''}) async {
+    final data = await ApiClient.post('/api/v1/auth/signup', {'email': email, 'password': password, 'role': role, 'name': name, 'mobile': mobile}) as Map<String, dynamic>;
     final t = data['token'] as String? ?? '';
     final user = (data['user'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
-    await ApiClient.saveSession(t, user['id']?.toString() ?? '', user['email']?.toString() ?? '', user['role']?.toString() ?? '', user['name']?.toString() ?? '');
+    await ApiClient.saveSession(t, user['id']?.toString() ?? '', user['email']?.toString() ?? '', user['role']?.toString() ?? '', user['name']?.toString() ?? '', user['mobile']?.toString() ?? '');
     return user;
   }
 
@@ -120,7 +124,7 @@ class ApiService {
     final data = await ApiClient.post('/api/v1/auth/login', {'email': email, 'password': password}) as Map<String, dynamic>;
     final t = data['token'] as String? ?? '';
     final user = (data['user'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
-    await ApiClient.saveSession(t, user['id']?.toString() ?? '', user['email']?.toString() ?? '', user['role']?.toString() ?? '', user['name']?.toString() ?? '');
+    await ApiClient.saveSession(t, user['id']?.toString() ?? '', user['email']?.toString() ?? '', user['role']?.toString() ?? '', user['name']?.toString() ?? '', user['mobile']?.toString() ?? '');
     return user;
   }
 
@@ -132,7 +136,12 @@ class ApiService {
   Future<void> submitKyc({required String pan, required String aadhaar, String docUrl = ''}) async { await ApiClient.post('/api/v1/me/kyc', {'pan': pan, 'aadhaar': aadhaar, 'docUrl': docUrl}); }
   Future<void> submitBank({required String holderName, required String bankName, required String accountNumber, required String ifsc, String proofUrl = ''}) async { await ApiClient.post('/api/v1/me/bank', {'holderName': holderName, 'bankName': bankName, 'accountNumber': accountNumber, 'ifsc': ifsc, 'proofUrl': proofUrl}); }
 
-  Future<void> submitRegistration({required String role, required Map<String, dynamic> details}) async { await ApiClient.post('/api/v1/registrations', {'role': role, 'details': details}); }
+  Future<void> submitRegistration({required String role, required Map<String, dynamic> details}) async {
+    await ApiClient.post('/api/v1/registrations', {'role': role, 'details': details});
+    if (ApiClient.token != null) {
+      await ApiClient.saveSession(ApiClient.token!, ApiClient.currentUserId ?? '', ApiClient.currentUserEmail ?? '', role, ApiClient.currentUserName ?? '', details['mobile']?.toString() ?? ApiClient.currentUserMobile ?? '');
+    }
+  }
 
   Future<List<Map<String, dynamic>>> fetchMyLoans() async { final data = await ApiClient.get('/api/v1/me/loans'); return _asList(data); }
   Future<void> createLoan(Map<String, dynamic> body) async { await ApiClient.post('/api/v1/loans', body); }
