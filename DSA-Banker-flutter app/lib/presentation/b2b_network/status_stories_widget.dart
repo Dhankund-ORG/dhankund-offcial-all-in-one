@@ -124,7 +124,6 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         padding: const EdgeInsets.all(20),
-        constraints: const BoxConstraints(maxHeight: 480),
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -136,7 +135,13 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(gradient: LinearGradient(colors: gradientStories[_selectedGradient]), borderRadius: BorderRadius.circular(16)),
-              child: TextField(controller: _textController, maxLines: 3, style: const TextStyle(color: Colors.white, fontSize: 16), decoration: const InputDecoration(hintText: 'Type your status...', hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none)),
+              child: TextField(
+                controller: _textController,
+                minLines: 3,
+                maxLines: 6,
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                decoration: const InputDecoration(hintText: 'Type your status...', hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none),
+              ),
             ),
             const SizedBox(height: 12),
             SizedBox(
