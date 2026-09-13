@@ -82,7 +82,7 @@ class UserProfileCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        "$role â¢ $company",
+                        "$role • $company",
                         style: TextStyle(color: Colors.grey[600], fontSize: 13),
                       ),
                     ],
