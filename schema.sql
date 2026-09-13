@@ -218,3 +218,13 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 CREATE INDEX IF NOT EXISTS idx_loans_submitted_at ON loan_applications (submitted_at);
 CREATE INDEX IF NOT EXISTS idx_loans_email ON loan_applications (email);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id);
+
+CREATE TABLE IF NOT EXISTS banners (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  subtitle TEXT,
+  color_hex TEXT,
+  image_url TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT
+);

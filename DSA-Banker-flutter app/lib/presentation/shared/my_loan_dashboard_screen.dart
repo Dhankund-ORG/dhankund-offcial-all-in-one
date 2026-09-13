@@ -39,24 +39,38 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
     {'title': 'Loan Cover', 'icon': Icons.umbrella, 'color': const Color(0xFFE17055)},
   ];
 
-  final List<Map<String, String>> _advertisements = [
-    {'title': 'Business Loan', 'subtitle': 'Aapke business ka game changer!', 'color': '0xFF4A3AFF'},
-    {'title': 'Home Loan at 8.5%', 'subtitle': 'Apne sapno ka ghar banayein hakikat.', 'color': '0xFF27AE60'},
-    {'title': 'Instant Personal Loan', 'subtitle': 'Zero documentation, Instant approval!', 'color': '0xFFE17055'},
-  ];
+  List<Map<String, dynamic>> _dynamicBanners = [];
+  bool _isBannersLoading = true;
 
   @override
-  void initState() { super.initState(); _fetchUserName(); _startAdTimer(); }
+  void initState() { super.initState(); _fetchUserName(); _fetchBanners(); }
   @override
   void dispose() { _adTimer?.cancel(); _adController.dispose(); super.dispose(); }
 
   void _startAdTimer() {
+    _adTimer?.cancel();
+    if (_dynamicBanners.isEmpty) return;
     _adTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (_adController.hasClients) {
-        _currentAdIndex = (_currentAdIndex + 1) % _advertisements.length;
+        _currentAdIndex = (_currentAdIndex + 1) % _dynamicBanners.length;
         _adController.animateToPage(_currentAdIndex, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
       }
     });
+  }
+
+  Future<void> _fetchBanners() async {
+    try {
+      final banners = await _api.fetchBanners();
+      if (mounted) {
+        setState(() {
+          _dynamicBanners = banners;
+          _isBannersLoading = false;
+        });
+        _startAdTimer();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isBannersLoading = false);
+    }
   }
 
   Future<void> _fetchUserName() async {
@@ -100,13 +114,23 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
           GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HelpSupportScreen(userName: _userName))), child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF4A3AFF).withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.support_agent, color: Color(0xFF4A3AFF)))),
         ]),
         const SizedBox(height: 24),
-        SizedBox(height: 120, child: PageView.builder(controller: _adController, itemCount: _advertisements.length, onPageChanged: (index) => setState(() => _currentAdIndex = index), itemBuilder: (context, index) {
-          final ad = _advertisements[index];
-          final color = Color(int.parse(ad['color']!));
-          return Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(ad['title']!, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text(ad['subtitle']!, style: const TextStyle(color: Colors.white70, fontSize: 14))]));
-        })),
-        const SizedBox(height: 12),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(_advertisements.length, (index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), width: _currentAdIndex == index ? 24 : 8, height: 8, decoration: BoxDecoration(color: _currentAdIndex == index ? const Color(0xFF4A3AFF) : Colors.grey[300], borderRadius: BorderRadius.circular(4))))),
+        if (_isBannersLoading)
+          SizedBox(height: 120, child: PageView.builder(itemCount: 1, itemBuilder: (context, index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(20)))))
+        else if (_dynamicBanners.isNotEmpty) ...[
+          SizedBox(height: 120, child: PageView.builder(controller: _adController, itemCount: _dynamicBanners.length, onPageChanged: (index) => setState(() => _currentAdIndex = index), itemBuilder: (context, index) {
+            final ad = _dynamicBanners[index];
+            final colorHex = (ad['color_hex'] != null && ad['color_hex'].toString().isNotEmpty) ? ad['color_hex'] : '0xFF4A3AFF';
+            final color = Color(int.tryParse(colorHex) ?? 0xFF4A3AFF);
+            final imageUrl = ad['image_url'];
+            
+            if (imageUrl != null && imageUrl.toString().isNotEmpty) {
+              return Container(margin: const EdgeInsets.symmetric(horizontal: 4), child: ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: double.infinity, errorBuilder: (context, error, stackTrace) => Container(color: color))));
+            }
+            return Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text((ad['title'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text((ad['subtitle'] ?? '').toString(), style: const TextStyle(color: Colors.white70, fontSize: 14))]));
+          })),
+          const SizedBox(height: 12),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(_dynamicBanners.length, (index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), width: _currentAdIndex == index ? 24 : 8, height: 8, decoration: BoxDecoration(color: _currentAdIndex == index ? const Color(0xFF4A3AFF) : Colors.grey[300], borderRadius: BorderRadius.circular(4))))),
+        ],
       ]),
     );
   }

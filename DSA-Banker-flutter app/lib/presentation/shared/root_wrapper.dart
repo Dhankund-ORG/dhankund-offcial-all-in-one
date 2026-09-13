@@ -41,9 +41,12 @@ class ProfileCheckWrapper extends StatelessWidget {
   }
 
   Future<bool> _isProfileCompleted() async {
+    if (ApiClient.currentUserRole != null && ApiClient.currentUserRole!.isNotEmpty) {
+      return true;
+    }
     try {
       final profile = await ApiService().fetchMyProfile();
-      return profile['profileCompleted'] == true;
+      return profile['profileCompleted'] == true || (profile['role'] != null && profile['role'].toString().isNotEmpty);
     } catch (_) {
       return false;
     }

@@ -10,7 +10,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'dart:io' as io;
 import 'package:my_flutter_app/presentation/shared/edit_profile_screen.dart';
-
+import 'package:my_flutter_app/presentation/shared/manage_banners_screen.dart' as manage_banners;
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
   @override
@@ -125,6 +125,19 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       const Text('ACCOUNT STATS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
       const SizedBox(height: 16),
       _buildDetailCard([_buildDetailTile(Icons.verified_user_outlined, 'KYC', (data['kycCompleted'] == true) ? 'Completed' : 'Pending'), _buildDetailTile(Icons.account_balance_outlined, 'Bank Details', (data['bankDetailsCompleted'] == true) ? 'Linked' : 'Not Linked')]),
+      if (ApiClient.currentUserRole?.toLowerCase() == 'admin' || data['role']?.toString().toLowerCase() == 'admin') ...[
+        const SizedBox(height: 24),
+        const Text('ADMIN ACTIONS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1)),
+        const SizedBox(height: 16),
+        _buildDetailCard([
+          ListTile(
+            leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF27AE60).withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.picture_in_picture, color: Color(0xFF27AE60), size: 20)),
+            title: const Text('Manage Banners', style: TextStyle(fontWeight: FontWeight.bold)),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const manage_banners.ManageBannersScreen())),
+          )
+        ]),
+      ]
     ]));
   }
 
