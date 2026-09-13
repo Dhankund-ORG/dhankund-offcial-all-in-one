@@ -161,6 +161,16 @@ function policyColumns(b) {
   return { bank_name: b.bank_name || null, banker_name: b.banker_name || null, banker_mobile: b.banker_mobile || null, office_address: b.office_address || null, l1_manager_name: b.l1_manager_name || null, l1_manager_mobile: b.l1_manager_mobile || null, l2_manager_name: b.l2_manager_name || null, l2_manager_mobile: b.l2_manager_mobile || null, loan_type: b.loan_type || null, product_type: b.product_type || null, vertical: b.vertical || null, min_cibil: (b.min_cibil != null) ? b.min_cibil : null, min_income: b.min_income || null, min_ticket_size: b.min_ticket_size || null, max_ticket_size: b.max_ticket_size || null, ticket_size: ((b.min_ticket_size || '') + ' - ' + (b.max_ticket_size || '')), max_loan_amount: b.max_ticket_size || null, ltv_ratio: b.ltv_ratio || null, m_profile_allowed: b.m_profile_allowed || null, max_allowed_bounces: (b.max_allowed_bounces != null) ? b.max_allowed_bounces : null, geo_radius: b.geo_radius || null, login_fee: b.login_fee || null, interest_rate: b.interest_rate || null, processing_fee: b.processing_fee || null, special_features: b.special_features || null, tat_days: b.tat_days || null, updated_at: nowIso() };
 }
 
+async function notifyAdmins(env, title, body) {
+  try {
+    const tokens = await all(env, "SELECT t.token FROM fcm_tokens t JOIN users u ON t.user_id = u.id WHERE lower(u.role) IN ('admin', 'staff')");
+    for (const t of tokens) {
+      if (!t.token) continue;
+      try { await sendFcm(env, { token: t.token, title: title, body: body, data: {} }); } catch (e) { console.error('Admin push failed', e.message); }
+    }
+  } catch(err) { console.error('notifyAdmins error', err); }
+}
+
 app.get('/api/health', function (c) { return c.json({ ok: true, service: 'dhankund-api' }); });
 app.get('/api', function (c) { return c.json({ name: 'Dhankund API', version: '1.0.0', endpoints: routeIndex() }); });
 app.get('/api/openapi.json', function (c) { return c.json(openApiSpec()); });
@@ -313,6 +323,7 @@ app.post('/api/v1/me/kyc', auth, async function (c) {
   const kycPanVal = (b.pan || '').toString().toUpperCase(); const kycAadhaarVal = (b.aadhaar || '').toString(); const kycDocUrlVal = (b.docUrl || '').toString();
   await mergeUserData(c.env, me.sub, { kycCompleted: true, kycPan: kycPanVal, kycAadhaar: kycAadhaarVal, kycDocUrl: kycDocUrlVal });
   await updateRow(c.env, 'users', 'id', me.sub, { kyc_completed: 1, kyc_pan: kycPanVal, kyc_aadhaar: kycAadhaarVal, kyc_doc_url: kycDocUrlVal, updated_at: nowIso() });
+  if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'KYC Submitted', `A user has submitted their KYC details.`));
   return c.json({ success: true });
 });
 
@@ -321,6 +332,7 @@ app.post('/api/v1/me/bank', auth, async function (c) {
   const bankNameVal = (b.bankName || '').toString(); const holderVal = (b.holderName || '').toString(); const acctVal = (b.accountNumber || '').toString(); const ifscVal = (b.ifsc || '').toString().toUpperCase(); const proofVal = (b.proofUrl || '').toString();
   await mergeUserData(c.env, me.sub, { bankDetailsCompleted: true, bankName: bankNameVal, bankAccountHolder: holderVal, bankAccountNumber: acctVal, bankIfsc: ifscVal, bankProofUrl: proofVal });
   await updateRow(c.env, 'users', 'id', me.sub, { bank_details_completed: 1, bank_name: bankNameVal, bank_account_holder: holderVal, bank_account_number: acctVal, bank_ifsc: ifscVal, bank_proof_url: proofVal, updated_at: nowIso() });
+  if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'Bank Details Submitted', `A user has submitted their bank details.`));
   return c.json({ success: true });
 });
 
@@ -345,11 +357,12 @@ app.post('/api/v1/registrations', auth, async function (c) {
     nominee_name: details.nomineeName || details.nominee_name || null, office_address: details.officeAddress || details.office_address || null };
   await insertRow(c.env, 'registrations', regCols);
   await upsertUserFromRegistration(c.env, me.sub, role, Object.assign({}, b.details || {}, { email: me.email }));
+  if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Registration', `${details.name || me.name || 'A user'} has submitted a new ${role} registration.`));
   return c.json({ success: true, id: id });
 });
 
-app.post('/api/v1/loans', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); const cols = loanColumns(b); if (!cols.email) cols.email = me.email; await insertRow(c.env, 'loan_applications', Object.assign({ id: id, submitted_at: nowIso() }, cols)); return c.json({ success: true, id: id }); });
-app.post('/api/v1/referrals', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'referrals', { id: id, referrer_id: me.sub, friend_name: b.friend_name || null, friend_mobile: b.friend_mobile || null, friend_email: b.friend_email || null, relationship: b.relationship || null, loan_type: b.loan_type || null, estimated_amount: b.estimated_amount || null, consent_given: b.consent_given ? 1 : 0, status: b.status || 'Invited', created_at: nowIso() }); return c.json({ success: true, id: id }); });
+app.post('/api/v1/loans', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); const cols = loanColumns(b); if (!cols.email) cols.email = me.email; await insertRow(c.env, 'loan_applications', Object.assign({ id: id, submitted_at: nowIso() }, cols)); if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Loan Application', `${me.name || 'A user'} has submitted a new ${b.loan_type || 'loan'} application.`)); return c.json({ success: true, id: id }); });
+app.post('/api/v1/referrals', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'referrals', { id: id, referrer_id: me.sub, friend_name: b.friend_name || null, friend_mobile: b.friend_mobile || null, friend_email: b.friend_email || null, relationship: b.relationship || null, loan_type: b.loan_type || null, estimated_amount: b.estimated_amount || null, consent_given: b.consent_given ? 1 : 0, status: b.status || 'Invited', created_at: nowIso() }); if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Referral', `${me.name || 'A user'} has referred ${b.friend_name || 'a friend'}.`)); return c.json({ success: true, id: id }); });
 
 app.get('/api/v1/statuses', auth, async function (c) { const rows = await all(c.env, 'SELECT * FROM statuses ORDER BY timestamp DESC'); return c.json(rows); });
 app.post('/api/v1/statuses', auth, async function (c) {
