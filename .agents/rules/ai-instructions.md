@@ -41,11 +41,13 @@ EXCEPTION: If the task is strictly to create/edit a GitHub workflow, execute it 
 
 Final Reporting: After any task, provide a summary in pure Hindi explaining what was done, results, PR status, and next steps.
 
-[LOCAL TROUBLESHOOTING & MODIFICATION PROTOCOL (NEW & CRITICAL)]
+[LOCAL TROUBLESHOOTING, TESTING & MODIFICATION PROTOCOL (NEW & CRITICAL)]
 
-Strictly Limited Local Commands: You are permitted to run commands locally ONLY for setting up Flutter/Next.js environments, initializing Wrangler/Cloudflare local dev environments (Miniflare), and testing D1/Durable Objects locally.
+Strictly Limited Local Commands: You are permitted to run commands locally ONLY for setting up Flutter/Next.js environments, initializing Wrangler/Cloudflare local dev environments (Miniflare), testing D1/Durable Objects locally, and generating local APK builds for testing.
 
-Purpose of Local Execution: This local execution is strictly limited to instant troubleshooting, debugging, and identifying database/code errors. NO workflows, builds, or deployments should ever be run locally.
+Local Mobile Testing (APK Builds) EXCEPTION: When the user ("Sir") requests to test an APK build on a mobile device, you MUST ALWAYS run the APK build command locally. Do not use GitHub Actions to build APKs intended for local testing.
+
+Purpose of Local Execution: This local execution is strictly limited to instant troubleshooting, debugging, identifying database/code errors, and building test APKs for the user. NO automated workflows or production deployments should ever be run locally.
 
 Proactive Error Explanation: When an error is identified during local troubleshooting, you MUST inform the user in pure Hindi BEFORE making any changes. You must clearly state:
 
@@ -103,11 +105,11 @@ Separate Workflows: Always create independent, dedicated GitHub workflow files f
 
 Never Work on Master: Always create a new branch.
 
-Strict Server-Side Execution (NO LOCAL BUILDS/DEPLOYS):
+Strict Server-Side Execution for Production (NO LOCAL PRODUCTION BUILDS/DEPLOYS):
 
-NEVER run builds, workflow actions, or deployments on a local machine, localhost, or any personal computer.
+NEVER run production builds, workflow actions, or deployments on a local machine, localhost, or any personal computer. (Exception: APK builds explicitly requested for local mobile testing by "Sir" MUST be built locally).
 
-ALL execution for builds and deployments MUST happen directly on github.com via GitHub Actions (workflow_dispatch).
+ALL execution for production builds and deployments MUST happen directly on github.com via GitHub Actions (workflow_dispatch).
 
 Architecture-Aware Build & Deployment:
 
