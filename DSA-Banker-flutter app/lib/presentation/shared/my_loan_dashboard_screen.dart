@@ -126,20 +126,20 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   Widget _buildSectionTitle(String title) => Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)));
 
   Widget _buildLoanGrid() {
-    return GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 16, mainAxisSpacing: 24, childAspectRatio: 0.7), itemCount: _loanCategories.length, itemBuilder: (context, index) {
+    return GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 16, mainAxisSpacing: 24, childAspectRatio: 0.6), itemCount: _loanCategories.length, itemBuilder: (context, index) {
       final category = _loanCategories[index];
       return GestureDetector(onTap: () {
         if (category['title'] == 'Personal Loan') { Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalLoanFormScreen())); }
         else if (category['title'] == 'Business Loan') { Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessLoanFormScreen())); }
         else { Navigator.push(context, MaterialPageRoute(builder: (context) => GeneralLoanFormScreen(loanTitle: category['title']))); }
-      }, child: Column(children: [Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: (category['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(category['icon'] as IconData, color: category['color'] as Color, size: 28)), const SizedBox(height: 8), Text(category['title'] as String, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87))]));
+      }, child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: (category['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(category['icon'] as IconData, color: category['color'] as Color, size: 28)), const SizedBox(height: 8), Expanded(child: Text(category['title'] as String, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)))]));
     });
   }
 
   Widget _buildInsuranceGrid() {
-    return GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 16, mainAxisSpacing: 24, childAspectRatio: 0.7), itemCount: _insuranceCategories.length, itemBuilder: (context, index) {
+    return GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 16, mainAxisSpacing: 24, childAspectRatio: 0.6), itemCount: _insuranceCategories.length, itemBuilder: (context, index) {
       final category = _insuranceCategories[index];
-      return GestureDetector(onTap: () => _showComingSoon(category['title'] as String), child: Column(children: [Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: (category['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(category['icon'] as IconData, color: category['color'] as Color, size: 28)), const SizedBox(height: 8), Text(category['title'] as String, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87))]));
+      return GestureDetector(onTap: () => _showComingSoon(category['title'] as String), child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: (category['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(category['icon'] as IconData, color: category['color'] as Color, size: 28)), const SizedBox(height: 8), Expanded(child: Text(category['title'] as String, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)))]));
     });
   }
 
