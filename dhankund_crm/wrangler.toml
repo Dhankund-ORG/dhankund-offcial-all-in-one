@@ -11,5 +11,5 @@ name = "dhankund-crm-web-preview"
 route = { pattern = "dev.crm.dhankund.com/*", custom_domain = true }
 
 [env.production]
-name = "dhankund-crm-web-production"
+name = "dhankund-crm-web"
 route = { pattern = "crm.dhankund.com/*", custom_domain = true }

@@ -20,17 +20,17 @@ database_name = "dhankund-crm-preview"
 database_id = "FILL_ME_PREVIEW_D1_ID"
 
 [env.production]
-name = "dhankund-api-production"
+name = "dhankund-api"
 route = { pattern = "api.dhankund.com/*", custom_domain = true }
 
 [[env.production.r2_buckets]]
 binding = "R2_BUCKET"
-bucket_name = "dhankund-storage-production"
+bucket_name = "dhankund-storage"
 
 [[env.production.send_email]]
 name = "SEB"
 
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "dhankund-crm-production"
-database_id = "FILL_ME_PROD_D1_ID"
+database_name = "dhankund-crm"
+database_id = "FILL_ME_D1_DATABASE_ID"
