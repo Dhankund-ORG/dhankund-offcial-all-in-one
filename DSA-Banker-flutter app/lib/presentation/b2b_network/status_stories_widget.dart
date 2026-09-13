@@ -246,7 +246,7 @@ class _StatusViewerDialogState extends State<StatusViewerDialog> {
                     Center(child: Image.network(mediaUrl.toString(), fit: BoxFit.contain, errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 64, color: Colors.white54))),
                   if (text.isNotEmpty)
                     Center(child: Padding(padding: const EdgeInsets.all(32), child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w500)))),
-                  Positioned(top: 40, left: 16, right: 16, child: Row(children: [
+                  Positioned(top: 0, left: 0, right: 0, child: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [
                     const CircleAvatar(backgroundColor: Colors.white24, child: Icon(Icons.person, color: Colors.white)),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -255,7 +255,7 @@ class _StatusViewerDialogState extends State<StatusViewerDialog> {
                     ])),
                     if (isOwn) IconButton(icon: const Icon(Icons.delete, color: Colors.white), onPressed: () => _deleteStatus((status['id'] ?? '').toString())),
                     IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                  ])),
+                  ])))),
                   Positioned(bottom: 0, left: 0, right: 0, child: LinearProgressIndicator(value: (_currentPage + 1) / widget.statuses.length, backgroundColor: Colors.white24, valueColor: const AlwaysStoppedAnimation<Color>(Colors.white), minHeight: 3)),
                 ]),
               );

@@ -125,7 +125,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     return Container(height: 115, padding: const EdgeInsets.symmetric(vertical: 12), decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFEFEFEF), width: 1))), child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), children: [
       StatusCircle(label: 'My Status', hasActiveStatus: hasMyStatus, isMe: true, profilePictureUrl: _currentUserProfile['profilePictureUrl'], onTap: () {
         if (hasMyStatus) {
-          showGeneralDialog(context: context, barrierDismissible: true, pageBuilder: (context, _, __) => StatusViewerDialog(userName: (_currentUserProfile['name'] ?? 'Me').toString(), userRole: (_currentUserProfile['role'] ?? 'User').toString(), userCompany: (_currentUserProfile['company'] ?? '').toString(), statuses: myStatuses, currentUid: myUid));
+          showGeneralDialog(context: context, barrierDismissible: true, barrierLabel: 'Status', barrierColor: Colors.black, pageBuilder: (context, _, __) => StatusViewerDialog(userName: (_currentUserProfile['name'] ?? 'Me').toString(), userRole: (_currentUserProfile['role'] ?? 'User').toString(), userCompany: (_currentUserProfile['company'] ?? '').toString(), statuses: myStatuses, currentUid: myUid));
         } else {
           showDialog(context: context, builder: (context) => AddStatusDialog(userProfile: _currentUserProfile, uid: myUid, onStatusAdded: _refreshSocial));
         }
@@ -133,7 +133,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       ...otherUids.map((uid) {
         final list = grouped[uid]!;
         final first = list.first;
-        return StatusCircle(label: (first['name'] ?? 'User').toString(), hasActiveStatus: true, isMe: false, profilePictureUrl: first['profilePictureUrl'], onTap: () => showGeneralDialog(context: context, barrierDismissible: true, pageBuilder: (context, _, __) => StatusViewerDialog(userName: (first['name'] ?? 'User').toString(), userRole: (first['role'] ?? 'Partner').toString(), userCompany: (first['company'] ?? '').toString(), statuses: list, currentUid: myUid)));
+        return StatusCircle(label: (first['name'] ?? 'User').toString(), hasActiveStatus: true, isMe: false, profilePictureUrl: first['profilePictureUrl'], onTap: () => showGeneralDialog(context: context, barrierDismissible: true, barrierLabel: 'Status', barrierColor: Colors.black, pageBuilder: (context, _, __) => StatusViewerDialog(userName: (first['name'] ?? 'User').toString(), userRole: (first['role'] ?? 'Partner').toString(), userCompany: (first['company'] ?? '').toString(), statuses: list, currentUid: myUid)));
       }),
     ]));
   }
