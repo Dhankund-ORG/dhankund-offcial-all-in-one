@@ -5,3 +5,11 @@ main = "worker.js"
 
 [assets]
 directory = "build/web"
+
+[env.preview]
+name = "dhankund-crm-web-preview"
+route = { pattern = "dev.crm.dhankund.com/*", custom_domain = true }
+
+[env.production]
+name = "dhankund-crm-web-production"
+route = { pattern = "crm.dhankund.com/*", custom_domain = true }

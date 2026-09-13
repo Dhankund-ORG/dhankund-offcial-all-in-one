@@ -3,14 +3,34 @@ compatibility_date = "2024-03-20"
 compatibility_flags = [ "nodejs_compat_v2" ]
 main = "worker.js"
 
-[[r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "dhankund-storage"
+[env.preview]
+name = "dhankund-api-preview"
+route = { pattern = "dev.api.dhankund.com/*", custom_domain = true }
 
-[[send_email]]
+[[env.preview.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "dhankund-storage-preview"
+
+[[env.preview.send_email]]
 name = "SEB"
 
-[[d1_databases]]
+[[env.preview.d1_databases]]
 binding = "DB"
-database_name = "dhankund-crm"
-database_id = "FILL_ME_D1_DATABASE_ID"
+database_name = "dhankund-crm-preview"
+database_id = "FILL_ME_PREVIEW_D1_ID"
+
+[env.production]
+name = "dhankund-api-production"
+route = { pattern = "api.dhankund.com/*", custom_domain = true }
+
+[[env.production.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "dhankund-storage-production"
+
+[[env.production.send_email]]
+name = "SEB"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "dhankund-crm-production"
+database_id = "FILL_ME_PROD_D1_ID"
