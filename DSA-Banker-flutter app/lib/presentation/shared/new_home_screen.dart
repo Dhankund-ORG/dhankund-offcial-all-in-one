@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io' as io;
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:my_flutter_app/services/api_service.dart';
 import 'package:my_flutter_app/services/auth_service.dart';
@@ -31,6 +33,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   List<Map<String, dynamic>> _newsFeed = [];
   List<Map<String, dynamic>> _directory = [];
   bool _isAdmin = false;
+  bool _isSocialLoading = true;
   final _api = ApiService();
 
   @override
@@ -52,10 +55,15 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Future<void> _refreshSocial() async {
+    if (_newsFeed.isEmpty) setState(() => _isSocialLoading = true);
     try {
       final statuses = await _api.fetchStatuses();
       final news = await _api.fetchNewsFeed();
-      if (mounted) setState(() { _statuses = statuses; _newsFeed = news; });
+      if (mounted) setState(() { _statuses = statuses; _newsFeed = news; _isSocialLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _isSocialLoading = false);
+    }
+  }
     } catch (_) {}
   }
 
@@ -87,15 +95,20 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           ],
         ],
       ),
-      body: _selectedIndex == 0 ? const MyLoanDashboardScreen()
-        : _selectedIndex == 1 ? const ReferralDashboardScreen()
-        : _selectedIndex == 4 ? const MyProfileScreen()
-        : _selectedIndex == 3 ? const MyEarningsScreen()
-        : DefaultTabController(length: 2, child: Column(children: [
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          const MyLoanDashboardScreen(),
+          const ReferralDashboardScreen(),
+          DefaultTabController(length: 2, child: Column(children: [
             _buildStatusBar(),
             Container(color: Colors.white, child: TabBar(indicatorColor: const Color(0xFF4A3AFF), labelColor: const Color(0xFF4A3AFF), unselectedLabelColor: Colors.grey, labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), tabs: [const Tab(text: 'Social Wall'), Tab(text: _userRole.toLowerCase() == 'banker' ? 'DSAs' : _userRole.toLowerCase() == 'dsa' ? 'Bankers' : 'Announcements')])),
             Expanded(child: TabBarView(children: [_buildSocialWallFeedTab(), _buildDirectoryTab()])),
           ])),
+          const MyEarningsScreen(),
+          const MyProfileScreen(),
+        ],
+      ),
       floatingActionButton: _selectedIndex == 0 ? null : (_isAdmin && _selectedIndex == 2
         ? FloatingActionButton.extended(onPressed: () => _showAddAdminPostDialog(context), backgroundColor: const Color(0xFF4A3AFF), icon: const Icon(Icons.campaign, color: Colors.white), label: const Text('Add Announcement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
         : FloatingActionButton.extended(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ReferFriendFormScreen())), backgroundColor: const Color(0xFF4A3AFF), icon: const Icon(Icons.add, color: Colors.white), label: const Text('Refer a Lead', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
@@ -169,11 +182,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   }
 
   Widget _buildSocialWallFeedTab() {
-    if (_newsFeed.isEmpty && _statuses.isEmpty) { _refreshSocial(); }
+    if (_newsFeed.isEmpty && _statuses.isEmpty && !_isSocialLoading) { _refreshSocial(); }
     final myUid = ApiClient.currentUserId ?? '';
     return Column(children: [
       _buildCreatePostHeader(),
-      Expanded(child: RefreshIndicator(color: const Color(0xFF4A3AFF), onRefresh: _refreshSocial, child: _newsFeed.isEmpty
+      Expanded(child: RefreshIndicator(color: const Color(0xFF4A3AFF), onRefresh: _refreshSocial, child: _isSocialLoading
+        ? ListView.builder(padding: const EdgeInsets.all(16), itemCount: 3, itemBuilder: (context, index) => Shimmer.fromColors(baseColor: Colors.grey[200]!, highlightColor: Colors.grey[100]!, child: Container(margin: const EdgeInsets.only(bottom: 24), height: 350, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))))
+        : _newsFeed.isEmpty
         ? ListView(children: [const SizedBox(height: 200), Center(child: Column(children: [Icon(Icons.feed_outlined, size: 64, color: Colors.grey[300]), const SizedBox(height: 16), const Text('No posts on the Social Wall yet. Be the first to share!', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 16))]))])
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), itemCount: _newsFeed.length, itemBuilder: (context, index) => _buildSocialPostCard(context, _newsFeed[index], (_newsFeed[index]['id'] ?? '').toString(), myUid)))),
     ]);
@@ -182,13 +197,13 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Widget _buildCreatePostHeader() {
     final name = _currentUserProfile['name'] ?? 'User';
     final profilePic = _currentUserProfile['profilePictureUrl'];
-    return Container(margin: const EdgeInsets.all(16), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))]), child: Column(children: [
+    return Container(margin: const EdgeInsets.all(16), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.withOpacity(0.1)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]), child: Column(children: [
       Row(children: [
-        CircleAvatar(radius: 20, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? NetworkImage(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
-        const SizedBox(width: 12), Expanded(child: InkWell(onTap: () => _showCreatePostDialog(context, startWithImage: false), borderRadius: BorderRadius.circular(25), child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.grey[300]!)), child: Text("What's on your mind, $name?", style: TextStyle(color: Colors.grey[600], fontSize: 14))))),
+        CircleAvatar(radius: 22, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? CachedNetworkImageProvider(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
+        const SizedBox(width: 12), Expanded(child: InkWell(onTap: () => _showCreatePostDialog(context, startWithImage: false), borderRadius: BorderRadius.circular(25), child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFFF3F5F9), borderRadius: BorderRadius.circular(25)), child: Text("What's on your mind, $name?", style: TextStyle(color: Colors.grey[600], fontSize: 14, fontWeight: FontWeight.w500))))),
       ]),
-      const Divider(height: 16, thickness: 0.5),
-      InkWell(onTap: () => _showCreatePostDialog(context, startWithImage: true), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.photo_library, color: Colors.green, size: 20), const SizedBox(width: 8), Text('Photo', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[700], fontSize: 13))])),
+      const SizedBox(height: 16), const Divider(height: 1, thickness: 0.5), const SizedBox(height: 12),
+      InkWell(onTap: () => _showCreatePostDialog(context, startWithImage: true), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.photo_library, color: Colors.green, size: 22), const SizedBox(width: 8), Text('Share a Photo', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[700], fontSize: 14))])),
     ]));
   }
 
@@ -212,21 +227,21 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     final authorMobile = (data['mobile'] ?? '').toString();
     final isLiked = likes.contains(myUid);
     final postUid = (data['uid'] ?? '').toString();
-    return Container(margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Container(margin: const EdgeInsets.only(bottom: 24), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.grey.withOpacity(0.1)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 5))]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 12), child: Row(children: [
-        CircleAvatar(radius: 20, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? NetworkImage(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
-        const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), Text('$authorRole • $authorCompany • ${_formatPostTime(timestamp)}', style: const TextStyle(color: Colors.grey, fontSize: 11))])),
+        CircleAvatar(radius: 22, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? CachedNetworkImageProvider(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
+        const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: -0.5)), Text('$authorRole • $authorCompany • ${_formatPostTime(timestamp)}', style: const TextStyle(color: Colors.grey, fontSize: 12))])),
         if (postUid == myUid || _isAdmin) IconButton(icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20), onPressed: () async { final confirm = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete Post'), content: const Text('Are you sure you want to delete this post?'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red)))])); if (confirm == true) { await _api.deleteNewsFeedPost(docId); _refreshSocial(); } }),
       ])),
-      if (content.toString().isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text(content.toString(), style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4))),
-      const SizedBox(height: 8),
-      if (imageUrl != null && imageUrl.toString().isNotEmpty) GestureDetector(onTap: () => _viewFullPostImage(context, imageUrl.toString()), child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(horizontal: 12), child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(imageUrl.toString(), width: double.infinity, fit: BoxFit.cover, errorBuilder: (c, e, s) => const SizedBox.shrink())))),
+      if (content.toString().isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), child: Text(content.toString(), style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.4))),
       const SizedBox(height: 12),
-      Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [if (likes.isNotEmpty) ...[const Icon(Icons.thumb_up, color: Color(0xFF4A3AFF), size: 14), const SizedBox(width: 6), Text('${likes.length} ${likes.length == 1 ? 'like' : 'likes'}', style: TextStyle(color: Colors.grey[600], fontSize: 12))]])),
+      if (imageUrl != null && imageUrl.toString().isNotEmpty) GestureDetector(onTap: () => _viewFullPostImage(context, imageUrl.toString()), child: CachedNetworkImage(imageUrl: imageUrl.toString(), width: double.infinity, fit: BoxFit.cover, memCacheWidth: 800, placeholder: (context, url) => Shimmer.fromColors(baseColor: Colors.grey[200]!, highlightColor: Colors.grey[100]!, child: Container(height: 250, color: Colors.white)), errorWidget: (context, url, error) => const SizedBox.shrink())),
+      const SizedBox(height: 12),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [if (likes.isNotEmpty) ...[const Icon(Icons.favorite, color: Colors.redAccent, size: 16), const SizedBox(width: 6), Text('${likes.length} ${likes.length == 1 ? 'like' : 'likes'}', style: TextStyle(color: Colors.grey[700], fontSize: 13, fontWeight: FontWeight.w500))]])),
       const Divider(height: 16, thickness: 0.5),
       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        InkWell(onTap: () async { await _api.toggleNewsFeedLike(docId); _refreshSocial(); }, borderRadius: BorderRadius.circular(8), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [Icon(isLiked ? Icons.thumb_up : Icons.thumb_up_outlined, color: isLiked ? const Color(0xFF4A3AFF) : Colors.grey[600], size: 20), const SizedBox(width: 8), Text('Like', style: TextStyle(color: isLiked ? const Color(0xFF4A3AFF) : Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 13))]))),
-        if (authorMobile.isNotEmpty && postUid != myUid) ElevatedButton.icon(onPressed: () => _contactAuthor(context, authorMobile, authorName.toString()), icon: const Icon(Icons.message, size: 16, color: Colors.white), label: const Text('WhatsApp', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF27AE60), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0)),
+        InkWell(onTap: () async { await _api.toggleNewsFeedLike(docId); _refreshSocial(); }, borderRadius: BorderRadius.circular(8), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: isLiked ? Colors.redAccent : Colors.grey[600], size: 22), const SizedBox(width: 8), Text('Like', style: TextStyle(color: isLiked ? Colors.redAccent : Colors.grey[600], fontWeight: FontWeight.w600, fontSize: 14))]))),
+        if (authorMobile.isNotEmpty && postUid != myUid) ElevatedButton.icon(onPressed: () => _contactAuthor(context, authorMobile, authorName.toString()), icon: const Icon(Icons.message, size: 16, color: Colors.white), label: const Text('WhatsApp', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF27AE60), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0)),
       ])),
     ]));
   }

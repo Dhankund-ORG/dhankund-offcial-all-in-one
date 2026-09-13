@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io' as io;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:my_flutter_app/services/api_service.dart';
 import 'package:my_flutter_app/services/cloudflare_r2_service.dart';
 
@@ -42,7 +43,7 @@ class StatusCircle extends StatelessWidget {
               padding: const EdgeInsets.all(2),
               decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
               child: Stack(children: [
-                CircleAvatar(radius: 28, backgroundColor: const Color(0x1A4A3AFF), backgroundImage: profilePictureUrl != null ? NetworkImage(profilePictureUrl!) : null, child: profilePictureUrl == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
+                CircleAvatar(radius: 28, backgroundColor: const Color(0x1A4A3AFF), backgroundImage: profilePictureUrl != null ? CachedNetworkImageProvider(profilePictureUrl!) : null, child: profilePictureUrl == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null),
                 if (isMe && !hasActiveStatus)
                   Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Color(0xFF4A3AFF), shape: BoxShape.circle), child: const Icon(Icons.add, color: Colors.white, size: 12))),
               ]),
@@ -206,7 +207,7 @@ class _StatusViewerDialogState extends State<StatusViewerDialog> {
       for (var status in widget.statuses) {
         final url = status['mediaUrl']?.toString();
         if (url != null && url.isNotEmpty && status['mediaType'] == 'image') {
-          precacheImage(NetworkImage(url), context);
+          precacheImage(CachedNetworkImageProvider(url), context);
         }
       }
     });
@@ -266,11 +267,12 @@ class _StatusViewerDialogState extends State<StatusViewerDialog> {
                       if (mediaUrl != null && mediaUrl.toString().isNotEmpty && mediaType == 'image')
                         Expanded(
                           child: Center(
-                            child: Image.network(
-                              mediaUrl.toString(),
+                            child: CachedNetworkImage(
+                              imageUrl: mediaUrl.toString(),
                               fit: BoxFit.contain,
-                              loadingBuilder: (context, child, progress) => progress == null ? child : const Center(child: CircularProgressIndicator(color: Colors.white)),
-                              errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
+                              memCacheWidth: 800,
+                              placeholder: (context, url) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+                              errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 64, color: Colors.white54),
                             ),
                           ),
                         )
