@@ -276,7 +276,7 @@ class _AddAdminPostDialogState extends State<AddAdminPostDialog> {
 
   Future<void> _pickAndUploadImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
       if (result != null && result.files.single.bytes != null) {
         setState(() => _isUploadingImage = true);
         final file = result.files.single;
@@ -338,7 +338,7 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
   void dispose() { _contentController.dispose(); super.dispose(); }
 
   Future<void> _pickImage() async {
-    try { final result = await FilePicker.platform.pickFiles(type: FileType.image); if (result != null) setState(() => _selectedFile = result.files.single); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image. ' + friendlyErrorMessage(e)))); }
+    try { final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true); if (result != null) setState(() => _selectedFile = result.files.single); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image. ' + friendlyErrorMessage(e)))); }
   }
 
   Future<void> _submitPost() async {

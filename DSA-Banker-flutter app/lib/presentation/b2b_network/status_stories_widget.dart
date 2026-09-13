@@ -77,7 +77,7 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
 
   Future<void> _pickImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
       if (result != null) setState(() => _selectedFile = result.files.single);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image. ' + friendlyErrorMessage(e))));

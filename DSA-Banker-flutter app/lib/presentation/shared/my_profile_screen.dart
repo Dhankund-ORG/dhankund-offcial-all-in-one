@@ -37,7 +37,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
   Future<void> _pickAndUploadImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
       if (result != null && (result.files.single.path != null || result.files.single.bytes != null)) {
         final file = result.files.single;
         if (ApiClient.currentUserId == null) return;

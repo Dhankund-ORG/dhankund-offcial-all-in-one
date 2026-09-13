@@ -27,6 +27,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true,
     );
 
     if (result != null && result.files.single.bytes != null) {
