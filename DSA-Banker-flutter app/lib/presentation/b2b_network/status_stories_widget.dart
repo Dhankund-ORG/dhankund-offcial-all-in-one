@@ -121,6 +121,7 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         padding: const EdgeInsets.all(20),
@@ -139,6 +140,7 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
                 controller: _textController,
                 minLines: 3,
                 maxLines: 6,
+                scrollPadding: const EdgeInsets.only(bottom: 120),
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
                 decoration: const InputDecoration(hintText: 'Type your status...', hintStyle: TextStyle(color: Colors.white70), border: InputBorder.none),
               ),
