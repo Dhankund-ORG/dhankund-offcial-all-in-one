@@ -19,8 +19,11 @@
 
 # Secrets & keystores — never commit these
 keystore_*.txt
-firebase_secrets.txt
 *.jks
+
+# Web & Cloudflare
+**/.next/
+**/.wrangler/
 
 # CI/CD log & API dump artifacts — never commit these
 job_log.txt
