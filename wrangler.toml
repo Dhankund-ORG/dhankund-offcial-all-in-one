@@ -17,7 +17,7 @@ name = "SEB"
 [[env.preview.d1_databases]]
 binding = "DB"
 database_name = "dhankund-crm-preview"
-database_id = "FILL_ME_PREVIEW_D1_ID"
+database_id = "0faaf04e-4d86-416f-b119-e367352f3adf"
 
 [env.production]
 name = "dhankund-api"
