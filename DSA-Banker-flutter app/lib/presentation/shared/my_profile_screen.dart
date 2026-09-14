@@ -59,11 +59,11 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: const Color(0xFFF5F7FA),
       body: _isLoading
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFF4A3AFF)))
+        ? const Center(child: CircularProgressIndicator(color: Color(0xFF093A7A)))
         : RefreshIndicator(
-            color: const Color(0xFF4A3AFF),
+            color: const Color(0xFF093A7A),
             onRefresh: _loadProfile,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -83,21 +83,21 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   Widget _buildHeader(BuildContext context, String name, String email, String role, String? profilePictureUrl, Map<String, dynamic> fullData, String uid) {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF4A3AFF), Color(0xFF6C5DD3)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.vertical(bottom: Radius.circular(32))),
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+      decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1))),
+      padding: const EdgeInsets.fromLTRB(24, 60, 24, 32),
       child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.end, children: [IconButton(icon: const Icon(Icons.edit, color: Colors.white), onPressed: () async { final updated = await Navigator.push(context, MaterialPageRoute(builder: (context) => EditProfileScreen(fullData: fullData, collectionName: '', uid: uid))); if (updated == true) _loadProfile(); })]),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [IconButton(icon: const Icon(Icons.edit, color: Color(0xFF093A7A)), onPressed: () async { final updated = await Navigator.push(context, MaterialPageRoute(builder: (context) => EditProfileScreen(fullData: fullData, collectionName: '', uid: uid))); if (updated == true) _loadProfile(); })]),
         GestureDetector(onTap: _isUploading ? null : _pickAndUploadImage, child: Stack(children: [
-          Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle), child: CircleAvatar(radius: 50, backgroundColor: Colors.white, backgroundImage: profilePictureUrl != null ? NetworkImage(profilePictureUrl) : null, child: profilePictureUrl == null ? const Icon(Icons.person, size: 60, color: Color(0xFF4A3AFF)) : null)),
+          Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFFE2E8F0), width: 2)), child: CircleAvatar(radius: 50, backgroundColor: const Color(0xFFF5F7FA), backgroundImage: profilePictureUrl != null ? NetworkImage(profilePictureUrl) : null, child: profilePictureUrl == null ? const Icon(Icons.person, size: 60, color: Color(0xFF093A7A)) : null)),
           if (_isUploading) Positioned.fill(child: Container(decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle), child: const Center(child: CircularProgressIndicator(color: Colors.white)))),
-          if (!_isUploading) Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(6), decoration: const BoxDecoration(color: Color(0xFF27AE60), shape: BoxShape.circle), child: const Icon(Icons.camera_alt, color: Colors.white, size: 14))),
+          if (!_isUploading) Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(6), decoration: const BoxDecoration(color: Color(0xFF093A7A), shape: BoxShape.circle), child: const Icon(Icons.camera_alt, color: Colors.white, size: 14))),
         ])),
         const SizedBox(height: 16),
-        Text(name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1D1F))),
         const SizedBox(height: 8),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)), child: Text(role, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1))),
-        const SizedBox(height: 16),
-        Text(email, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), decoration: BoxDecoration(color: const Color(0xFF093A7A).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(role, style: const TextStyle(color: Color(0xFF093A7A), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1))),
+        const SizedBox(height: 12),
+        Text(email, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
       ]),
     );
   }
@@ -142,13 +142,13 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     ]));
   }
 
-  Widget _buildDetailCard(List<Widget> children) => Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]), child: Column(children: children));
-  Widget _buildDetailTile(IconData icon, String label, String value) => ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF4A3AFF).withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: const Color(0xFF4A3AFF), size: 20)), title: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)), subtitle: Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)));
+  Widget _buildDetailCard(List<Widget> children) => Container(decoration: BoxDecoration(color: Colors.white, border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)), child: Column(children: children));
+Widget _buildDetailTile(IconData icon, String label, String value) => ListTile(leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF093A7A).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: const Color(0xFF093A7A), size: 20)), title: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)), subtitle: Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)));
 
   Widget _buildLogoutButton(BuildContext context) {
     return Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: ElevatedButton(
       onPressed: () async { await AuthService().logout(); if (context.mounted) Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const WelcomeScreen()), (route) => false); },
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.red, elevation: 0, side: const BorderSide(color: Colors.redAccent, width: 1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), minimumSize: const Size(double.infinity, 56)),
+      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.red, elevation: 0, side: const BorderSide(color: Colors.redAccent, width: 1), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), minimumSize: const Size(double.infinity, 56)),
       child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.logout), SizedBox(width: 8), Text('Logout Session', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))]),
     ));
   }
