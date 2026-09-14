@@ -5,3 +5,11 @@ main = "worker.js"
 
 [assets]
 directory = "build/web"
+
+[env.preview]
+name = "dhankund-dsa-web-preview"
+route = { pattern = "dev.dsa.dhankund.com/*", custom_domain = true }
+
+[env.production]
+name = "dhankund-dsa-web"
+route = { pattern = "dsa.dhankund.com/*", custom_domain = true }

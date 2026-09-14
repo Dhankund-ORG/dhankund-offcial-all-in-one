@@ -6,9 +6,24 @@ main = ".vercel/output/static/_worker.js/index.js"
 [assets]
 directory = ".vercel/output/static"
 
-[[r2_buckets]]
+[env.preview]
+name = "dhankund-official-site-preview"
+route = { pattern = "dev.dhankund.com/*", custom_domain = true }
+
+[[env.preview.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "dhankund-storage-preview"
+
+[[env.preview.send_email]]
+name = "SEB"
+
+[env.production]
+name = "dhankund-official-site"
+route = { pattern = "dhankund.com/*", custom_domain = true }
+
+[[env.production.r2_buckets]]
 binding = "R2_BUCKET"
 bucket_name = "dhankund-storage"
 
-[[send_email]]
+[[env.production.send_email]]
 name = "SEB"
