@@ -5,7 +5,7 @@ main = "worker.js"
 
 [env.preview]
 name = "dhankund-api-preview"
-route = { pattern = "dev.api.dhankund.com/*", custom_domain = true }
+route = { pattern = "dev.api.dhankund.com", custom_domain = true }
 
 [[env.preview.r2_buckets]]
 binding = "R2_BUCKET"
@@ -21,7 +21,7 @@ database_id = "0faaf04e-4d86-416f-b119-e367352f3adf"
 
 [env.production]
 name = "dhankund-api"
-route = { pattern = "api.dhankund.com/*", custom_domain = true }
+route = { pattern = "api.dhankund.com", custom_domain = true }
 
 [[env.production.r2_buckets]]
 binding = "R2_BUCKET"

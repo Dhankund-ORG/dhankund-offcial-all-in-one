@@ -7,9 +7,9 @@ main = "worker.js"
 directory = "build/web"
 
 [env.preview]
-name = "dhankund-crm-web-preview"
-route = { pattern = "dev.crm.dhankund.com/*", custom_domain = true }
+name = "dhankund-crm-preview"
+route = { pattern = "dev.crm.dhankund.com", custom_domain = true }
 
 [env.production]
-name = "dhankund-crm-web"
-route = { pattern = "crm.dhankund.com/*", custom_domain = true }
+name = "dhankund-crm"
+route = { pattern = "crm.dhankund.com", custom_domain = true }
