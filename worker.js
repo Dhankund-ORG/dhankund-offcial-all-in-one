@@ -244,21 +244,36 @@ app.post('/api/v1/auth/forgot-password', async function (c) {
   // Always return success (don't reveal if email exists)
   if (!user) return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
   await run(c.env, 'CREATE TABLE IF NOT EXISTS password_reset_otps (email TEXT NOT NULL, otp TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)');
-  // Rate limit: send at most one OTP email per email address per 60 seconds.
-  const lastOtp = await first(c.env, 'SELECT created_at FROM password_reset_otps WHERE email = ?', [email]);
-  if (lastOtp && lastOtp.created_at) {
-    const elapsed = Date.now() - new Date(lastOtp.created_at).getTime();
-    const cooldownMs = 60 * 1000;
+  await run(c.env, 'CREATE TABLE IF NOT EXISTS otp_rate_limits (email TEXT NOT NULL, requested_at TEXT NOT NULL)');
+
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // Clean up old rate limit records
+  await run(c.env, 'DELETE FROM otp_rate_limits WHERE requested_at < ?', [oneDayAgo]);
+
+  // Check Daily Limit (Max 3 per 24 hours)
+  const countRow = await first(c.env, 'SELECT COUNT(*) as cnt FROM otp_rate_limits WHERE email = ?', [email]);
+  const dailyCount = countRow ? countRow.cnt : 0;
+  if (dailyCount >= 3) {
+    return c.json({ error: 'You have reached the maximum number of password reset requests (3) for today. Please try again tomorrow.' }, 429);
+  }
+
+  // Check Cooldown (3 minutes)
+  const lastRequest = await first(c.env, 'SELECT requested_at FROM otp_rate_limits WHERE email = ? ORDER BY requested_at DESC LIMIT 1', [email]);
+  if (lastRequest && lastRequest.requested_at) {
+    const elapsed = Date.now() - new Date(lastRequest.requested_at).getTime();
+    const cooldownMs = 3 * 60 * 1000;
     if (elapsed < cooldownMs) {
       const waitSeconds = Math.ceil((cooldownMs - elapsed) / 1000);
       return c.json({ error: 'Please wait ' + waitSeconds + ' seconds before requesting another OTP.' }, 429);
     }
   }
+
   // Generate 6-digit OTP
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await run(c.env, 'DELETE FROM password_reset_otps WHERE email = ?', [email]);
   await run(c.env, 'INSERT INTO password_reset_otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)', [email, otp, expiresAt, nowIso()]);
+  await run(c.env, 'INSERT INTO otp_rate_limits (email, requested_at) VALUES (?, ?)', [email, nowIso()]);
   // Send email via Cloudflare Email Service
   try {
     await c.env.SEB.send({
