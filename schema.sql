@@ -228,3 +228,15 @@ CREATE TABLE IF NOT EXISTS banners (
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS password_reset_otps (
+  email TEXT NOT NULL,
+  otp TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS otp_rate_limits (
+  email TEXT NOT NULL,
+  requested_at TEXT NOT NULL
+);
