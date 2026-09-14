@@ -82,14 +82,14 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         backgroundColor: Colors.white, elevation: 0,
-        title: Text(_selectedIndex == 0 || _selectedIndex == 2 ? 'Dhankund' : _selectedIndex == 1 ? 'My Referrals' : _selectedIndex == 3 ? 'My Earnings' : 'My Profile', style: const TextStyle(color: Color(0xFF4A3AFF), fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: -0.5)),
+        title: Text(_selectedIndex == 0 || _selectedIndex == 2 ? 'Dhankund' : _selectedIndex == 1 ? 'My Referrals' : _selectedIndex == 3 ? 'My Earnings' : 'My Profile', style: const TextStyle(color: Color(0xFF093A7A), fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: -0.5)),
         actions: [
           if (_selectedIndex != 4) ...[
             IconButton(icon: const Icon(Icons.notifications_none, color: Colors.black87), onPressed: () {}),
-            InkWell(onTap: () => setState(() => _selectedIndex = 4), borderRadius: BorderRadius.circular(18), child: CircleAvatar(radius: 18, backgroundColor: const Color(0xFF4A3AFF), backgroundImage: _currentUserProfile['profilePictureUrl'] != null ? NetworkImage(_currentUserProfile['profilePictureUrl']) : null, child: _currentUserProfile['profilePictureUrl'] == null ? const Icon(Icons.person, color: Colors.white, size: 20) : null)),
+            InkWell(onTap: () => setState(() => _selectedIndex = 4), borderRadius: BorderRadius.circular(18), child: CircleAvatar(radius: 18, backgroundColor: const Color(0xFF093A7A), backgroundImage: _currentUserProfile['profilePictureUrl'] != null ? NetworkImage(_currentUserProfile['profilePictureUrl']) : null, child: _currentUserProfile['profilePictureUrl'] == null ? const Icon(Icons.person, color: Colors.white, size: 20) : null)),
             const SizedBox(width: 16),
           ],
         ],
@@ -101,7 +101,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
           const ReferralDashboardScreen(),
           DefaultTabController(length: 2, child: Column(children: [
             _buildStatusBar(),
-            Container(color: Colors.white, child: TabBar(indicatorColor: const Color(0xFF4A3AFF), labelColor: const Color(0xFF4A3AFF), unselectedLabelColor: Colors.grey, labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), tabs: [const Tab(text: 'Social Wall'), Tab(text: _userRole.toLowerCase() == 'banker' ? 'DSAs' : _userRole.toLowerCase() == 'dsa' ? 'Bankers' : 'Announcements')])),
+            Container(color: Colors.white, child: TabBar(indicatorColor: const Color(0xFF093A7A), labelColor: const Color(0xFF093A7A), unselectedLabelColor: Colors.grey, labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), tabs: [const Tab(text: 'Social Wall'), Tab(text: _userRole.toLowerCase() == 'banker' ? 'DSAs' : _userRole.toLowerCase() == 'dsa' ? 'Bankers' : 'Announcements')])),
             Expanded(child: TabBarView(children: [_buildSocialWallFeedTab(), _buildDirectoryTab()])),
           ])),
           const MyEarningsScreen(),
@@ -109,12 +109,12 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
         ],
       ),
       floatingActionButton: _selectedIndex == 0 ? null : (_isAdmin && _selectedIndex == 2
-        ? FloatingActionButton.extended(onPressed: () => _showAddAdminPostDialog(context), backgroundColor: const Color(0xFF4A3AFF), icon: const Icon(Icons.campaign, color: Colors.white), label: const Text('Add Announcement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
-        : FloatingActionButton.extended(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ReferFriendFormScreen())), backgroundColor: const Color(0xFF4A3AFF), icon: const Icon(Icons.add, color: Colors.white), label: const Text('Refer a Lead', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+        ? FloatingActionButton.extended(onPressed: () => _showAddAdminPostDialog(context), backgroundColor: const Color(0xFF093A7A), icon: const Icon(Icons.campaign, color: Colors.white), label: const Text('Add Announcement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
+        : FloatingActionButton.extended(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ReferFriendFormScreen())), backgroundColor: const Color(0xFF093A7A), icon: const Icon(Icons.add, color: Colors.white), label: const Text('Refer a Lead', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex, onTap: (i) { setState(() => _selectedIndex = i); if (i == 2) { _refreshSocial(); _refreshDirectory(); } },
-        selectedItemColor: const Color(0xFF4A3AFF), unselectedItemColor: Colors.grey, type: BottomNavigationBarType.fixed,
-        items: const [BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: 'My Loan'), BottomNavigationBarItem(icon: Icon(Icons.share_location), label: 'My Referral'), BottomNavigationBarItem(icon: Icon(Icons.feed_outlined), label: 'News Feed'), BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'My Earnings'), BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'My Profile')],
+        selectedItemColor: const Color(0xFF093A7A), unselectedItemColor: const Color(0xFF94A3B8), type: BottomNavigationBarType.fixed,
+        items: const [BottomNavigationBarItem(icon: Icon(Icons.account_balance_outlined), label: 'My Loan'), BottomNavigationBarItem(icon: Icon(Icons.group_add_outlined), label: 'My Referral'), BottomNavigationBarItem(icon: Icon(Icons.feed_outlined), label: 'News Feed'), BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'My Earnings'), BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'My Profile')],
       ),
     );
   }
@@ -152,7 +152,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
 
   Widget _buildDirectoryTab() {
     if (_isRoleLoading) return const Center(child: CircularProgressIndicator());
-    return RefreshIndicator(color: const Color(0xFF4A3AFF), onRefresh: _refreshDirectory, child: _directory.isEmpty
+    return RefreshIndicator(color: const Color(0xFF093A7A), onRefresh: _refreshDirectory, child: _directory.isEmpty
       ? ListView(children: [const SizedBox(height: 200), Center(child: Column(children: [Icon(_targetCollection == 'admin_posts' ? Icons.campaign_outlined : Icons.search_off, size: 64, color: Colors.grey[300]), const SizedBox(height: 16), Text(_targetCollection == 'admin_posts' ? 'No announcements from Admin yet' : 'No ${_userRole.toLowerCase() == 'banker' ? 'DSAs' : 'Bankers'} found yet', style: TextStyle(color: Colors.grey[500], fontSize: 16))]))])
       : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), itemCount: _directory.length, itemBuilder: (context, index) {
           final data = _directory[index];
@@ -171,7 +171,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     if (timestamp != null) { try { final dt = DateTime.parse(timestamp.toString()); dateStr = '${dt.day}/${dt.month}/${dt.year}'; } catch (_) {} }
     return Container(margin: const EdgeInsets.only(bottom: 8), decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFEFEFEF), width: 1))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        const CircleAvatar(radius: 20, backgroundColor: Color(0xFF4A3AFF), child: Icon(Icons.campaign, color: Colors.white, size: 20)),
+        const CircleAvatar(radius: 20, backgroundColor: Color(0xFF093A7A), child: Icon(Icons.campaign, color: Colors.white, size: 20)),
         const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), Text('Admin Announcement • $dateStr', style: const TextStyle(color: Colors.grey, fontSize: 12))])),
         if (_isAdmin) IconButton(icon: const Icon(Icons.more_horiz, color: Colors.grey), onPressed: () async { await _api.deleteAdminPost(docId); _refreshDirectory(); }),
       ])),
@@ -185,7 +185,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
   Widget _buildSocialWallFeedTab() {
     if (_newsFeed.isEmpty && _statuses.isEmpty && !_isSocialLoading) { _refreshSocial(); }
     final myUid = ApiClient.currentUserId ?? '';
-    return RefreshIndicator(color: const Color(0xFF4A3AFF), onRefresh: _refreshSocial, child: _isSocialLoading
+    return RefreshIndicator(color: const Color(0xFF093A7A), onRefresh: _refreshSocial, child: _isSocialLoading
       ? ListView.builder(padding: const EdgeInsets.symmetric(vertical: 8), itemCount: 4, itemBuilder: (context, index) {
           if (index == 0) return _buildCreatePostHeader();
           return Shimmer.fromColors(baseColor: Colors.grey[200]!, highlightColor: Colors.grey[100]!, child: Container(margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16), height: 350, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))));
@@ -205,8 +205,8 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     final profilePic = _currentUserProfile['profilePictureUrl'];
     return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(16), decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFEFEFEF), width: 1))), child: Column(children: [
       Row(children: [
-        InkWell(onTap: () => setState(() => _selectedIndex = 4), borderRadius: BorderRadius.circular(22), child: CircleAvatar(radius: 22, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? CachedNetworkImageProvider(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null)),
-        const SizedBox(width: 12), Expanded(child: InkWell(onTap: () => _showCreatePostDialog(context, startWithImage: false), borderRadius: BorderRadius.circular(25), child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFFF3F5F9), borderRadius: BorderRadius.circular(25)), child: Text("What's on your mind, $name?", style: TextStyle(color: Colors.grey[600], fontSize: 14, fontWeight: FontWeight.w500))))),
+        InkWell(onTap: () => setState(() => _selectedIndex = 4), borderRadius: BorderRadius.circular(22), child: CircleAvatar(radius: 22, backgroundColor: const Color(0xFF093A7A).withOpacity(0.1), backgroundImage: profilePic != null ? CachedNetworkImageProvider(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF093A7A)) : null)),
+        const SizedBox(width: 12), Expanded(child: InkWell(onTap: () => _showCreatePostDialog(context, startWithImage: false), borderRadius: BorderRadius.circular(25), child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(25)), child: Text("What's on your mind, $name?", style: TextStyle(color: Colors.grey[600], fontSize: 14, fontWeight: FontWeight.w500))))),
       ]),
       const SizedBox(height: 16), const Divider(height: 1, thickness: 0.5), const SizedBox(height: 12),
       InkWell(onTap: () => _showCreatePostDialog(context, startWithImage: true), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.photo_library, color: Colors.green, size: 22), const SizedBox(width: 8), Text('Share a Photo', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[700], fontSize: 14))])),
@@ -235,7 +235,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
     final postUid = (data['uid'] ?? '').toString();
     return Container(margin: const EdgeInsets.only(bottom: 8), decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: Color(0xFFEFEFEF), width: 1))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        InkWell(onTap: () { if (postUid == myUid) setState(() => _selectedIndex = 4); }, borderRadius: BorderRadius.circular(20), child: CircleAvatar(radius: 20, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? CachedNetworkImageProvider(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF), size: 20) : null)),
+        InkWell(onTap: () { if (postUid == myUid) setState(() => _selectedIndex = 4); }, borderRadius: BorderRadius.circular(20), child: CircleAvatar(radius: 20, backgroundColor: const Color(0xFF093A7A).withOpacity(0.1), backgroundImage: profilePic != null ? CachedNetworkImageProvider(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF093A7A), size: 20) : null)),
         const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(authorName.toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)), Text('$authorRole • $authorCompany • ${_formatPostTime(timestamp)}', style: const TextStyle(color: Colors.grey, fontSize: 12))])),
         if (postUid == myUid || _isAdmin) IconButton(icon: const Icon(Icons.more_horiz, color: Colors.grey), onPressed: () async { final confirm = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete Post'), content: const Text('Are you sure you want to delete this post?'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.red)))])); if (confirm == true) { setState(() => _newsFeed.removeWhere((item) => (item['id'] ?? '').toString() == docId)); _api.deleteNewsFeedPost(docId).catchError((_) => _refreshSocial()); } }),
       ])),
@@ -243,7 +243,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
       const SizedBox(height: 8),
       if (imageUrl != null && imageUrl.toString().isNotEmpty) GestureDetector(onTap: () => _viewFullPostImage(context, imageUrl.toString()), child: AspectRatio(aspectRatio: 1.0, child: CachedNetworkImage(imageUrl: imageUrl.toString(), width: double.infinity, fit: BoxFit.cover, memCacheWidth: 800, placeholder: (context, url) => Shimmer.fromColors(baseColor: Colors.grey[200]!, highlightColor: Colors.grey[100]!, child: Container(color: Colors.white)), errorWidget: (context, url, error) => const SizedBox.shrink()))),
       const SizedBox(height: 8),
-      if (likes.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Row(children: [const Icon(Icons.thumb_up, color: Color(0xFF4A3AFF), size: 14), const SizedBox(width: 6), Text('${likes.length}', style: TextStyle(color: Colors.grey[700], fontSize: 13))])),
+      if (likes.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Row(children: [const Icon(Icons.thumb_up, color: Color(0xFF093A7A), size: 14), const SizedBox(width: 6), Text('${likes.length}', style: TextStyle(color: Colors.grey[700], fontSize: 13))])),
       const Divider(height: 1, thickness: 0.5, color: Color(0xFFEFEFEF)),
       Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
         Expanded(child: InkWell(onTap: () {
@@ -259,7 +259,7 @@ class _NewHomeScreenState extends State<NewHomeScreen> {
               data['likes'] = l;
             });
           });
-        }, child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isLiked ? Icons.thumb_up : Icons.thumb_up_alt_outlined, color: isLiked ? const Color(0xFF4A3AFF) : Colors.grey[600], size: 20), const SizedBox(width: 8), Text('Like', style: TextStyle(color: isLiked ? const Color(0xFF4A3AFF) : Colors.grey[600], fontWeight: FontWeight.w600, fontSize: 14))])))),
+        }, child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(isLiked ? Icons.thumb_up : Icons.thumb_up_alt_outlined, color: isLiked ? const Color(0xFF093A7A) : Colors.grey[600], size: 20), const SizedBox(width: 8), Text('Like', style: TextStyle(color: isLiked ? const Color(0xFF093A7A) : Colors.grey[600], fontWeight: FontWeight.w600, fontSize: 14))])))),
         if (authorMobile.isNotEmpty && postUid != myUid) Expanded(child: InkWell(onTap: () => _contactAuthor(context, authorMobile, authorName.toString()), child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.chat_bubble_outline, color: Color(0xFF27AE60), size: 20), const SizedBox(width: 8), const Text('WhatsApp', style: TextStyle(color: Color(0xFF27AE60), fontWeight: FontWeight.w600, fontSize: 14))])))),
       ])),
     ]));
@@ -335,7 +335,7 @@ class _AddAdminPostDialogState extends State<AddAdminPostDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Padding(padding: const EdgeInsets.all(20), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const Text('New Admin Announcement', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF4A3AFF))),
+      const Text('New Admin Announcement', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF093A7A))),
       const SizedBox(height: 16),
       TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder())),
       const SizedBox(height: 12),
@@ -345,7 +345,7 @@ class _AddAdminPostDialogState extends State<AddAdminPostDialog> {
       else if (_uploadedImageUrl != null) Column(children: [ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(_uploadedImageUrl!, height: 100, fit: BoxFit.cover)), TextButton(onPressed: _pickAndUploadImage, child: const Text('Change Image'))])
       else OutlinedButton.icon(onPressed: _pickAndUploadImage, icon: const Icon(Icons.add_a_photo), label: const Text('Add Banner Image (Optional)')),
       const SizedBox(height: 24),
-      Row(mainAxisAlignment: MainAxisAlignment.end, children: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), const SizedBox(width: 12), ElevatedButton(onPressed: _isSaving ? null : _savePost, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A3AFF)), child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Text('Publish', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))]),
+      Row(mainAxisAlignment: MainAxisAlignment.end, children: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), const SizedBox(width: 12), ElevatedButton(onPressed: _isSaving ? null : _savePost, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF093A7A)), child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Text('Publish', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))]),
     ]))));
   }
 }
@@ -398,16 +398,16 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
     final name = widget.userProfile['name'] ?? 'User';
     final profilePic = widget.userProfile['profilePictureUrl'];
     return Dialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Container(padding: const EdgeInsets.all(20), width: MediaQuery.of(context).size.width * 0.9, constraints: const BoxConstraints(maxHeight: 520), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Create Post', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF4A3AFF))), IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context))]),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Create Post', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF093A7A))), IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context))]),
       const Divider(),
-      Row(children: [CircleAvatar(radius: 20, backgroundColor: const Color(0xFF4A3AFF).withOpacity(0.1), backgroundImage: profilePic != null ? NetworkImage(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF4A3AFF)) : null), const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name.toString(), style: const TextStyle(fontWeight: FontWeight.bold)), Text(widget.userRole, style: TextStyle(color: Colors.grey[600], fontSize: 12))])]),
+      Row(children: [CircleAvatar(radius: 20, backgroundColor: const Color(0xFF093A7A).withOpacity(0.1), backgroundImage: profilePic != null ? NetworkImage(profilePic) : null, child: profilePic == null ? const Icon(Icons.person, color: Color(0xFF093A7A)) : null), const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name.toString(), style: const TextStyle(fontWeight: FontWeight.bold)), Text(widget.userRole, style: TextStyle(color: Colors.grey[600], fontSize: 12))])]),
       const SizedBox(height: 16),
       TextField(controller: _contentController, maxLines: 4, decoration: const InputDecoration(hintText: "What's on your mind?", border: InputBorder.none)),
       const SizedBox(height: 16),
       if (_selectedFile != null) Column(children: [Stack(children: [ClipRRect(borderRadius: BorderRadius.circular(10), child: kIsWeb ? Image.memory(_selectedFile!.bytes!, height: 150, width: double.infinity, fit: BoxFit.cover) : Image.file(io.File(_selectedFile!.path!), height: 150, width: double.infinity, fit: BoxFit.cover)), Positioned(right: 8, top: 8, child: GestureDetector(onTap: () => setState(() => _selectedFile = null), child: Container(decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(4), child: const Icon(Icons.close, color: Colors.white, size: 18))))]), const SizedBox(height: 8)]),
       OutlinedButton.icon(onPressed: _pickImage, icon: const Icon(Icons.photo_library, color: Colors.green), label: const Text('Add Photo'), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), foregroundColor: Colors.black87)),
       const SizedBox(height: 24),
-      ElevatedButton(onPressed: _isSaving ? null : _submitPost, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4A3AFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), minimumSize: const Size(double.infinity, 48)), child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Post', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+      ElevatedButton(onPressed: _isSaving ? null : _submitPost, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF093A7A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), minimumSize: const Size(double.infinity, 48)), child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Post', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
     ]))));
   }
 }
@@ -431,7 +431,7 @@ class _ExpandableTextState extends State<ExpandableText> {
       if (tp.didExceedMaxLines) {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.text, maxLines: _isExpanded ? null : widget.maxLines, overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.4)),
-          InkWell(onTap: () => setState(() => _isExpanded = !_isExpanded), child: Padding(padding: const EdgeInsets.only(top: 4, bottom: 4), child: Text(_isExpanded ? 'Show less' : 'More', style: const TextStyle(color: Color(0xFF4A3AFF), fontWeight: FontWeight.bold, fontSize: 14))))
+          InkWell(onTap: () => setState(() => _isExpanded = !_isExpanded), child: Padding(padding: const EdgeInsets.only(top: 4, bottom: 4), child: Text(_isExpanded ? 'Show less' : 'More', style: const TextStyle(color: Color(0xFF093A7A), fontWeight: FontWeight.bold, fontSize: 14))))
         ]);
       } else {
         return Text(widget.text, style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.4));

@@ -22,7 +22,7 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   Timer? _adTimer;
 
   final List<Map<String, dynamic>> _loanCategories = [
-    {'title': 'Personal Loan', 'icon': Icons.person, 'color': const Color(0xFF4A3AFF)},
+    {'title': 'Personal Loan', 'icon': Icons.person, 'color': const Color(0xFF093A7A)},
     {'title': 'Business Loan', 'icon': Icons.business_center, 'color': const Color(0xFF27AE60)},
     {'title': 'Home Loan', 'icon': Icons.home, 'color': const Color(0xFF0984E3)},
     {'title': 'Mortgage Loan', 'icon': Icons.real_estate_agent, 'color': const Color(0xFFE17055)},
@@ -109,9 +109,9 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           const Text('Hi, ', style: TextStyle(fontSize: 24, color: Colors.black87)),
-          Text(_userName.isNotEmpty ? _userName : 'Guest', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF4A3AFF))),
+          Text(_userName.isNotEmpty ? _userName : 'Guest', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF093A7A))),
           const Spacer(),
-          GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HelpSupportScreen(userName: _userName))), child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF4A3AFF).withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.support_agent, color: Color(0xFF4A3AFF)))),
+          GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HelpSupportScreen(userName: _userName))), child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF093A7A).withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.support_agent, color: Color(0xFF093A7A)))),
         ]),
         const SizedBox(height: 24),
         if (_isBannersLoading)
@@ -119,8 +119,8 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
         else if (_dynamicBanners.isNotEmpty) ...[
           SizedBox(height: 120, child: PageView.builder(controller: _adController, itemCount: _dynamicBanners.length, onPageChanged: (index) => setState(() => _currentAdIndex = index), itemBuilder: (context, index) {
             final ad = _dynamicBanners[index];
-            final colorHex = (ad['color_hex'] != null && ad['color_hex'].toString().isNotEmpty) ? ad['color_hex'] : '0xFF4A3AFF';
-            final color = Color(int.tryParse(colorHex) ?? 0xFF4A3AFF);
+            final colorHex = (ad['color_hex'] != null && ad['color_hex'].toString().isNotEmpty) ? ad['color_hex'] : '0xFF093A7A';
+            final color = Color(int.tryParse(colorHex) ?? 0xFF093A7A);
             final imageUrl = ad['image_url'];
             
             if (imageUrl != null && imageUrl.toString().isNotEmpty) {
@@ -129,7 +129,7 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
             return Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text((ad['title'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text((ad['subtitle'] ?? '').toString(), style: const TextStyle(color: Colors.white70, fontSize: 14))]));
           })),
           const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(_dynamicBanners.length, (index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), width: _currentAdIndex == index ? 24 : 8, height: 8, decoration: BoxDecoration(color: _currentAdIndex == index ? const Color(0xFF4A3AFF) : Colors.grey[300], borderRadius: BorderRadius.circular(4))))),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(_dynamicBanners.length, (index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), width: _currentAdIndex == index ? 24 : 8, height: 8, decoration: BoxDecoration(color: _currentAdIndex == index ? const Color(0xFF093A7A) : Colors.grey[300], borderRadius: BorderRadius.circular(4))))),
         ],
       ]),
     );
@@ -138,12 +138,12 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   Widget _buildUtilityBanner() {
     return Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Column(children: [
       Row(children: [
-        Expanded(child: GestureDetector(onTap: _openEmiCalculator, child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF4A3AFF).withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF4A3AFF).withOpacity(0.2))), child: const Row(children: [Icon(Icons.calculate, color: Color(0xFF4A3AFF)), SizedBox(width: 12), Expanded(child: Text('EMI Calculator', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4A3AFF))))])))),
+        Expanded(child: GestureDetector(onTap: _openEmiCalculator, child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF093A7A).withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF093A7A).withOpacity(0.2))), child: const Row(children: [Icon(Icons.calculate, color: Color(0xFF093A7A)), SizedBox(width: 12), Expanded(child: Text('EMI Calculator', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF093A7A))))])))),
         const SizedBox(width: 16),
         Expanded(child: GestureDetector(onTap: () => _showComingSoon('Credit Score'), child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF27AE60).withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFF27AE60).withOpacity(0.2))), child: const Row(children: [Icon(Icons.speed, color: Color(0xFF27AE60)), SizedBox(width: 12), Expanded(child: Text('Credit Score', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF27AE60))))])))),
       ]),
       const SizedBox(height: 16),
-      GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FinancialCheckupScreen())), child: Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF6C5DD3), Color(0xFF4A3AFF)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(16)), child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle), child: const Icon(Icons.analytics_outlined, color: Colors.white, size: 24)), const SizedBox(width: 16), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('MY FINANCIAL CHECK-UP', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14, letterSpacing: 0.3)), SizedBox(height: 4), Text('Analyze CIBIL & mutual funds using PAN & income details', style: TextStyle(color: Colors.white70, fontSize: 11))])), const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16)]))),
+      GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FinancialCheckupScreen())), child: Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF093A7A), borderRadius: BorderRadius.circular(12)), child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle), child: const Icon(Icons.analytics_outlined, color: Colors.white, size: 24)), const SizedBox(width: 16), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('MY FINANCIAL CHECK-UP', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14, letterSpacing: 0.3)), SizedBox(height: 4), Text('Analyze CIBIL & mutual funds using PAN & income details', style: TextStyle(color: Colors.white70, fontSize: 11))])), const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16)]))),
     ]));
   }
 
@@ -200,7 +200,7 @@ class _EmiCalculatorBottomSheetState extends State<EmiCalculatorBottomSheet> {
       _buildSliderRow('Interest Rate (p.a)', _rate, 5.0, 20.0, (val) => setState(() => _rate = val), '${_rate.toStringAsFixed(1)}%'),
       _buildSliderRow('Tenure (Years)', _tenureYears, 1, 30, (val) => setState(() => _tenureYears = val), '${_tenureYears.toInt()} Yr'),
       const SizedBox(height: 32),
-      Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF4A3AFF), Color(0xFF6C5DD3)], begin: Alignment.topLeft, end: Alignment.bottomRight), borderRadius: BorderRadius.circular(20)), child: Column(children: [
+      Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: const Color(0xFF093A7A), borderRadius: BorderRadius.circular(12)), child: Column(children: [
         const Text('Your Monthly EMI', style: TextStyle(color: Colors.white70, fontSize: 14)),
         const SizedBox(height: 8),
         Text('₹${_emi.toInt()}', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
@@ -216,8 +216,8 @@ class _EmiCalculatorBottomSheetState extends State<EmiCalculatorBottomSheet> {
 
   Widget _buildSliderRow(String title, double value, double min, double max, ValueChanged<double> onChanged, String displayValue) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)), Text(displayValue, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF4A3AFF)))]),
-      Slider(value: value, min: min, max: max, activeColor: const Color(0xFF4A3AFF), inactiveColor: const Color(0xFF4A3AFF).withOpacity(0.1), onChanged: onChanged),
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(title, style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)), Text(displayValue, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF093A7A)))]),
+      Slider(value: value, min: min, max: max, activeColor: const Color(0xFF093A7A), inactiveColor: const Color(0xFF093A7A).withOpacity(0.1), onChanged: onChanged),
     ]);
   }
 }

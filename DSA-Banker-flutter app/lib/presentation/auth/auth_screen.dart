@@ -77,7 +77,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -87,14 +87,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               const SizedBox(height: 40),
               Image.asset('assets/logo.png', height: 80),
               const SizedBox(height: 16),
-              const Text('Dhankund', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF4A3AFF))),
+              const Text('Dhankund', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF093A7A))),
               const SizedBox(height: 32),
               Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(10)),
                 child: TabBar(
                   controller: _tabController,
-                  indicatorColor: const Color(0xFF4A3AFF),
-                  labelColor: const Color(0xFF4A3AFF),
+                  indicatorColor: const Color(0xFF093A7A),
+                  labelColor: const Color(0xFF093A7A),
                   unselectedLabelColor: Colors.grey,
                   tabs: const [Tab(text: 'Login'), Tab(text: 'Sign Up')],
                 ),
@@ -165,7 +165,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               },
               child: const Text(
                 'Forgot Password?',
-                style: TextStyle(color: Color(0xFF4A3AFF), fontWeight: FontWeight.w600, fontSize: 13),
+                style: TextStyle(color: Color(0xFF093A7A), fontWeight: FontWeight.w600, fontSize: 13),
               ),
             ),
           ),
@@ -174,7 +174,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           contentPadding: EdgeInsets.zero,
           title: const Text('Enable Fingerprint Lock', style: TextStyle(fontSize: 14)),
           value: _isFingerprintEnabled,
-          activeColor: const Color(0xFF4A3AFF),
+          activeColor: const Color(0xFF093A7A),
           onChanged: (val) => setState(() => _isFingerprintEnabled = val),
         ),
         const SizedBox(height: 8),
