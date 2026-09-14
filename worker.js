@@ -243,8 +243,7 @@ app.post('/api/v1/auth/forgot-password', async function (c) {
   const user = await first(c.env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
   // Always return success (don't reveal if email exists)
   if (!user) return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
-  await run(c.env, 'CREATE TABLE IF NOT EXISTS password_reset_otps (email TEXT NOT NULL, otp TEXT NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL)');
-  await run(c.env, 'CREATE TABLE IF NOT EXISTS otp_rate_limits (email TEXT NOT NULL, requested_at TEXT NOT NULL)');
+  // Tables must be created via migrations/setup, not at runtime to improve speed.
 
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   // Clean up old rate limit records
