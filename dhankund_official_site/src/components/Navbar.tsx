@@ -21,7 +21,15 @@ export default function Navbar() {
           <Link href="/contact" className="hover:text-accent transition-colors">Contact</Link>
           <Link href="/privacy" className="hover:text-accent transition-colors">Privacy Policy</Link>
           <Link href="/terms" className="hover:text-accent transition-colors">Terms</Link>
-          <a href="#download" className="btn-primary px-4 py-2 text-sm rounded-lg shadow-none hover:shadow-md">
+          <a
+            href="https://play.google.com/store/apps/details?id=com.dhankund.banker"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary px-4 py-2 text-sm rounded-lg shadow-none hover:shadow-md inline-flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3.609 1.814L13.792 12l-10.183 10.186c-.166-.112-.314-.265-.432-.452L.15 13.351C-.05 13.003-.05 10.997.15 10.65L3.177 2.266c.118-.187.266-.34.432-.452zM15.419 13.627l4.088 2.378c1.332.775 1.332 2.035 0 2.81l-2.022 1.177-7.986-7.985 5.92-5.92zM15.419 10.373L9.5 4.453l7.986-7.985 2.022 1.177c1.332.775 1.332 2.035 0 2.81l-4.088 2.378zM14.61 12l2.366-2.366L21.5 12l-4.524 2.366L14.61 12z"/>
+            </svg>
             Get App
           </a>
         </nav>
@@ -46,6 +54,18 @@ export default function Navbar() {
           <Link href="/contact" onClick={() => setIsOpen(false)} className="hover:text-accent">Contact</Link>
           <Link href="/privacy" onClick={() => setIsOpen(false)} className="hover:text-accent">Privacy Policy</Link>
           <Link href="/terms" onClick={() => setIsOpen(false)} className="hover:text-accent">Terms</Link>
+          <a
+            href="https://play.google.com/store/apps/details?id=com.dhankund.banker"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setIsOpen(false)}
+            className="btn-primary px-4 py-2.5 text-sm rounded-lg text-center flex items-center justify-center gap-2 mt-2"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3.609 1.814L13.792 12l-10.183 10.186c-.166-.112-.314-.265-.432-.452L.15 13.351C-.05 13.003-.05 10.997.15 10.65L3.177 2.266c.118-.187.266-.34.432-.452zM15.419 13.627l4.088 2.378c1.332.775 1.332 2.035 0 2.81l-2.022 1.177-7.986-7.985 5.92-5.92zM15.419 10.373L9.5 4.453l7.986-7.985 2.022 1.177c1.332.775 1.332 2.035 0 2.81l-4.088 2.378zM14.61 12l2.366-2.366L21.5 12l-4.524 2.366L14.61 12z"/>
+            </svg>
+            Get App
+          </a>
         </nav>
       )}
     </header>
