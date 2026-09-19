@@ -235,58 +235,188 @@ app.post('/api/v1/auth/login', async function (c) {
 app.get('/api/v1/auth/me', auth, async function (c) { const me = c.get('user'); const user = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]); if (!user) return c.json({ error: 'Not found' }, 404); return c.json({ id: user.id, email: user.email, role: user.role, name: user.name, mobile: user.mobile }); });
 app.post('/api/v1/auth/logout', auth, function (c) { return c.json({ success: true }); });
 
+function extractCount(row) {
+  if (!row) return 0;
+  const val = row.cnt !== undefined ? row.cnt : (row['COUNT(*)'] !== undefined ? row['COUNT(*)'] : row['count(*)']);
+  const num = Number(val);
+  return isNaN(num) ? 0 : num;
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function checkClientIpBlocked(c) {
+  const clientIp = (c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+  if (!clientIp || clientIp === 'unknown') return { blocked: false, ip: clientIp };
+  try {
+    const record = await first(c.env, 'SELECT * FROM blocked_ips WHERE ip = ?', [clientIp]);
+    if (!record) return { blocked: false, ip: clientIp };
+    if (record.block_type === 'permanent') {
+      return { blocked: true, permanent: true, ip: clientIp };
+    }
+    if (record.expires_at && new Date(record.expires_at).getTime() > Date.now()) {
+      return { blocked: true, permanent: false, expires_at: record.expires_at, violation_count: record.violation_count || 1, ip: clientIp };
+    }
+    // Expired temporary block
+    await run(c.env, 'DELETE FROM blocked_ips WHERE ip = ?', [clientIp]);
+    return { blocked: false, ip: clientIp };
+  } catch (e) {
+    return { blocked: false, ip: clientIp };
+  }
+}
+
 // ==================== Forgot Password (Email OTP) ====================
 app.post('/api/v1/auth/forgot-password', async function (c) {
+  const clientIp = (c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+  const country = (c.req.header('cf-ipcountry') || 'IN').toUpperCase();
+  const userAgent = (c.req.header('user-agent') || 'Unknown Device').trim();
+
+  // 1. Check IP Blocking (Permanent or Temporary)
+  const ipCheck = await checkClientIpBlocked(c);
+  if (ipCheck.blocked) {
+    if (ipCheck.permanent) {
+      return c.json({ error: 'Access permanently blocked due to suspicious activity.' }, 403);
+    }
+    // Increment violation count while blocked
+    try {
+      const newViolations = (ipCheck.violation_count || 1) + 1;
+      if (newViolations >= 5) {
+        await run(c.env, 'UPDATE blocked_ips SET block_type = ?, violation_count = ?, updated_at = ? WHERE ip = ?', ['permanent', newViolations, nowIso(), clientIp]);
+        return c.json({ error: 'Repeated unauthorized activity. Access permanently blocked.' }, 403);
+      } else {
+        await run(c.env, 'UPDATE blocked_ips SET violation_count = ?, updated_at = ? WHERE ip = ?', [newViolations, nowIso(), clientIp]);
+      }
+    } catch (_) {}
+    return c.json({ error: 'Access temporarily blocked due to repeated requests. Please try again later.' }, 403);
+  }
+
   const body = await readJson(c);
+
+  // 2. Bot & Honeypot Protection: Reject known bot crawler fields
+  if (body.website || body.phone_number || body.username || body.bot_trap || body.address) {
+    const tempExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    try {
+      await run(c.env, 'INSERT OR REPLACE INTO blocked_ips (ip, block_type, reason, violation_count, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [clientIp, 'temporary', 'Honeypot triggered (bot activity)', 1, tempExpiry, nowIso(), nowIso()]);
+      await run(c.env, 'INSERT INTO ip_security_logs (id, ip, email, user_agent, country, action, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [randomId(), clientIp, (body.email || 'bot').toString().slice(0, 100), userAgent.slice(0, 150), country, 'forgot-password-bot', 'blocked_honeypot', nowIso()]);
+    } catch (_) {}
+    return c.json({ error: 'Access blocked due to detected automated activity.' }, 403);
+  }
+
   const email = (body.email || '').toString().trim().toLowerCase();
   if (!email) return c.json({ error: 'Email is required' }, 400);
-  const user = await first(c.env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
-  // Always return success (don't reveal if email exists)
-  if (!user) return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
-  // Tables must be created via migrations/setup, not at runtime to improve speed.
 
+  // 3. IP Rate Limiting & Escalation
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  // Clean up old rate limit records
-  await run(c.env, 'DELETE FROM otp_rate_limits WHERE requested_at < ?', [oneDayAgo]);
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  try {
+    await run(c.env, 'DELETE FROM ip_security_logs WHERE created_at < ?', [oneDayAgo]);
+    const ipLogs = await first(c.env, 'SELECT COUNT(*) as cnt FROM ip_security_logs WHERE ip = ? AND created_at >= ?', [clientIp, fifteenMinAgo]);
+    const recentIpCount = extractCount(ipLogs);
 
-  // Check Daily Limit (Max 3 per 24 hours)
-  const countRow = await first(c.env, 'SELECT COUNT(*) as cnt FROM otp_rate_limits WHERE email = ?', [email]);
-  const dailyCount = countRow ? countRow.cnt : 0;
-  if (dailyCount >= 3) {
-    return c.json({ error: 'You have reached the maximum number of password reset requests (3) for today. Please try again tomorrow.' }, 429);
-  }
-
-  // Check Cooldown (3 minutes)
-  const lastRequest = await first(c.env, 'SELECT requested_at FROM otp_rate_limits WHERE email = ? ORDER BY requested_at DESC LIMIT 1', [email]);
-  if (lastRequest && lastRequest.requested_at) {
-    const elapsed = Date.now() - new Date(lastRequest.requested_at).getTime();
-    const cooldownMs = 3 * 60 * 1000;
-    if (elapsed < cooldownMs) {
-      const waitSeconds = Math.ceil((cooldownMs - elapsed) / 1000);
-      return c.json({ error: 'Please wait ' + waitSeconds + ' seconds before requesting another OTP.' }, 429);
+    if (recentIpCount >= 3) {
+      const prevBlock = await first(c.env, 'SELECT violation_count FROM blocked_ips WHERE ip = ?', [clientIp]);
+      const prevCount = prevBlock ? (prevBlock.violation_count || 0) : 0;
+      if (prevCount >= 2) {
+        await run(c.env, 'INSERT OR REPLACE INTO blocked_ips (ip, block_type, reason, violation_count, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, ?, ?)',
+          [clientIp, 'permanent', 'Persistent rate limit abuse', prevCount + 1, nowIso(), nowIso()]);
+        return c.json({ error: 'Access permanently blocked due to persistent excessive requests.' }, 403);
+      }
+      const tempExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour block
+      await run(c.env, 'INSERT OR REPLACE INTO blocked_ips (ip, block_type, reason, violation_count, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [clientIp, 'temporary', 'Rate limit exceeded (rapid OTP requests)', prevCount + 1, tempExpiry, nowIso(), nowIso()]);
+      return c.json({ error: 'Suspicious activity detected. Your IP has been temporarily blocked for 1 hour.' }, 429);
     }
-  }
 
-  // Generate 6-digit OTP
+    // Log the request attempt
+    await run(c.env, 'INSERT INTO ip_security_logs (id, ip, email, user_agent, country, action, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [randomId(), clientIp, email, userAgent.slice(0, 150), country, 'forgot-password-request', 'allowed', nowIso()]);
+  } catch (_) {}
+
+  // 4. Verify user exists (Do not reveal existence to requester)
+  const user = await first(c.env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
+  if (!user) return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
+
+  // 5. Email Rate Limits & Cooldown
+  try {
+    await run(c.env, 'DELETE FROM otp_rate_limits WHERE requested_at < ?', [oneDayAgo]);
+
+    // Check Daily Limit per email (Max 2 per 24 hours)
+    const countRow = await first(c.env, 'SELECT COUNT(*) as cnt FROM otp_rate_limits WHERE email = ?', [email]);
+    const dailyCount = extractCount(countRow);
+    if (dailyCount >= 2) {
+      return c.json({ error: 'You have reached the maximum number of password reset requests (2) for today. Please try again tomorrow.' }, 429);
+    }
+
+    // Check Email Cooldown (15 minutes between requests)
+    const lastRequest = await first(c.env, 'SELECT requested_at FROM otp_rate_limits WHERE email = ? ORDER BY requested_at DESC LIMIT 1', [email]);
+    if (lastRequest && lastRequest.requested_at) {
+      const elapsed = Date.now() - new Date(lastRequest.requested_at).getTime();
+      const cooldownMs = 15 * 60 * 1000;
+      if (elapsed < cooldownMs) {
+        const waitMinutes = Math.ceil((cooldownMs - elapsed) / 60000);
+        return c.json({ error: 'Please wait ' + waitMinutes + ' minute(s) before requesting another OTP.' }, 429);
+      }
+    }
+  } catch (_) {}
+
+  // 6. Generate OTP and store in DB
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await run(c.env, 'DELETE FROM password_reset_otps WHERE email = ?', [email]);
   await run(c.env, 'INSERT INTO password_reset_otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)', [email, otp, expiresAt, nowIso()]);
   await run(c.env, 'INSERT INTO otp_rate_limits (email, requested_at) VALUES (?, ?)', [email, nowIso()]);
-  // Send email via Cloudflare Email Service
+
+  const requestTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'medium' });
+
+  // 7. Send Security-Enriched Email via Cloudflare Email Service
   try {
     await c.env.SEB.send({
       to: email,
       from: 'noreply@dhankund.com',
-      subject: 'Dhankund - Password Reset OTP',
-      html: '<div style="font-family:Arial,sans-serif;max-width:400px;margin:0 auto;padding:20px"><h2 style="color:#6750A4">Password Reset</h2><p>Your OTP for password reset is:</p><div style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#6750A4;text-align:center;padding:20px;background:#f5f5f5;border-radius:12px">' + otp + '</div><p>This OTP expires in 10 minutes.</p><p>If you did not request this, please ignore this email.</p></div>',
-      text: 'Your OTP for password reset is: ' + otp + '\n\nThis OTP expires in 10 minutes.\nIf you did not request this, please ignore this email.'
+      subject: 'Dhankund - Password Reset OTP & Security Alert',
+      html: '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;border:1px solid #e2e8f0;border-radius:16px;background-color:#ffffff">' +
+        '<div style="text-align:center;margin-bottom:20px">' +
+        '<h2 style="color:#093a7a;margin:0 0 6px 0">Dhankund Global</h2>' +
+        '<p style="color:#64748b;font-size:14px;margin:0">Password Reset Verification</p>' +
+        '</div>' +
+        '<p style="color:#334155;font-size:15px">Your One-Time Password (OTP) for password reset is:</p>' +
+        '<div style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#093a7a;text-align:center;padding:18px;background:#f8fafc;border:2px dashed #cbd5e1;border-radius:12px;margin:20px 0">' + otp + '</div>' +
+        '<p style="color:#64748b;font-size:13px;text-align:center">This OTP expires in <strong>10 minutes</strong>. Do not share this OTP with anyone.</p>' +
+        '<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />' +
+        '<div style="background-color:#f1f5f9;padding:16px;border-radius:10px;font-size:13px;color:#334155">' +
+        '<div style="font-weight:bold;color:#0f172a;margin-bottom:10px">&#128737;&#65039; Request Security Details (अनुरोध सुरक्षा विवरण):</div>' +
+        '<table style="width:100%;font-size:12px;color:#475569;border-collapse:collapse">' +
+        '<tr><td style="padding:4px 0;font-weight:600">IP Address:</td><td style="padding:4px 0;color:#093a7a;font-family:monospace">' + escapeHtml(clientIp) + '</td></tr>' +
+        '<tr><td style="padding:4px 0;font-weight:600">Location / Country:</td><td style="padding:4px 0">' + escapeHtml(country) + '</td></tr>' +
+        '<tr><td style="padding:4px 0;font-weight:600">Timestamp:</td><td style="padding:4px 0">' + escapeHtml(requestTime) + ' (IST)</td></tr>' +
+        '<tr><td style="padding:4px 0;font-weight:600">Device / Browser:</td><td style="padding:4px 0">' + escapeHtml(userAgent.slice(0, 75)) + '</td></tr>' +
+        '</table>' +
+        '</div>' +
+        '<div style="margin-top:20px;padding:12px;background-color:#fef2f2;border-left:4px solid #ef4444;border-radius:4px;font-size:12px;color:#991b1b">' +
+        '<strong>Did not request this? (क्या यह अनुरोध आपने नहीं किया?)</strong><br/>' +
+        'यदि आपने यह अनुरोध नहीं किया है, तो कृपया इसे अनदेखा करें। आपका खाता पूरी तरह सुरक्षित है। हमारा स्वचालित सुरक्षा तंत्र किसी भी संदिग्ध गतिविधि पर संबंधित आईपी पते को तुरंत ब्लॉक कर देता है।' +
+        '</div>' +
+        '<p style="margin-top:24px;font-size:11px;color:#94a3b8;text-align:center">Dhankund Global Private Limited &bull; Indore, MP, India &bull; info@dhankund.com</p>' +
+        '</div>',
+      text: 'Dhankund Password Reset OTP: ' + otp + '\n\nValid for 10 minutes.\n\nSecurity Details:\n- IP Address: ' + clientIp + '\n- Location: ' + country + '\n- Time: ' + requestTime + ' IST\n- Device: ' + userAgent.slice(0, 75) + '\n\nIf you did not request this, please ignore this email. Repeated abuse is automatically blocked.'
     });
   } catch (e) { console.error('Email send error:', e.message); return c.json({ error: 'Failed to send OTP email' }, 500); }
   return c.json({ success: true, message: 'If the email exists, an OTP has been sent.' });
 });
 
 app.post('/api/v1/auth/verify-otp', async function (c) {
+  const ipCheck = await checkClientIpBlocked(c);
+  if (ipCheck.blocked) {
+    return c.json({ error: ipCheck.permanent ? 'Access permanently blocked.' : 'Access temporarily blocked.' }, 403);
+  }
   const body = await readJson(c);
   const email = (body.email || '').toString().trim().toLowerCase();
   const otp = (body.otp || '').toString().trim();
