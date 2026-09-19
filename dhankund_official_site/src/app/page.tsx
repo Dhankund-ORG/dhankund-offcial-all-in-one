@@ -69,15 +69,33 @@ export default function Home() {
           <p className="text-lg text-blue-100 mb-10 max-w-2xl mx-auto">
             Download our specialized apps designed for our users and DSA partners to streamline your experience.
           </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-6">
-            <a href="#" className="bg-white text-primary px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition-colors shadow-lg flex items-center justify-center gap-2">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414C17.523 11.2335 20.8984 9.19379 21.0543 9.09249C18.9958 6.07119 15.6983 5.61719 14.5363 5.56549C12.1813 5.32169 9.87836 6.94509 8.67566 6.94509C7.47286 6.94509 5.59026 5.61719 3.65586 5.66909C1.12786 5.71969 -1.24684 7.14079 0.00766023 11.0261C0.37056 12.0366 1.13966 14.1543 2.50206 16.1264C3.89676 18.1519 5.50086 20.4682 7.74756 20.5201C9.94316 20.571 10.7675 19.2312 13.3108 19.2312C15.854 19.2312 16.626 20.5201 18.8727 20.4682C21.1713 20.4165 22.5655 18.3541 23.9082 16.3813C25.433 14.1543 26.0526 12.0125 26.1042 11.9099C26.0526 11.8593 22.8465 10.6433 22.7946 15.3414H17.523ZM14.4847 3.53509C15.723 2.06289 16.5518 -0.0152069 16.345  -1.99341C14.6366 -1.94261 12.3577 0.997293 11.17 2.47059C10.1332 3.73719 9.14816 5.86659 9.35516 7.79429C11.2759 7.94729 13.2458 5.00799 14.4847 3.53509Z"/></svg>
-              App Store
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-6">
+            <a
+              href="https://play.google.com/store/apps/details?id=com.dhankund.banker"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white text-primary px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg flex items-center justify-center gap-3 w-full sm:w-auto"
+            >
+              <svg className="w-6 h-6 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3.609 1.814L13.792 12l-10.183 10.186c-.166-.112-.314-.265-.432-.452L.15 13.351C-.05 13.003-.05 10.997.15 10.65L3.177 2.266c.118-.187.266-.34.432-.452zM15.419 13.627l4.088 2.378c1.332.775 1.332 2.035 0 2.81l-2.022 1.177-7.986-7.985 5.92-5.92zM15.419 10.373L9.5 4.453l7.986-7.985 2.022 1.177c1.332.775 1.332 2.035 0 2.81l-4.088 2.378zM14.61 12l2.366-2.366L21.5 12l-4.524 2.366L14.61 12z"/>
+              </svg>
+              <div className="text-left">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold leading-none">Get it on</div>
+                <div className="text-base font-extrabold text-slate-900 leading-tight">Google Play</div>
+              </div>
             </a>
-            <a href="#" className="bg-white text-primary px-8 py-4 rounded-xl font-bold hover:bg-blue-50 transition-colors shadow-lg flex items-center justify-center gap-2">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M3.609 1.814L13.792 12l-10.183 10.186c-.166-.112-.314-.265-.432-.452L.15 13.351C-.05 13.003-.05 10.997.15 10.65L3.177 2.266c.118-.187.266-.34.432-.452zM15.419 13.627l4.088 2.378c1.332.775 1.332 2.035 0 2.81l-2.022 1.177-7.986-7.985 5.92-5.92zM15.419 10.373L9.5 4.453l7.986-7.985 2.022 1.177c1.332.775 1.332 2.035 0 2.81l-4.088 2.378zM14.61 12l2.366-2.366L21.5 12l-4.524 2.366L14.61 12z"/></svg>
-              Google Play
-            </a>
+            <div className="bg-white/15 backdrop-blur-md border border-white/20 text-white/90 px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-3 cursor-not-allowed select-none w-full sm:w-auto">
+              <svg className="w-6 h-6 opacity-80 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M17.523 15.3414C17.523 11.2335 20.8984 9.19379 21.0543 9.09249C18.9958 6.07119 15.6983 5.61719 14.5363 5.56549C12.1813 5.32169 9.87836 6.94509 8.67566 6.94509C7.47286 6.94509 5.59026 5.61719 3.65586 5.66909C1.12786 5.71969 -1.24684 7.14079 0.00766023 11.0261C0.37056 12.0366 1.13966 14.1543 2.50206 16.1264C3.89676 18.1519 5.50086 20.4682 7.74756 20.5201C9.94316 20.571 10.7675 19.2312 13.3108 19.2312C15.854 19.2312 16.626 20.5201 18.8727 20.4682C21.1713 20.4165 22.5655 18.3541 23.9082 16.3813C25.433 14.1543 26.0526 12.0125 26.1042 11.9099C26.0526 11.8593 22.8465 10.6433 22.7946 15.3414H17.523ZM14.4847 3.53509C15.723 2.06289 16.5518 -0.0152069 16.345 -1.99341C14.6366 -1.94261 12.3577 0.997293 11.17 2.47059C10.1332 3.73719 9.14816 5.86659 9.35516 7.79429C11.2759 7.94729 13.2458 5.00799 14.4847 3.53509Z"/>
+              </svg>
+              <div className="text-left">
+                <div className="text-[10px] uppercase tracking-wider text-blue-200 font-semibold leading-none">Download on</div>
+                <div className="text-base font-extrabold text-white leading-tight">App Store</div>
+              </div>
+              <span className="ml-2 bg-amber-400 text-slate-900 text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Coming Soon
+              </span>
+            </div>
           </div>
         </div>
       </section>
