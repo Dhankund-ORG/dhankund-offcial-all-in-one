@@ -240,3 +240,29 @@ CREATE TABLE IF NOT EXISTS otp_rate_limits (
   email TEXT NOT NULL,
   requested_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS blocked_ips (
+  ip TEXT PRIMARY KEY,
+  block_type TEXT NOT NULL,
+  reason TEXT,
+  violation_count INTEGER DEFAULT 1,
+  expires_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ip_security_logs (
+  id TEXT PRIMARY KEY,
+  ip TEXT NOT NULL,
+  email TEXT,
+  user_agent TEXT,
+  country TEXT,
+  action TEXT NOT NULL,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_blocked_ips_ip ON blocked_ips(ip);
+CREATE INDEX IF NOT EXISTS idx_ip_security_logs_ip ON ip_security_logs(ip);
+CREATE INDEX IF NOT EXISTS idx_ip_security_logs_created ON ip_security_logs(created_at);
+
