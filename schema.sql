@@ -266,3 +266,19 @@ CREATE INDEX IF NOT EXISTS idx_blocked_ips_ip ON blocked_ips(ip);
 CREATE INDEX IF NOT EXISTS idx_ip_security_logs_ip ON ip_security_logs(ip);
 CREATE INDEX IF NOT EXISTS idx_ip_security_logs_created ON ip_security_logs(created_at);
 
+-- Seed CRM Admin User
+INSERT INTO users (
+  id, email, password_hash, role, name, 
+  kyc_completed, bank_details_completed, profile_completed, 
+  created_at, updated_at
+) VALUES (
+  'admin_dhankund', 
+  'dhankundloans@gmail.com', 
+  'pbkdf2_sha256$100000$b3gjcgpikW00uCT6lD6ibA==$qHA/hHFL2O0rkQAhtKwgiQn8PomHK54hvuVUH0ESPCE=', 
+  'admin', 
+  'Dhankund Admin', 
+  1, 1, 1, 
+  CURRENT_TIMESTAMP, 
+  CURRENT_TIMESTAMP
+) ON CONFLICT(email) DO UPDATE SET password_hash=excluded.password_hash;
+
