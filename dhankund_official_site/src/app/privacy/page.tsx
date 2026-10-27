@@ -72,10 +72,11 @@ export default function PrivacyPolicy() {
 
           <section>
             <h2 className="text-2xl font-bold text-slate-900 mb-4">Contact Us</h2>
-            <p className="text-slate-700">
+            <p className="text-slate-700 leading-relaxed">
               If you have any questions about this Privacy Policy, please contact us at: <br/>
-              <strong>Email:</strong> <a href="mailto:info@dhankund.com" className="text-primary hover:underline">info@dhankund.com</a> <br/>
-              <strong>Address:</strong> Indore, Madhya Pradesh, India
+              <strong>Email:</strong> <a href="mailto:info@dhankund.com" className="text-primary hover:underline">info@dhankund.com</a>, <a href="mailto:dhankundloans@gmail.com" className="text-primary hover:underline">dhankundloans@gmail.com</a> <br/>
+              <strong>Phone:</strong> <a href="tel:+919669084666" className="text-primary hover:underline">+91 96690 84666</a>, <a href="tel:+916268147177" className="text-primary hover:underline">+91 62681 47177</a> <br/>
+              <strong>Address:</strong> LG FLOOR, GLASS CABIN NO. 2, ORBIT MALL, VIJAYNAGAR, AB ROAD, INDORE 452010, Madhya Pradesh, India
             </p>
           </section>
         </div>

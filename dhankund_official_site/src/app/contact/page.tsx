@@ -59,7 +59,22 @@ export default function Contact() {
                   </div>
                   <div>
                     <h4 className="font-semibold text-slate-900 text-lg">Office Address</h4>
-                    <p className="text-slate-600">Indore, Madhya Pradesh, India</p>
+                    <p className="text-slate-600 leading-relaxed">
+                      LG FLOOR, GLASS CABIN NO. 2, ORBIT MALL, VIJAYNAGAR, AB ROAD, INDORE - 452010, Madhya Pradesh, India
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-slate-900 text-lg">Phone Numbers</h4>
+                    <div className="flex flex-col space-y-1">
+                      <a href="tel:+919669084666" className="text-primary hover:underline font-medium">+91 96690 84666</a>
+                      <a href="tel:+916268147177" className="text-primary hover:underline font-medium">+91 62681 47177</a>
+                    </div>
                   </div>
                 </div>
 
@@ -69,7 +84,10 @@ export default function Contact() {
                   </div>
                   <div>
                     <h4 className="font-semibold text-slate-900 text-lg">Email Us</h4>
-                    <a href="mailto:info@dhankund.com" className="text-primary hover:underline">info@dhankund.com</a>
+                    <div className="flex flex-col space-y-1">
+                      <a href="mailto:info@dhankund.com" className="text-primary hover:underline">info@dhankund.com</a>
+                      <a href="mailto:dhankundloans@gmail.com" className="text-primary hover:underline">dhankundloans@gmail.com</a>
+                    </div>
                   </div>
                 </div>
               </div>
