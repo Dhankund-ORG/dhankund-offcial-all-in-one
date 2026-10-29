@@ -8,7 +8,7 @@ directory = ".vercel/output/static"
 
 [env.production]
 name = "dhankund-official-site"
-route = { pattern = "dhankund.com", custom_domain = true }
+route = { pattern = "www.dhankund.com", custom_domain = true }
 
 [[env.production.r2_buckets]]
 binding = "R2_BUCKET"

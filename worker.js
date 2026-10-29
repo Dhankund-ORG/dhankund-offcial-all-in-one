@@ -3,6 +3,22 @@ import { all, first, run, insertRow, updateRow, safeJson, nowIso, randomId } fro
 import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebasePassword } from './worker/auth.js';
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
+import {
+  CloudflareError,
+  accountFrom,
+  cfValidateAccount,
+  d1Info,
+  d1CreateDatabase,
+  d1ExportPoll,
+  d1ResetTables,
+  d1ImportStart,
+  d1ImportPoll,
+  d1Compare,
+  r2CreateBucket,
+  r2CountObjects,
+  r2CopyBatch,
+  r2Compare,
+} from './worker/cloudflare.js';
 
 const app = new Hono();
 
@@ -561,6 +577,204 @@ app.put('/api/v1/bank-policies/:id', requireAdmin, async function (c) { const id
 app.get('/api/v1/broadcasts', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM broadcast_history ORDER BY timestamp DESC'); return c.json(parseJsonList(boolify(rows, ['send_whatsapp', 'send_email', 'send_push']), 'audiences')); });
 app.post('/api/v1/broadcasts', requireAdmin, async function (c) { const b = await readJson(c); const id = randomId(); const audiences = Array.isArray(b.audiences) ? b.audiences : []; const sendPush = !!b.send_push || !!b.sendPush; await insertRow(c.env, 'broadcast_history', { id: id, audiences: JSON.stringify(audiences), send_whatsapp: b.send_whatsapp ? 1 : 0, send_email: b.send_email ? 1 : 0, send_push: sendPush ? 1 : 0, subject: b.subject || null, message: b.message || null, recipient_count: (b.recipient_count != null) ? b.recipient_count : 0, timestamp: nowIso() }); let pushSent = 0; if (sendPush) { const tokens = await all(c.env, 'SELECT token FROM fcm_tokens'); for (const t of tokens) { try { await sendFcm(c.env, { token: t.token, title: b.subject || 'Dhankund', body: b.message || '', data: {} }); pushSent += 1; } catch (e) { console.error('push failed', e.message); } } } return c.json({ success: true, id: id, push_sent: pushSent }); });
 app.post('/api/v1/push', requireAdmin, async function (c) { const b = await readJson(c); if (!b.token) return c.json({ error: 'token is required' }, 400); await sendFcm(c.env, { token: String(b.token), title: b.title || '', body: b.body || '', data: b.data || {} }); return c.json({ success: true }); });
+
+// ---------------------------------------------------------------------------
+// Cloudflare account-to-account migration (admin only)
+//
+// Credentials are accepted per request, used in memory and never stored. The
+// CRM drives the migration step by step so that no single Worker request has
+// to move more than one bounded batch of data.
+// ---------------------------------------------------------------------------
+
+function cfMigrationRoute(handler) {
+  return async function (c) {
+    try {
+      return await handler(c);
+    } catch (e) {
+      const known = e instanceof CloudflareError;
+      const status = known ? e.status : 500;
+      if (!known || status >= 500) console.error('Cloudflare migration error:', e && e.message);
+      return c.json({ error: known ? e.message : 'Migration request failed. Please try again.' }, status);
+    }
+  };
+}
+
+function requiredDatabaseId(value) {
+  const id = (value || '').toString().trim();
+  if (!id) throw new CloudflareError('D1 database ID is required', 400);
+  return id;
+}
+
+function migrationBucket(accountInput) {
+  const src = accountInput || {};
+  return (src.r2_bucket || src.r2Bucket || '').toString().trim();
+}
+
+app.post('/api/v1/admin/cloudflare/validate', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const checkD1 = b.check_d1 !== false;
+  const checkR2 = b.check_r2 !== false;
+
+  async function inspect(accountInput, label) {
+    const account = accountFrom(accountInput, label);
+    const result = {
+      account_id: account.account_id,
+      account_name: null,
+      token_status: 'unknown',
+      d1: null,
+      r2: null,
+    };
+    try {
+      const verified = await cfValidateAccount(accountInput);
+      result.account_name = verified.name;
+      result.token_status = verified.token_status;
+    } catch (e) {
+      result.error = e.message;
+      return result;
+    }
+    if (checkD1) {
+      const id = (accountInput && (accountInput.d1_database_id || accountInput.d1DatabaseId) || '').toString().trim();
+      if (!id) {
+        result.d1 = { error: 'D1 database ID not provided' };
+      } else {
+        try {
+          const info = await d1Info(accountInput, id);
+          const db = info.database || {};
+          result.d1 = {
+            id: db.uuid || db.id || id,
+            name: db.name || null,
+            tables: info.tables.length,
+            table_names: info.tables,
+          };
+        } catch (e) {
+          result.d1 = { id: id, error: e.message };
+        }
+      }
+    }
+    if (checkR2) {
+      const bucket = migrationBucket(accountInput);
+      if (!bucket) {
+        result.r2 = { error: 'R2 bucket name not provided' };
+      } else {
+        try {
+          const info = await r2CountObjects(accountInput, bucket, 20);
+          result.r2 = { bucket: bucket, count: info.count, bytes: info.bytes, truncated: info.truncated };
+        } catch (e) {
+          result.r2 = { bucket: bucket, error: e.message };
+        }
+      }
+    }
+    return result;
+  }
+
+  const source = await inspect(b.source, 'Source account');
+  const destination = await inspect(b.destination, 'Destination account');
+  return c.json({ source: source, destination: destination });
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/info', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const databaseId = requiredDatabaseId(b.database_id);
+  const info = await d1Info(b.account, databaseId);
+  const db = info.database || {};
+  return c.json({ database: { id: db.uuid || db.id || databaseId, name: db.name || null }, tables: info.tables });
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/create', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const created = await d1CreateDatabase(b.destination, b.name);
+  return c.json({ success: true, database: created });
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/export', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const databaseId = requiredDatabaseId(b.database_id);
+  const result = await d1ExportPoll(b.source, databaseId, null);
+  return c.json(result);
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/export/poll', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const databaseId = requiredDatabaseId(b.database_id);
+  if (!b.bookmark) throw new CloudflareError('Export bookmark is required', 400);
+  const result = await d1ExportPoll(b.source, databaseId, b.bookmark);
+  return c.json(result);
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/import', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const databaseId = requiredDatabaseId(b.database_id);
+  if (!b.signed_url) throw new CloudflareError('D1 export signed URL is required', 400);
+  const result = await d1ImportStart(b.destination, databaseId, b.signed_url, b.reset === true);
+  return c.json(result);
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/import/poll', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const databaseId = requiredDatabaseId(b.database_id);
+  if (!b.bookmark) throw new CloudflareError('Import bookmark is required', 400);
+  const result = await d1ImportPoll(b.destination, databaseId, b.bookmark);
+  return c.json(result);
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/reset', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const databaseId = requiredDatabaseId(b.database_id);
+  if (b.confirm !== 'RESET') {
+    throw new CloudflareError('Type RESET to confirm dropping all destination tables', 400);
+  }
+  const dropped = await d1ResetTables(b.destination, databaseId);
+  return c.json({ success: true, dropped: dropped });
+}));
+
+app.post('/api/v1/admin/cloudflare/d1/verify', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const sourceDatabaseId = requiredDatabaseId(b.source_database_id);
+  const destinationDatabaseId = requiredDatabaseId(b.destination_database_id);
+  const tables = await d1Compare(b.source, sourceDatabaseId, b.destination, destinationDatabaseId);
+  const match = tables.length > 0 && tables.every(function (t) { return t.match; });
+  return c.json({ tables: tables, match: match });
+}));
+
+app.post('/api/v1/admin/cloudflare/r2/info', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const bucket = migrationBucket(b.account || b);
+  if (!bucket) throw new CloudflareError('R2 bucket name is required', 400);
+  const info = await r2CountObjects(b.account || b, bucket, 20);
+  return c.json({ bucket: bucket, count: info.count, bytes: info.bytes, truncated: info.truncated });
+}));
+
+app.post('/api/v1/admin/cloudflare/r2/create', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const bucket = migrationBucket(b.destination || b);
+  if (!bucket) throw new CloudflareError('R2 bucket name is required', 400);
+  const created = await r2CreateBucket(b.destination || b, bucket);
+  return c.json({ success: true, bucket: created });
+}));
+
+app.post('/api/v1/admin/cloudflare/r2/copy', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const sourceBucket = ((b.source_bucket || '') + '').trim() || migrationBucket(b.source);
+  const destinationBucket = ((b.destination_bucket || '') + '').trim() || migrationBucket(b.destination);
+  if (!sourceBucket) throw new CloudflareError('Source R2 bucket name is required', 400);
+  if (!destinationBucket) throw new CloudflareError('Destination R2 bucket name is required', 400);
+  const result = await r2CopyBatch(b.source, sourceBucket, b.destination, destinationBucket, {
+    cursor: b.cursor || null,
+    skip: b.skip,
+    limit: b.limit,
+  });
+  return c.json(result);
+}));
+
+app.post('/api/v1/admin/cloudflare/r2/verify', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const sourceBucket = ((b.source_bucket || '') + '').trim() || migrationBucket(b.source);
+  const destinationBucket = ((b.destination_bucket || '') + '').trim() || migrationBucket(b.destination);
+  if (!sourceBucket) throw new CloudflareError('Source R2 bucket name is required', 400);
+  if (!destinationBucket) throw new CloudflareError('Destination R2 bucket name is required', 400);
+  const result = await r2Compare(b.source, sourceBucket, b.destination, destinationBucket, b.max_pages);
+  return c.json(result);
+}));
 
 
 export default app;

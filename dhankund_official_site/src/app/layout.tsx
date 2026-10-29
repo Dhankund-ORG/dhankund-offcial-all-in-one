@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.dhankund.com"),
   title: "Dhankund Global Private Limited",
   description: "Empowering your financial journey with trusted loan solutions and business consulting across India.",
 };

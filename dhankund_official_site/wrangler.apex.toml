@@ -1,0 +1,7 @@
+name = "dhankund-apex-redirect"
+compatibility_date = "2024-03-20"
+main = "apex_redirect_worker.js"
+
+[env.production]
+name = "dhankund-apex-redirect"
+route = { pattern = "dhankund.com", custom_domain = true }
