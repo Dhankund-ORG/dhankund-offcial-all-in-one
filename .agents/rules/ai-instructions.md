@@ -91,25 +91,23 @@ Branching Rule (NEVER WORK ON MAIN/MASTER): ALL development, build, deploy, or t
 
 Testing Mandate: Whenever you make code changes, you MUST add or update relevant tests to ensure the functionality works as expected. Create a specific branch for editing or adding GitHub Actions workflows, test them, and ensure they run successfully.
 
-Automated PR & Preview Deployments: Once work on a branch is complete:
+Automated PR Deployments & Builds: Once work on a branch is complete:
 
 Create a Pull Request (PR).
 
-Trigger GitHub Actions to deploy the branch code to Preview Environments.
+Trigger GitHub Actions to run tests and verification on the branch code.
 
 Trigger internal APK/AAB builds and automatically push/publish them to the Play Store Internal Testing track.
 
-Environment, Domain Routing & Strict Isolation:
-
-Preview Domains (Feature Branches): dev.api.dhankund.com (API), dev.crm.dhankund.com (CRM), dev.dsa.dhankund.com (DSA), dev.dhankund.com (Web).
+Environment & Domain Routing (Production Only):
 
 Production Domains (Main/Master Branch): api.dhankund.com, crm.dhankund.com, dsa.dhankund.com, dhankund.com.
 
-Strict Infrastructure Separation: You MUST maintain completely separate infrastructure for Preview and Production environments. This means maintaining entirely separate Cloudflare Workers, completely distinct D1 Databases, isolated R2 Buckets, and separate instances for all other services. The ONLY EXCEPTION to this rule is the FCM (Firebase Cloud Messaging) service, which is allowed to be shared across environments.
+Production-Only Infrastructure: There are NO preview environments. All deployments target the production Cloudflare Workers, D1 Database, and R2 Bucket only.
 
 Autonomous Monitoring & Auto-Merge (NO PERMISSION REQUIRED):
 
-Continuously monitor the GitHub Actions workflows (Tests, Preview Deployments, APK Internal Play Store publishing).
+Continuously monitor the GitHub Actions workflows (Tests, Production Deployments, APK Internal Play Store publishing).
 
 If Green (All workflows pass): You MUST automatically merge the feature branch into the main or master branch WITHOUT asking the user for permission. Merging into the default branch will then trigger the Production deployment to the verified production domains.
 
