@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownContent from "../../../components/MarkdownContent";
 import { getPostBySlug, getCategories, resolveUrl, formatDate } from "../../../lib/blog";
 
 export const runtime = "edge";
@@ -94,7 +93,7 @@ export default async function BlogPostPage({
         </div>
 
         <div className="blog-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content || ""}</ReactMarkdown>
+          <MarkdownContent content={post.content || ""} />
         </div>
 
         {post.tags.length > 0 && (
