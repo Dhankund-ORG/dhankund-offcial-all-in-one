@@ -48,7 +48,7 @@ export async function getPosts(opts: {
   params.set("limit", String(opts.limit ?? 50));
   try {
     const res = await fetch(`${API_BASE}/api/v1/blog?${params.toString()}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!res.ok) return { posts: [], total: 0 };
     const data = await res.json();
@@ -64,7 +64,7 @@ export async function getPosts(opts: {
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/blog/${encodeURIComponent(slug)}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!res.ok) return null;
     return (await res.json()) as BlogPost;
@@ -76,7 +76,7 @@ export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
 export async function getCategories(): Promise<BlogCategory[]> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/blog-categories`, {
-      next: { revalidate: 300 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -86,9 +86,15 @@ export async function getCategories(): Promise<BlogCategory[]> {
   }
 }
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// Edge-runtime safe date formatting (no Intl locale dependency).
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" });
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
