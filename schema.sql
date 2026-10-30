@@ -267,6 +267,10 @@ CREATE INDEX IF NOT EXISTS idx_ip_security_logs_ip ON ip_security_logs(ip);
 CREATE INDEX IF NOT EXISTS idx_ip_security_logs_created ON ip_security_logs(created_at);
 
 -- Seed CRM Admin User
+-- The password_hash is left NULL on purpose: the login handler derives the
+-- correct PBKDF2 hash from the ADMIN_PASSWORD worker secret on first login,
+-- so the admin credentials always follow the GitHub Actions secrets. The
+-- ON CONFLICT clause never overwrites an existing hash on redeploys.
 INSERT INTO users (
   id, email, password_hash, role, name, 
   kyc_completed, bank_details_completed, profile_completed, 
@@ -274,11 +278,11 @@ INSERT INTO users (
 ) VALUES (
   'admin_dhankund', 
   'dhankundloans@gmail.com', 
-  'pbkdf2_sha256$100000$b3gjcgpikW00uCT6lD6ibA==$qHA/hHFL2O0rkQAhtKwgiQn8PomHK54hvuVUH0ESPCE=', 
+  NULL, 
   'admin', 
   'Dhankund Admin', 
   1, 1, 1, 
   CURRENT_TIMESTAMP, 
   CURRENT_TIMESTAMP
-) ON CONFLICT(email) DO UPDATE SET password_hash=excluded.password_hash;
+) ON CONFLICT(email) DO NOTHING;
 
