@@ -9,6 +9,7 @@ import {
   cfValidateAccount,
   d1Info,
   d1CreateDatabase,
+  d1Plan,
   d1ExportPoll,
   d1ResetTables,
   d1ImportStart,
@@ -16,6 +17,7 @@ import {
   d1Compare,
   r2CreateBucket,
   r2CountObjects,
+  r2Plan,
   r2CopyBatch,
   r2Compare,
 } from './worker/cloudflare.js';
@@ -680,6 +682,14 @@ app.post('/api/v1/admin/cloudflare/d1/info', requireAdmin, cfMigrationRoute(asyn
   return c.json({ database: { id: db.uuid || db.id || databaseId, name: db.name || null }, tables: info.tables });
 }));
 
+app.post('/api/v1/admin/cloudflare/d1/plan', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const sourceDatabaseId = requiredDatabaseId(b.source_database_id);
+  const destinationDatabaseId = ((b.destination_database_id || '') + '').trim() || null;
+  const result = await d1Plan(b.source, sourceDatabaseId, b.destination, destinationDatabaseId);
+  return c.json(result);
+}));
+
 app.post('/api/v1/admin/cloudflare/d1/create', requireAdmin, cfMigrationRoute(async function (c) {
   const b = await readJson(c);
   const created = await d1CreateDatabase(b.destination, b.name);
@@ -742,6 +752,14 @@ app.post('/api/v1/admin/cloudflare/r2/info', requireAdmin, cfMigrationRoute(asyn
   if (!bucket) throw new CloudflareError('R2 bucket name is required', 400);
   const info = await r2CountObjects(b.account || b, bucket, 20);
   return c.json({ bucket: bucket, count: info.count, bytes: info.bytes, truncated: info.truncated });
+}));
+
+app.post('/api/v1/admin/cloudflare/r2/plan', requireAdmin, cfMigrationRoute(async function (c) {
+  const b = await readJson(c);
+  const bucket = ((b.source_bucket || '') + '').trim() || migrationBucket(b.source);
+  if (!bucket) throw new CloudflareError('Source R2 bucket name is required', 400);
+  const result = await r2Plan(b.source, bucket, { maxPages: b.max_pages });
+  return c.json(result);
 }));
 
 app.post('/api/v1/admin/cloudflare/r2/create', requireAdmin, cfMigrationRoute(async function (c) {

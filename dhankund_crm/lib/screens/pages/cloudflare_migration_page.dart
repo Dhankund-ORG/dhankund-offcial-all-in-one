@@ -50,6 +50,8 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
   String _status = 'Ready to validate.';
 
   Map<String, dynamic>? _validation;
+  Map<String, dynamic>? _plan;
+  bool _lastRunHadErrors = false;
   final List<_LogEntry> _logs = [];
   final ScrollController _logScrollController = ScrollController();
 
@@ -81,6 +83,11 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
   int _asInt(dynamic value) {
     if (value is num) return value.toInt();
     return int.tryParse(value == null ? '' : value.toString()) ?? 0;
+  }
+
+  List<dynamic> _asList(dynamic value) {
+    if (value is List) return value;
+    return const <dynamic>[];
   }
 
   String _formatBytes(int bytes) {
@@ -275,14 +282,22 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
       _cancelRequested = false;
       _progress = 0;
       _status = 'Starting migration...';
+      _lastRunHadErrors = false;
+      _voidPlan();
       _logs.clear();
     });
-    _log('Migration started. Credentials stay in this request only and are never stored.');
+    _log('One-click migration started. Credentials stay in this request only and are never stored.');
+    _log('Step 1/3: validate accounts and scan exactly what will be migrated.');
 
     try {
       await _migrateAll();
-      _setStatus('Migration finished.', progress: 1);
-      _log('Migration finished successfully.', level: 'success');
+      if (_lastRunHadErrors) {
+        _setStatus('Migration finished with errors. Review the plan and live log.');
+        _log('Migration finished with errors. Failed objects remain in the source.', level: 'error');
+      } else {
+        _setStatus('Migration finished successfully.', progress: 1);
+        _log('Migration finished successfully. D1 and R2 are both verified.', level: 'success');
+      }
     } on _MigrationCancelled {
       _setStatus('Migration stopped by user.');
       _log('Migration stopped by user. Data already copied remains in the destination.', level: 'warn');
@@ -296,17 +311,210 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
     }
   }
 
+  void _voidPlan() {
+    _plan = null;
+  }
+
   Future<void> _migrateAll() async {
     await _validateAccounts();
     _checkCancelled();
 
+    _log('Step 2/3: scan migration contents and compare schemas.');
+    final plan = await _loadPlan();
+    _checkCancelled();
+
+    final resetAllowed = await _confirmPlanResetIfNeeded(plan);
+    if (!resetAllowed) throw _MigrationCancelled();
+
+    _log('Step 3/3: migrate data. D1 and R2 run independently.');
+    var d1Done = !_migrateD1;
+    var r2Done = !_migrateR2;
+
     if (_migrateD1) {
-      await _migrateD1Database();
+      try {
+        await _migrateD1Database();
+        d1Done = true;
+      } on _MigrationCancelled {
+        rethrow;
+      } catch (e) {
+        final message = e.toString();
+        _log('D1 migration failed: ' + message, level: 'error');
+        _log('R2 migration will continue because D1 and R2 are independent.', level: 'warn');
+      }
     }
     _checkCancelled();
+
     if (_migrateR2) {
-      await _migrateR2Bucket();
+      try {
+        await _migrateR2Bucket();
+        r2Done = true;
+      } on _MigrationCancelled {
+        rethrow;
+      } catch (e) {
+        final message = e.toString();
+        _log('R2 migration failed: ' + message, level: 'error');
+      }
     }
+
+    final parts = <String>[];
+    if (_migrateD1) parts.add('D1: ' + (d1Done ? 'COMPLETE' : 'FAILED'));
+    if (_migrateR2) parts.add('R2: ' + (r2Done ? 'COMPLETE' : 'FAILED'));
+    _lastRunHadErrors = (_migrateD1 && !d1Done) || (_migrateR2 && !r2Done);
+    _setStatus(
+      _lastRunHadErrors ? 'Migration finished with errors.' : 'Migration finished.',
+      progress: 1,
+    );
+    _log(
+      'FINAL SUMMARY - ' + parts.join(' | ') +
+          (_lastRunHadErrors ? '. Fix the errors above and run the failed part again.' : '.'),
+      level: _lastRunHadErrors ? 'error' : 'success',
+    );
+  }
+
+  Future<Map<String, dynamic>> _loadPlan() async {
+    _setStatus('Scanning migration contents...', progress: 0.35);
+    _log('Building the migration plan. No data is changed during this scan.');
+
+    final plan = <String, dynamic>{};
+
+    if (_migrateD1) {
+      final destinationId = _destinationD1Id.text.trim();
+      final d1 = await _post('/api/v1/admin/cloudflare/d1/plan', {
+        'source': _sourcePayload,
+        'source_database_id': _sourceD1Id.text.trim(),
+        'destination': _destinationPayload,
+        'destination_database_id': destinationId.isEmpty ? null : destinationId,
+      });
+      plan['d1'] = d1;
+
+      final source = _asMap(d1['source']);
+      final totals = _asMap(source['totals']);
+      _log(
+        'D1 scan: ' + _asInt(totals['tables']).toString() + ' tables, ' +
+            _asInt(totals['rows']).toString() + ' rows, ' +
+            _asInt(totals['columns']).toString() + ' columns, ' +
+            _asInt(totals['indexes']).toString() + ' indexes, ' +
+            _asInt(totals['triggers']).toString() + ' triggers.',
+        level: 'success',
+      );
+
+      final diff = _asMap(d1['diff']);
+      final missingTables = _asList(diff['missing_tables']);
+      final overlap = _asList(diff['overlapping_tables']);
+      final missingColumns = _asList(diff['missing_columns']);
+      final extraColumns = _asList(diff['extra_columns']);
+      final typeMismatches = _asList(diff['type_mismatches']);
+      final orderMismatches = _asList(diff['column_order_mismatches']);
+      final extraTables = _asList(diff['extra_tables']);
+
+      if (destinationId.isEmpty) {
+        _log('Destination D1 is blank: a new database will be created and all source tables imported.', level: 'warn');
+      } else if (overlap.isNotEmpty) {
+        _log('Destination already has ' + overlap.length.toString() + ' table(s) with the same name as source.', level: 'warn');
+      }
+      if (missingTables.isNotEmpty) {
+        _log('New tables that will be created: ' + missingTables.take(12).join(', ') +
+            (missingTables.length > 12 ? ' +' + (missingTables.length - 12).toString() + ' more' : '') + '.');
+      }
+      if (missingColumns.isNotEmpty) {
+        _log('Destination tables missing source columns: ' + missingColumns.length.toString() + ' table(s).', level: 'warn');
+      }
+      if (extraColumns.isNotEmpty) {
+        _log('Destination tables with extra columns: ' + extraColumns.length.toString() + ' table(s).', level: 'warn');
+      }
+      if (typeMismatches.isNotEmpty) {
+        _log('Columns with a different declared type: ' + typeMismatches.length.toString() + '.', level: 'warn');
+      }
+      if (orderMismatches.isNotEmpty) {
+        _log('Tables with a different column order: ' + orderMismatches.length.toString() + '.', level: 'warn');
+      }
+      if (extraTables.isNotEmpty) {
+        _log('Destination-only tables that stay untouched: ' + extraTables.take(12).join(', ') + '.', level: 'warn');
+      }
+      if (d1['reset_required'] == true) {
+        _log('Reset is required before the D1 import because destination tables collide with source tables.', level: 'warn');
+      }
+      for (final warning in _asList(d1['warnings'])) {
+        _log('D1 plan warning: ' + warning.toString(), level: 'warn');
+      }
+      if (d1['destination_error'] != null) {
+        _log('Destination D1 could not be inspected: ' + d1['destination_error'].toString(), level: 'error');
+      }
+    }
+
+    if (_migrateR2) {
+      final r2 = await _post('/api/v1/admin/cloudflare/r2/plan', {
+        'source': _sourcePayload,
+        'source_bucket': _sourceBucket.text.trim(),
+        'max_pages': 20,
+      });
+      plan['r2'] = r2;
+      _log(
+        'R2 scan: ' + _asInt(r2['count']).toString() + ' objects (' +
+            _formatBytes(_asInt(r2['bytes'])) + ')' +
+            (r2['truncated'] == true ? ' - only the first 2,000 objects were scanned.' : '.'),
+        level: r2['truncated'] == true ? 'warn' : 'success',
+      );
+      final oversized = _asList(r2['oversized']);
+      if (oversized.isNotEmpty) {
+        _log('Oversized objects that will be skipped (> 50 MB): ' + oversized.length.toString() + '.', level: 'warn');
+        for (final item in oversized.take(10)) {
+          final row = _asMap(item);
+          _log('  SKIP ' + (row['key']?.toString() ?? '?') + ' (' + _formatBytes(_asInt(row['size'])) + ')', level: 'warn');
+        }
+      }
+      for (final warning in _asList(r2['warnings'])) {
+        _log('R2 plan warning: ' + warning.toString(), level: 'warn');
+      }
+    }
+
+    if (mounted) setState(() => _plan = plan);
+    _setStatus('Scan complete. Review the migration plan below.', progress: 0.55);
+    return plan;
+  }
+
+  Future<bool> _confirmPlanResetIfNeeded(Map<String, dynamic> plan) async {
+    if (!_migrateD1 || _resetDestination) return true;
+    final d1 = _asMap(plan['d1']);
+    final diff = _asMap(d1['diff']);
+    final overlap = _asList(diff['overlapping_tables']);
+    if (d1['reset_required'] != true && overlap.isEmpty) return true;
+
+    if (!mounted) return false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Reset is required for D1'),
+          content: Text(
+            'The destination database already contains ' + overlap.length.toString() +
+                ' table(s) with the same name as the source: ' +
+                overlap.take(8).join(', ') + (overlap.length > 8 ? '...' : '') +
+                '.\n\nThe import cannot create these tables again. Enable "Reset destination D1" to drop '
+                'all destination tables after the source export succeeds, or cancel and use a new destination database.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel migration'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.rubyRed),
+              child: const Text('Reset and continue'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      _log('Migration cancelled: destination tables overlap and Reset is off.', level: 'warn');
+      return false;
+    }
+    if (mounted) setState(() => _resetDestination = true);
+    _log('Reset enabled after plan check. Destination tables will be dropped after a successful export.', level: 'warn');
+    return true;
   }
 
   Future<bool?> _confirmReset() {
@@ -561,6 +769,14 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
           _log('  COPY FAILED: ' + (row['key']?.toString() ?? '?') + ' - ' + (row['error']?.toString() ?? ''), level: 'error');
         }
       }
+      final oversized = result['oversized'];
+      if (oversized is List) {
+        for (final item in oversized) {
+          final row = _asMap(item);
+          _log('  SKIPPED (> 50 MB): ' + (row['key']?.toString() ?? '?') +
+              ' (' + _formatBytes(_asInt(row['size'])) + ')', level: 'warn');
+        }
+      }
 
       cursor = result['next_cursor'] == null ? null : result['next_cursor'].toString();
       skip = _asInt(result['next_skip']);
@@ -629,27 +845,41 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
     }
   }
 
-  Future<void> _validateOnly() async {
+  Future<void> _scanAndPreview() async {
     if (_isRunning) return;
     if (_sourceAccountId.text.trim().isEmpty || _sourceToken.text.trim().isEmpty ||
         _destinationAccountId.text.trim().isEmpty || _destinationToken.text.trim().isEmpty) {
       _showError('Both account IDs and API tokens are required.');
       return;
     }
+    if (!_migrateD1 && !_migrateR2) {
+      _showError('Select D1, R2 or both to scan.');
+      return;
+    }
+    if (_migrateD1 && _sourceD1Id.text.trim().isEmpty) {
+      _showError('Source D1 database ID is required to preview D1.');
+      return;
+    }
+    if (_migrateR2 && _sourceBucket.text.trim().isEmpty) {
+      _showError('Source R2 bucket name is required to preview R2.');
+      return;
+    }
     setState(() {
       _isRunning = true;
       _cancelRequested = false;
       _progress = 0;
-      _status = 'Validating...';
+      _status = 'Scanning...';
+      _plan = null;
       _logs.clear();
     });
     try {
       await _validateAccounts();
-      _setStatus('Validation passed.', progress: 1);
-      _log('Validation passed. Review the preflight panel before starting the migration.', level: 'success');
+      await _loadPlan();
+      _setStatus('Preview ready. Review the plan, then press MIGRATE ALL.', progress: 1);
+      _log('Preview ready. The migration has not started and no data has been changed.', level: 'success');
     } catch (e) {
-      _setStatus('Validation failed.');
-      _log('Validation failed: ' + e.toString(), level: 'error');
+      _setStatus('Scan failed.');
+      _log('Scan failed: ' + e.toString(), level: 'error');
     } finally {
       if (mounted) setState(() => _isRunning = false);
     }
@@ -708,6 +938,8 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
               ],
               const SizedBox(height: 20),
               _buildOptionsCard(),
+              const SizedBox(height: 20),
+              _buildPlanCard(),
               const SizedBox(height: 20),
               _buildActionsCard(),
               const SizedBox(height: 20),
@@ -1106,9 +1338,9 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: _isRunning ? null : _validateOnly,
-                      icon: const Icon(Icons.fact_check_outlined, size: 18),
-                      label: const Text('VALIDATE ACCOUNTS'),
+                      onPressed: _isRunning ? null : _scanAndPreview,
+                      icon: const Icon(Icons.search_outlined, size: 18),
+                      label: const Text('SCAN & PREVIEW'),
                     ),
                     ElevatedButton.icon(
                       onPressed: _isRunning ? null : _startMigration,
@@ -1119,7 +1351,7 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                             )
                           : const Icon(Icons.rocket_launch_outlined, size: 18),
-                      label: Text(_isRunning ? 'MIGRATION RUNNING...' : 'START MIGRATION'),
+                      label: Text(_isRunning ? 'MIGRATION RUNNING...' : 'MIGRATE ALL (ONE CLICK)'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.royalGold,
                         foregroundColor: Colors.white,
@@ -1175,6 +1407,357 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPlanCard() {
+    final plan = _plan;
+    final d1 = _asMap(plan?['d1']);
+    final r2 = _asMap(plan?['r2']);
+    final diff = _asMap(d1['diff']);
+    final hasD1 = _migrateD1;
+    final hasR2 = _migrateR2;
+    final resetRequired = d1['reset_required'] == true;
+
+    String badge = 'NOT SCANNED';
+    Color badgeColor = AppTheme.textSecondary;
+    if (plan != null) {
+      if (resetRequired) {
+        badge = 'RESET REQUIRED';
+        badgeColor = AppTheme.rubyRed;
+      } else {
+        badge = 'PLAN READY';
+        badgeColor = AppTheme.emeraldGreen;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: AppTheme.glassDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.map_outlined, color: AppTheme.royalGold, size: 22),
+                    const SizedBox(width: 10),
+                    Text('MIGRATION PLAN', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: badgeColor.withOpacity(0.4)),
+                ),
+                child: Text(badge, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: badgeColor, letterSpacing: 0.8)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (plan == null || (hasD1 && d1.isEmpty && hasR2 && r2.isEmpty))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No plan yet. Press "SCAN & PREVIEW" to list every D1 table, row count, column and R2 object, and to flag anything missing before migration starts. The plan is built fresh on every migration.',
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13, height: 1.5),
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasD1) _buildD1PlanSection(d1, diff),
+                if (hasD1 && hasR2) const Divider(height: 26, color: Color(0xFFE2E8F0)),
+                if (hasR2) _buildR2PlanSection(r2),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppTheme.royalGold.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppTheme.royalGold.withOpacity(0.25)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: AppTheme.rubyRed, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text('MIGRATION WARNINGS & LIMITS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.rubyRed, letterSpacing: 0.8)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (_migrateD1) ...[
+                        for (final warning in _asList(d1['warnings'])) _buildPlanWarning(warning.toString()),
+                        for (final warning in _asList(r2['warnings'])) _buildPlanWarning(warning.toString()),
+                      ] else ...[
+                        for (final warning in _asList(r2['warnings'])) _buildPlanWarning(warning.toString()),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlanWarning(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, size: 13, color: AppTheme.rubyRed),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(message, style: const TextStyle(fontSize: 12, color: AppTheme.rubyRed, height: 1.4)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildD1PlanSection(Map<String, dynamic> d1, Map<String, dynamic> diff) {
+    final source = _asMap(d1['source']);
+    final sourceDatabase = _asMap(source['database']);
+    final totals = _asMap(source['totals']);
+    final destination = _asMap(d1['destination']);
+    final destinationDatabase = _asMap(destination['database']);
+    final objects = _asList(source['objects']);
+    final missingTables = _asList(diff['missing_tables']);
+    final overlap = _asList(diff['overlapping_tables']);
+    final extraTables = _asList(diff['extra_tables']);
+    final missingColumns = _asList(diff['missing_columns']);
+    final extraColumns = _asList(diff['extra_columns']);
+    final typeMismatches = _asList(diff['type_mismatches']);
+    final orderMismatches = _asList(diff['column_order_mismatches']);
+    final missingIndexes = _asList(diff['missing_indexes']);
+    final missingTriggers = _asList(diff['missing_triggers']);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.storage_outlined, color: AppTheme.brightGold, size: 18),
+            const SizedBox(width: 8),
+            Text('D1 DATABASE', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.brightGold, letterSpacing: 1.0)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildPlanRow('Source D1', (sourceDatabase['name']?.toString() ?? sourceDatabase['id']?.toString() ?? 'source') + ' - ' + _asInt(sourceDatabase['file_size']).toString() + ' bytes, ' + _asInt(totals['tables']).toString() + ' tables, ' + _asInt(totals['rows']).toString() + ' rows, ' + _asInt(totals['columns']).toString() + ' columns, ' + _asInt(totals['indexes']).toString() + ' indexes, ' + _asInt(totals['triggers']).toString() + ' triggers', badge: 'SOURCE'),
+        _buildPlanRow('Destination D1', destination['error'] != null ? 'Unavailable: ' + destination['error'].toString() : (destinationDatabase['name']?.toString() ?? 'destination') + ' - ' + _asInt(destinationDatabase['num_tables']).toString() + ' tables' + (_asInt(destinationDatabase['num_tables']).toInt() > 0 ? ' (exists)' : ' (new)'), badge: 'DESTINATION'),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildPlanChip('SOURCE TABLES: ' + _asInt(totals['tables']).toString(), AppTheme.brightGold),
+            _buildPlanChip('SOURCE ROWS: ' + _asInt(totals['rows']).toString(), AppTheme.brightGold),
+            _buildPlanChip('SOURCE COLUMNS: ' + _asInt(totals['columns']).toString(), AppTheme.brightGold),
+            _buildPlanChip('SOURCE INDEXES: ' + _asInt(totals['indexes']).toString(), AppTheme.brightGold),
+            _buildPlanChip('SOURCE TRIGGERS: ' + _asInt(totals['triggers']).toString(), AppTheme.brightGold),
+            _buildPlanChip('NEW TABLES TO CREATE: ' + missingTables.length.toString(), AppTheme.emeraldGreen),
+            _buildPlanChip('OVERLAP: ' + overlap.length.toString(), AppTheme.rubyRed),
+            _buildPlanChip('EXTRA DEST COLUMNS: ' + extraColumns.length.toString(), AppTheme.rubyRed),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _buildPlanItemRow('NEW TABLES TO CREATE', missingTables, AppTheme.emeraldGreen),
+        _buildPlanItemRow('DESTINATION ALREADY HAS SAME TABLE (RESET REQUIRED)', overlap, AppTheme.rubyRed),
+        _buildPlanItemRow('DESTINATION ONLY TABLES (KEEP UNLESS RESET)', extraTables, AppTheme.textSecondary),
+        _buildPlanItemRow('MISSING COLUMNS (DESTINATION NEEDS SOURCE)', missingColumns, AppTheme.rubyRed),
+        _buildPlanItemRow('EXTRA COLUMNS IN DESTINATION', extraColumns, AppTheme.rubyRed),
+        _buildPlanItemRow('TYPE MISMATCHES', typeMismatches, AppTheme.rubyRed),
+        _buildPlanItemRow('COLUMN ORDER MISMATCHES', orderMismatches, AppTheme.rubyRed),
+        _buildPlanItemRow('MISSING INDEXES', missingIndexes, AppTheme.rubyRed),
+        _buildPlanItemRow('MISSING TRIGGERS', missingTriggers, AppTheme.rubyRed),
+        const SizedBox(height: 10),
+        Text('SOURCE TABLE DETAIL (what will be migrated)', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textSecondary, letterSpacing: 0.8)),
+        const SizedBox(height: 6),
+        if (objects.isEmpty)
+          const Text('No source tables found.', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12))
+        else
+          SizedBox(
+            height: 220,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F172A),
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+              ),
+              child: ListView.builder(
+                itemCount: objects.length,
+                itemBuilder: (context, index) {
+                  final object = _asMap(objects[index]);
+                  final name = object['name']?.toString() ?? '';
+                  final rows = _asInt(object['rows']);
+                  final columns = _asInt(object['columns']?.length);
+                  final isOverlap = overlap.any((item) => _asMap(item)['table']?.toString() == name);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          isOverlap ? Icons.block : Icons.check_circle_outline,
+                          size: 14,
+                          color: isOverlap ? const Color(0xFFFCA5A5) : const Color(0xFF6EE7B7),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            name + ' - ' + rows.toString() + ' rows, ' + columns.toString() + ' columns' + (isOverlap ? ' (OVERLAP)' : ''),
+                            style: const TextStyle(fontSize: 11.5, fontFamily: 'monospace', color: const Color(0xFFCBD5E1), height: 1.4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPlanRow(String label, String value, {required String badge}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              label + ': ',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.4),
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.only(left: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppTheme.royalGold.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.royalGold.withOpacity(0.3)),
+            ),
+            child: Text(badge, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppTheme.royalGold, letterSpacing: 0.6)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlanChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color, letterSpacing: 0.4),
+      ),
+    );
+  }
+
+  Widget _buildPlanItemRow(String label, List<dynamic> items, Color color) {
+    if (items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(label + ': none', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        label + ': ' + items.take(14).map((item) => _formatPlanItem(item)).join(', ') +
+            (items.length > 14 ? ' + ' + (items.length - 14).toString() + ' more' : ''),
+        style: TextStyle(fontSize: 12, color: color, height: 1.5),
+      ),
+    );
+  }
+
+  String _formatPlanItem(dynamic item) {
+    final row = _asMap(item);
+    final key = row['key']?.toString() ?? row['table']?.toString() ?? '';
+    if (row['columns'] is List) {
+      return key + ': ' + _joinList(row['columns']);
+    }
+    if (row['indexes'] is List) {
+      return key + ': ' + _joinList(row['indexes']);
+    }
+    if (row['triggers'] is List) {
+      return key + ': ' + _joinList(row['triggers']);
+    }
+    if (row['source'] is List && row['destination'] is List) {
+      return key + ' order: source=[' + _joinList(row['source']) + '] destination=[' + _joinList(row['destination']) + ']';
+    }
+    if (row['column'] != null && row['source'] != null && row['destination'] != null) {
+      final sourceValue = _asList(row['source']).isNotEmpty ? _joinList(row['source']) : row['source'].toString();
+      final destinationValue = _asList(row['destination']).isNotEmpty ? _joinList(row['destination']) : row['destination'].toString();
+      return key + ' ' + (row['column']?.toString() ?? '') + ': ' + sourceValue + ' -> ' + destinationValue;
+    }
+    if (row['size'] != null) {
+      return key + ' (' + _formatBytes(_asInt(row['size'])) + ')';
+    }
+    return key;
+  }
+
+  String _joinList(dynamic value) {
+    final list = _asList(value);
+    final parts = list.map((item) => _asMap(item)['name']?.toString() ?? item.toString()).toList();
+    final joined = parts.join(', ');
+    return joined.length > 140 ? joined.substring(0, 140) + '...' : joined;
+  }
+
+  Widget _buildR2PlanSection(Map<String, dynamic> r2) {
+    final count = _asInt(r2['count']);
+    final bytes = _asInt(r2['bytes']);
+    final oversized = _asList(r2['oversized']);
+    final largest = _asList(r2['largest']);
+    final sample = _asList(r2['sample']);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.inventory_2_outlined, color: AppTheme.emeraldGreen, size: 18),
+            const SizedBox(width: 8),
+            Text('R2 STORAGE', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppTheme.emeraldGreen, letterSpacing: 1.0)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildPlanRow('Source R2 bucket', (r2['bucket']?.toString() ?? 'bucket') + ' - ' + count.toString() + ' objects (' + _formatBytes(bytes) + ') scanned over ' + _asInt(r2['pages']).toString() + ' page(s)', badge: 'SOURCE R2'),
+        const SizedBox(height: 8),
+        _buildPlanRow('Objects larger than 50 MB that will be SKIPPED', oversized.isEmpty ? 'none' : oversized.length.toString() + ' object(s) - use rclone for those files', badge: 'LIMIT'),
+        const SizedBox(height: 8),
+        if (largest.isNotEmpty)
+          Text('Largest objects: ' + largest.take(5).map((item) => _formatPlanItem(item)).join(', '), style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.5)),
+        if (sample.isNotEmpty)
+          Text('Sample objects: ' + sample.take(10).map((item) => _asMap(item)['key']?.toString() ?? '').where((key) => key.isNotEmpty).join(', '), style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.5)),
+      ],
     );
   }
 

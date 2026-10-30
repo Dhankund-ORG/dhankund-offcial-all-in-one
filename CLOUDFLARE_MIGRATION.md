@@ -32,13 +32,29 @@ they are never written to D1, R2, browser storage or logs.
 4. Select D1, R2, or both.
 5. Optionally enable **Auto-create destination resources** and choose the new
    database/bucket names.
-6. Click **Validate accounts** and review the preflight panel.
-7. Click **Start migration**. The live log shows every step: export, import,
-   table verification, R2 batches and object verification.
+6. Click **SCAN & PREVIEW**. This validates both accounts, reads the source and
+   destination schema/bucket, and builds a detailed plan card without moving
+   any data:
+   - D1 totals and a per-table breakdown of what will be created.
+   - Diffs against the destination: missing/extra tables, missing/extra
+     columns, type mismatches, column-order mismatches, missing indexes and
+     missing triggers.
+   - An **overlap** warning whenever the destination already has a table with a
+     source table name. Because `CREATE TABLE` would collide, a reset (or a new
+     destination database) is required in that case.
+   - R2 object count, total bytes, largest object, oversized objects (over the
+     50 MB per-object limit) and a sample of keys.
+   - Any warnings, including the fact that oversized objects and D1 exports over
+     90 MB cannot be moved by this tool.
+7. Click **MIGRATE ALL (ONE CLICK)**. It re-validates, re-plans, confirms the
+   reset only when required, and then runs the whole migration: D1 export,
+   import, table verification, R2 batches and object verification. D1 and R2 run
+   independently, so R2 still copies even if D1 fails.
 8. Only enable **Reset destination D1 before import** when the destination
    database is disposable. It drops every table and view before importing, but
    only after the source export has finished successfully. If the export fails,
-   the destination is left untouched.
+   the destination is left untouched. When the plan shows overlapping tables,
+   Reset (or a new database) is mandatory before any import.
 
 ## Why the apex redirect runs after the site deploy
 

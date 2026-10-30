@@ -161,6 +161,325 @@ export async function d1Info(input, databaseId) {
   return { database: json.result || {}, tables: tables };
 }
 
+function quoteIdent(value) {
+  return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
+}
+
+function sqlString(value) {
+  return "'" + String(value == null ? '' : value).replace(/'/g, "''") + "'";
+}
+
+function normalizeColumnType(value) {
+  return String(value == null ? '' : value).trim().toUpperCase().replace(/\s+/g, '');
+}
+
+async function d1RowCounts(account, databaseId, tableNames) {
+  const names = (tableNames || []).filter(Boolean);
+  if (!names.length) return {};
+  const sql = names.map(function (name) {
+    return 'SELECT ' + sqlString(name) + ' AS table_name, COUNT(*) AS n FROM ' + quoteIdent(name);
+  }).join(' UNION ALL ');
+  const rows = await d1Query(account, databaseId, sql);
+  const counts = {};
+  for (const row of rows) counts[String(row.table_name)] = Number(row.n) || 0;
+  return counts;
+}
+
+// Reads the full table/view/column/index/trigger shape of a D1 database.
+// The column query uses pragma_table_info as a table-valued function so a
+// database with many tables still fits in a small number of API calls.
+async function d1Schema(account, databaseId) {
+  const dbId = (databaseId || '').toString().trim();
+  if (!dbId) throw new CloudflareError('D1 database ID is required', 400);
+
+  const dbJson = await cfJson(account, '/accounts/' + account.account_id + '/d1/database/' + dbId);
+  const database = dbJson.result || {};
+  const objectRows = await d1Query(account, dbId,
+    "SELECT name, type FROM sqlite_schema " +
+    "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' AND name <> '_cf_KV' " +
+    "ORDER BY CASE type WHEN 'view' THEN 1 ELSE 0 END, name");
+
+  const objects = objectRows.map(function (row) {
+    return {
+      name: String(row.name),
+      type: row.type === 'view' ? 'view' : 'table',
+      rows: null,
+      columns: [],
+      indexes: [],
+      triggers: [],
+    };
+  });
+  const byName = new Map();
+  for (const object of objects) byName.set(String(object.name).toLowerCase(), object);
+
+  let columnRows = null;
+  try {
+    columnRows = await d1Query(account, dbId,
+      "SELECT m.name AS object_name, p.cid AS cid, p.name AS column_name, p.type AS column_type, " +
+      "p.\"notnull\" AS not_null, p.dflt_value AS default_value, p.pk AS pk " +
+      "FROM sqlite_schema AS m JOIN pragma_table_info(m.name) AS p " +
+      "WHERE m.type IN ('table', 'view') AND m.name NOT LIKE 'sqlite_%' AND m.name <> '_cf_KV' " +
+      "ORDER BY m.name, p.cid");
+  } catch (e) {
+    // Older/local SQLite builds may not accept the table-valued pragma form.
+    // Fall back to one PRAGMA per object so preview still works.
+    columnRows = [];
+    for (const object of objects) {
+      try {
+        const rows = await d1Query(account, dbId,
+          'SELECT cid, name, type, "notnull" AS not_null, dflt_value AS default_value, pk ' +
+          'FROM pragma_table_info(' + sqlString(object.name) + ') ORDER BY cid');
+        for (const row of rows) columnRows.push(Object.assign({ object_name: object.name }, row));
+      } catch (e2) {}
+    }
+  }
+
+  for (const row of columnRows) {
+    const object = byName.get(String(row.object_name || '').toLowerCase());
+    if (!object) continue;
+    object.columns.push({
+      cid: Number(row.cid) || 0,
+      name: String(row.column_name || ''),
+      type: String(row.column_type || ''),
+      not_null: Number(row.not_null) ? true : false,
+      default_value: row.default_value == null ? null : String(row.default_value),
+      pk: Number(row.pk) || 0,
+    });
+  }
+
+  const indexRows = await d1Query(account, dbId,
+    "SELECT name, tbl_name, type FROM sqlite_schema " +
+    "WHERE type IN ('index', 'trigger') AND sql IS NOT NULL ORDER BY name");
+  for (const row of indexRows) {
+    const object = byName.get(String(row.tbl_name || '').toLowerCase());
+    if (!object) continue;
+    if (row.type === 'trigger') object.triggers.push(String(row.name));
+    else object.indexes.push(String(row.name));
+  }
+
+  const tableNames = objects.filter(function (object) { return object.type === 'table'; }).map(function (object) { return object.name; });
+  if (tableNames.length) {
+    try {
+      const counts = await d1RowCounts(account, dbId, tableNames);
+      for (const object of objects) {
+        if (object.type !== 'table') continue;
+        object.rows = Object.prototype.hasOwnProperty.call(counts, object.name) ? counts[object.name] : null;
+      }
+    } catch (e) {
+      for (const name of tableNames) {
+        try {
+          const rows = await d1Query(account, dbId, 'SELECT COUNT(*) AS n FROM ' + quoteIdent(name));
+          const object = byName.get(name.toLowerCase());
+          if (object) object.rows = Number(rows[0] && rows[0].n) || 0;
+        } catch (e2) {}
+      }
+    }
+  }
+
+  const totals = {
+    tables: objects.filter(function (object) { return object.type === 'table'; }).length,
+    views: objects.filter(function (object) { return object.type === 'view'; }).length,
+    columns: objects.reduce(function (sum, object) { return sum + object.columns.length; }, 0),
+    rows: objects.reduce(function (sum, object) { return sum + (object.rows || 0); }, 0),
+    indexes: objects.reduce(function (sum, object) { return sum + object.indexes.length; }, 0),
+    triggers: objects.reduce(function (sum, object) { return sum + object.triggers.length; }, 0),
+  };
+
+  return {
+    database: {
+      id: database.uuid || database.id || dbId,
+      name: database.name || null,
+      file_size: Number(database.file_size) || null,
+      num_tables: Number(database.num_tables) || null,
+    },
+    objects: objects,
+    totals: totals,
+  };
+}
+
+// Compares source and destination schemas. A null destination means the
+// destination database will be created, so every source table is "new".
+export function buildD1Diff(sourceObjects, destinationObjects) {
+  const source = Array.isArray(sourceObjects) ? sourceObjects : [];
+  const hasDestination = Array.isArray(destinationObjects);
+  const destination = hasDestination ? destinationObjects : [];
+
+  const sourceByName = new Map();
+  for (const object of source) sourceByName.set(String(object.name).toLowerCase(), object);
+  const destinationByName = new Map();
+  for (const object of destination) destinationByName.set(String(object.name).toLowerCase(), object);
+
+  const missing_tables = [];
+  const overlapping_tables = [];
+  const missing_columns = [];
+  const extra_columns = [];
+  const type_mismatches = [];
+  const column_order_mismatches = [];
+  const missing_indexes = [];
+  const missing_triggers = [];
+
+  for (const sourceObject of source) {
+    const destinationObject = destinationByName.get(String(sourceObject.name).toLowerCase());
+    if (!destinationObject) {
+      missing_tables.push(sourceObject.name);
+      continue;
+    }
+    overlapping_tables.push(sourceObject.name);
+
+    const sourceColumns = sourceObject.columns || [];
+    const destinationColumns = destinationObject.columns || [];
+    const sourceColumnMap = new Map();
+    for (const column of sourceColumns) sourceColumnMap.set(String(column.name).toLowerCase(), column);
+    const destinationColumnMap = new Map();
+    for (const column of destinationColumns) destinationColumnMap.set(String(column.name).toLowerCase(), column);
+
+    const missing = sourceColumns
+      .filter(function (column) { return !destinationColumnMap.has(String(column.name).toLowerCase()); })
+      .map(function (column) { return column.name; });
+    if (missing.length) missing_columns.push({ table: sourceObject.name, columns: missing });
+
+    const extra = destinationColumns
+      .filter(function (column) { return !sourceColumnMap.has(String(column.name).toLowerCase()); })
+      .map(function (column) { return column.name; });
+    if (extra.length) extra_columns.push({ table: sourceObject.name, columns: extra });
+
+    for (const column of sourceColumns) {
+      const destinationColumn = destinationColumnMap.get(String(column.name).toLowerCase());
+      if (destinationColumn && normalizeColumnType(column.type) !== normalizeColumnType(destinationColumn.type)) {
+        type_mismatches.push({
+          table: sourceObject.name,
+          column: column.name,
+          source: column.type || '',
+          destination: destinationColumn.type || '',
+        });
+      }
+    }
+
+    const commonSource = sourceColumns
+      .filter(function (column) { return destinationColumnMap.has(String(column.name).toLowerCase()); })
+      .map(function (column) { return String(column.name).toLowerCase(); });
+    const commonDestination = destinationColumns
+      .filter(function (column) { return sourceColumnMap.has(String(column.name).toLowerCase()); })
+      .map(function (column) { return String(column.name).toLowerCase(); });
+    if (commonSource.length === commonDestination.length && commonSource.some(function (name, index) { return name !== commonDestination[index]; })) {
+      column_order_mismatches.push({
+        table: sourceObject.name,
+        source: sourceColumns.map(function (column) { return column.name; }),
+        destination: destinationColumns.map(function (column) { return column.name; }),
+      });
+    }
+
+    const destinationIndexes = new Set((destinationObject.indexes || []).map(function (name) { return String(name).toLowerCase(); }));
+    const missingIndexes = (sourceObject.indexes || []).filter(function (name) { return !destinationIndexes.has(String(name).toLowerCase()); });
+    if (missingIndexes.length) missing_indexes.push({ table: sourceObject.name, indexes: missingIndexes });
+
+    const destinationTriggers = new Set((destinationObject.triggers || []).map(function (name) { return String(name).toLowerCase(); }));
+    const missingTriggers = (sourceObject.triggers || []).filter(function (name) { return !destinationTriggers.has(String(name).toLowerCase()); });
+    if (missingTriggers.length) missing_triggers.push({ table: sourceObject.name, triggers: missingTriggers });
+  }
+
+  const extra_tables = destination
+    .filter(function (object) { return !sourceByName.has(String(object.name).toLowerCase()); })
+    .map(function (object) { return object.name; });
+
+  const schema_match = hasDestination &&
+    missing_tables.length === 0 &&
+    missing_columns.length === 0 &&
+    extra_columns.length === 0 &&
+    type_mismatches.length === 0 &&
+    column_order_mismatches.length === 0;
+
+  return {
+    destination_available: hasDestination,
+    missing_tables: missing_tables,
+    extra_tables: extra_tables,
+    overlapping_tables: overlapping_tables,
+    missing_columns: missing_columns,
+    extra_columns: extra_columns,
+    type_mismatches: type_mismatches,
+    column_order_mismatches: column_order_mismatches,
+    missing_indexes: missing_indexes,
+    missing_triggers: missing_triggers,
+    schema_match: schema_match,
+    // Existing tables with the same name will collide with CREATE TABLE in
+    // the export SQL, so a reset (or a new database) is required.
+    safe_without_reset: !hasDestination || overlapping_tables.length === 0,
+  };
+}
+
+export async function d1Plan(source, sourceDatabaseId, destination, destinationDatabaseId) {
+  const sourceAccount = accountFrom(source, 'Source account');
+  const sourceDbId = (sourceDatabaseId || '').toString().trim();
+  if (!sourceDbId) throw new CloudflareError('Source D1 database ID is required', 400);
+
+  const sourceSchema = await d1Schema(sourceAccount, sourceDbId);
+  const destinationDbId = (destinationDatabaseId || '').toString().trim();
+  let destinationSchema = null;
+  let destinationError = null;
+
+  if (destinationDbId) {
+    try {
+      const destinationAccount = accountFrom(destination, 'Destination account');
+      destinationSchema = await d1Schema(destinationAccount, destinationDbId);
+    } catch (e) {
+      destinationError = sanitizeMessage(e && e.message);
+    }
+  }
+
+  const diff = buildD1Diff(
+    sourceSchema.objects,
+    destinationSchema ? destinationSchema.objects : null,
+  );
+  const safeWithoutReset = !destinationDbId ||
+    (!destinationError && diff.overlapping_tables.length === 0);
+  const warnings = [];
+
+  if (sourceSchema.database.file_size && sourceSchema.database.file_size > MAX_D1_BYTES) {
+    warnings.push(
+      'Source D1 reports ' + Math.round(sourceSchema.database.file_size / 1048576) +
+      ' MB. The SQL export may exceed the 90 MB web limit; use wrangler for larger databases.');
+  }
+  if (destinationDbId && destinationError) {
+    warnings.push('Destination D1 could not be inspected: ' + destinationError);
+  }
+  if (!destinationDbId) {
+    warnings.push('Destination D1 is blank: a new database will be created and every source object will be created.');
+  } else if (destinationSchema && destinationSchema.objects.length === 0) {
+    warnings.push('Destination D1 is empty: no reset is needed.');
+  }
+  if (diff.overlapping_tables.length) {
+    warnings.push(
+      'Destination already contains ' + diff.overlapping_tables.length +
+      ' table(s)/view(s) with the same name as source. Enable Reset or use a new destination database.');
+  }
+  if (diff.missing_columns.length) {
+    warnings.push('Some destination tables are missing source columns; see the table list below.');
+  }
+  if (diff.extra_columns.length) {
+    warnings.push('Some destination tables have extra columns; the import SQL may fail without Reset.');
+  }
+  if (diff.type_mismatches.length) {
+    warnings.push('Some destination columns have a different declared type.');
+  }
+  if (diff.column_order_mismatches.length) {
+    warnings.push('Some destination tables have columns in a different order; Reset is recommended.');
+  }
+  if (diff.extra_tables.length) {
+    warnings.push('Destination has ' + diff.extra_tables.length + ' extra table(s)/view(s); they remain unless Reset is used.');
+  }
+
+  return {
+    source: sourceSchema,
+    destination: destinationSchema,
+    destination_error: destinationError,
+    diff: diff,
+    safe_without_reset: safeWithoutReset,
+    reset_required: !!destinationDbId && !destinationError && !safeWithoutReset,
+    limits: { max_d1_bytes: MAX_D1_BYTES },
+    warnings: warnings,
+  };
+}
+
 export async function d1CreateDatabase(input, name) {
   const account = accountFrom(input, 'Destination account');
   const dbName = (name || '').toString().trim();
@@ -308,27 +627,23 @@ export async function d1Compare(source, sourceDatabaseId, destination, destinati
   const sourceTables = await d1ListTables(sourceAccount, sourceDatabaseId);
   const destinationTables = await d1ListTables(destinationAccount, destinationDatabaseId);
   const names = Array.from(new Set(sourceTables.concat(destinationTables))).sort();
-  const rows = [];
-  for (const name of names) {
-    const sql = 'SELECT COUNT(*) AS n FROM "' + name.replace(/"/g, '""') + '"';
-    let sourceCount = null;
-    let destinationCount = null;
-    try {
-      const result = await d1Query(sourceAccount, sourceDatabaseId, sql);
-      sourceCount = Number(result[0] && result[0].n);
-    } catch (e) {}
-    try {
-      const result = await d1Query(destinationAccount, destinationDatabaseId, sql);
-      destinationCount = Number(result[0] && result[0].n);
-    } catch (e) {}
-    rows.push({
+  if (!names.length) return [];
+
+  // One UNION ALL query per database instead of one COUNT per table keeps the
+  // number of Worker subrequests small even for large schemas.
+  const sourceCounts = await d1RowCounts(sourceAccount, sourceDatabaseId, sourceTables);
+  const destinationCounts = await d1RowCounts(destinationAccount, destinationDatabaseId, destinationTables);
+
+  return names.map(function (name) {
+    const sourceCount = Object.prototype.hasOwnProperty.call(sourceCounts, name) ? sourceCounts[name] : null;
+    const destinationCount = Object.prototype.hasOwnProperty.call(destinationCounts, name) ? destinationCounts[name] : null;
+    return {
       table: name,
       source: sourceCount,
       destination: destinationCount,
       match: sourceCount !== null && sourceCount === destinationCount,
-    });
-  }
-  return rows;
+    };
+  });
 }
 
 // ---------- R2 ----------
@@ -442,6 +757,7 @@ export async function r2CopyBatch(source, sourceBucket, destination, destination
   let bytes = 0;
   let consumed = 0;
   const errors = [];
+  const oversized = [];
 
   for (let index = startSkip; index < page.objects.length; index++) {
     if (copied + skipped + errors.length >= maxObjects) {
@@ -468,10 +784,14 @@ export async function r2CopyBatch(source, sourceBucket, destination, destination
     }
     consumed += 1;
     if (size > MAX_R2_OBJECT_BYTES) {
-      errors.push({
+      // Oversized objects are deliberately skipped, not retried: they are
+      // listed in the migration plan and must be moved with rclone instead.
+      skipped += 1;
+      oversized.push({
         key: key,
-        error: 'Object is ' + Math.round(size / 1048576) + ' MB; the web tool supports up to ' +
-          Math.round(MAX_R2_OBJECT_BYTES / 1048576) + ' MB per object.',
+        size: size,
+        error: 'Object is ' + Math.round(size / 1048576) + ' MB; skipped because the web tool supports up to ' +
+          Math.round(MAX_R2_OBJECT_BYTES / 1048576) + ' MB per object. Use rclone for this file.',
       });
       continue;
     }
@@ -495,6 +815,7 @@ export async function r2CopyBatch(source, sourceBucket, destination, destination
     failed: errors.length,
     bytes: bytes,
     errors: errors.slice(0, 20),
+    oversized: oversized.slice(0, 20),
     next_cursor: nextCursor,
     next_skip: nextSkip,
     done: nextCursor === null && nextSkip === 0,
@@ -586,6 +907,69 @@ export async function r2CountObjects(input, bucket, maxPages) {
   }
 
   return { count: count, bytes: bytes, truncated: truncated };
+}
+
+export async function r2Plan(input, bucket, options) {
+  const account = accountFrom(input, 'Source account');
+  const bucketName = bucketFrom(bucket, 'Source R2 bucket');
+  const opts = options || {};
+  const maxPages = Math.max(1, Math.min(50, Number(opts.maxPages) || 20));
+  let cursor = null;
+  let count = 0;
+  let bytes = 0;
+  let pages = 0;
+  let truncated = false;
+  const oversized = [];
+  const largest = [];
+  const sample = [];
+
+  while (pages < maxPages) {
+    const page = await r2ListObjects(account, bucketName, { cursor: cursor, perPage: 100 });
+    pages += 1;
+    for (const object of page.objects) {
+      const key = object && object.key;
+      if (!key) continue;
+      const size = Number(object.size) || 0;
+      count += 1;
+      bytes += size;
+      if (sample.length < 25) sample.push({ key: String(key), size: size });
+      if (size > MAX_R2_OBJECT_BYTES) oversized.push({ key: String(key), size: size });
+      largest.push({ key: String(key), size: size });
+    }
+    if (!page.is_truncated || !page.cursor) {
+      cursor = null;
+      break;
+    }
+    cursor = page.cursor;
+    if (pages >= maxPages) {
+      truncated = true;
+      break;
+    }
+  }
+
+  largest.sort(function (a, b) { return b.size - a.size; });
+  const warnings = [];
+  if (truncated) warnings.push('Only the first ' + (maxPages * 100) + ' objects were scanned; counts and warnings are partial.');
+  if (oversized.length) warnings.push(oversized.length + ' object(s) exceed the 50 MB per-object limit and will be skipped during copy.');
+  if (count === 0) warnings.push('The source R2 bucket is empty.');
+
+  return {
+    bucket: bucketName,
+    count: count,
+    bytes: bytes,
+    pages: pages,
+    truncated: truncated,
+    oversized: oversized.slice(0, 50),
+    largest: largest.slice(0, 10),
+    sample: sample,
+    limits: {
+      max_object_bytes: MAX_R2_OBJECT_BYTES,
+      batch_bytes: MAX_R2_BATCH_BYTES,
+      batch_time_ms: R2_BATCH_TIME_MS,
+      page_size: R2_PAGE_SIZE,
+    },
+    warnings: warnings,
+  };
 }
 
 // ---------- MD5 (required by the D1 import API for the etag) ----------

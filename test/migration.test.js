@@ -9,6 +9,7 @@ import {
   bucketFrom,
   sanitizeMessage,
   r2CopyBatch,
+  buildD1Diff,
 } from '../worker/cloudflare.js';
 
 test('md5Hex matches known MD5 vectors', () => {
@@ -146,8 +147,11 @@ test('r2CopyBatch resumes a partially processed page and skips oversized objects
       skip: first.next_skip,
     });
     assert.equal(second.copied, 1);
-    assert.equal(second.failed, 1);
-    assert.equal(second.errors[0].key, 'huge.bin');
+    assert.equal(second.skipped, 1);
+    assert.equal(second.failed, 0);
+    assert.equal(second.oversized.length, 1);
+    assert.equal(second.oversized[0].key, 'huge.bin');
+    assert.match(second.oversized[0].error, /50 MB per object/);
     assert.equal(second.next_cursor, 'page-2');
     assert.equal(second.next_skip, 0);
     assert.equal(second.done, false);
@@ -162,4 +166,141 @@ test('r2CopyBatch resumes a partially processed page and skips oversized objects
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+function schemaObject(name, options = {}) {
+  return Object.assign({
+    name: name,
+    columns: [],
+    indexes: [],
+    triggers: [],
+  }, options);
+}
+
+test('buildD1Diff flags missing and extra tables', () => {
+  const source = [
+    schemaObject('customers', { columns: [{ name: 'id', type: 'INTEGER' }] }),
+    schemaObject('loans', { columns: [{ name: 'id', type: 'INTEGER' }] }),
+  ];
+  const destination = [
+    schemaObject('customers', { columns: [{ name: 'id', type: 'INTEGER' }] }),
+    schemaObject('old_table', { columns: [{ name: 'id', type: 'INTEGER' }] }),
+  ];
+  const diff = buildD1Diff(source, destination);
+  assert.deepEqual(diff.missing_tables, ['loans']);
+  assert.deepEqual(diff.extra_tables, ['old_table']);
+  assert.deepEqual(diff.overlapping_tables, ['customers']);
+  assert.equal(diff.safe_without_reset, false);
+  assert.equal(diff.schema_match, false);
+});
+
+test('buildD1Diff flags missing and extra columns', () => {
+  const source = [schemaObject('t', {
+    columns: [
+      { name: 'id', type: 'INTEGER' },
+      { name: 'amount', type: 'REAL' },
+      { name: 'note', type: 'TEXT' },
+    ],
+  })];
+  const destination = [schemaObject('t', {
+    columns: [
+      { name: 'id', type: 'INTEGER' },
+      { name: 'amount', type: 'REAL' },
+      { name: 'legacy', type: 'TEXT' },
+    ],
+  })];
+  const diff = buildD1Diff(source, destination);
+  assert.deepEqual(diff.missing_columns, [{ table: 't', columns: ['note'] }]);
+  assert.deepEqual(diff.extra_columns, [{ table: 't', columns: ['legacy'] }]);
+  assert.equal(diff.safe_without_reset, false);
+});
+
+test('buildD1Diff flags type mismatches ignoring case', () => {
+  const source = [schemaObject('t', {
+    columns: [
+      { name: 'id', type: 'INTEGER' },
+      { name: 'amount', type: 'REAL' },
+      { name: 'note', type: 'TEXT' },
+    ],
+  })];
+  const destination = [schemaObject('t', {
+    columns: [
+      { name: 'id', type: 'integer' },
+      { name: 'amount', type: 'NUMERIC' },
+      { name: 'note', type: 'TEXT' },
+    ],
+  })];
+  const diff = buildD1Diff(source, destination);
+  assert.equal(diff.type_mismatches.length, 1);
+  assert.deepEqual(diff.type_mismatches[0], {
+    table: 't',
+    column: 'amount',
+    source: 'REAL',
+    destination: 'NUMERIC',
+  });
+  assert.equal(diff.schema_match, false);
+});
+
+test('buildD1Diff flags column order mismatches for shared columns', () => {
+  const source = [schemaObject('t', {
+    columns: [
+      { name: 'id', type: 'INTEGER' },
+      { name: 'amount', type: 'REAL' },
+    ],
+  })];
+  const destination = [schemaObject('t', {
+    columns: [
+      { name: 'amount', type: 'REAL' },
+      { name: 'id', type: 'INTEGER' },
+    ],
+  })];
+  const diff = buildD1Diff(source, destination);
+  assert.equal(diff.column_order_mismatches.length, 1);
+  assert.deepEqual(diff.column_order_mismatches[0].table, 't');
+  assert.deepEqual(diff.column_order_mismatches[0].source, ['id', 'amount']);
+  assert.deepEqual(diff.column_order_mismatches[0].destination, ['amount', 'id']);
+  assert.equal(diff.safe_without_reset, false);
+});
+
+test('buildD1Diff flags missing indexes and triggers', () => {
+  const source = [schemaObject('t', {
+    columns: [{ name: 'id', type: 'INTEGER' }],
+    indexes: ['idx_a', 'idx_b'],
+    triggers: ['trg_x'],
+  })];
+  const destination = [schemaObject('t', {
+    columns: [{ name: 'id', type: 'INTEGER' }],
+    indexes: ['IDX_B'],
+    triggers: [],
+  })];
+  const diff = buildD1Diff(source, destination);
+  assert.deepEqual(diff.missing_indexes, [{ table: 't', indexes: ['idx_a'] }]);
+  assert.deepEqual(diff.missing_triggers, [{ table: 't', triggers: ['trg_x'] }]);
+});
+
+test('buildD1Diff overlap makes reset required', () => {
+  const source = [schemaObject('customers', { columns: [{ name: 'id', type: 'INTEGER' }] })];
+  const destination = [schemaObject('customers', { columns: [{ name: 'id', type: 'INTEGER' }] })];
+  const diff = buildD1Diff(source, destination);
+  assert.deepEqual(diff.overlapping_tables, ['customers']);
+  assert.equal(diff.safe_without_reset, false);
+  assert.equal(diff.destination_available, true);
+});
+
+test('buildD1Diff without destination is safe without reset', () => {
+  const source = [schemaObject('customers', { columns: [{ name: 'id', type: 'INTEGER' }] })];
+  const diff = buildD1Diff(source, null);
+  assert.equal(diff.destination_available, false);
+  assert.equal(diff.safe_without_reset, true);
+  assert.equal(diff.schema_match, false);
+  assert.deepEqual(diff.missing_tables, ['customers']);
+  assert.deepEqual(diff.overlapping_tables, []);
+});
+
+test('buildD1Diff empty source produces empty diff lists', () => {
+  const diff = buildD1Diff([], [schemaObject('legacy', { columns: [{ name: 'id', type: 'INTEGER' }] })]);
+  assert.deepEqual(diff.missing_tables, []);
+  assert.deepEqual(diff.overlapping_tables, []);
+  assert.deepEqual(diff.extra_tables, ['legacy']);
+  assert.equal(diff.safe_without_reset, true);
 });
