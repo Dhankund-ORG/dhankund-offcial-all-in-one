@@ -1,9 +1,9 @@
-INSERT OR REPLACE INTO blog_posts (id, title, slug, content, excerpt, cover_image, category_id, category_name, tags, language, status, author_name, seo_title, seo_description, published_at, updated_at, views, created_at) VALUES ('seed_welcome', 'Dhankund Blog में आपका स्वागत है', 'welcome-to-dhankund-blog', '## Dhankund Blog में आपका स्वागत है
+﻿UPDATE blog_posts SET title = 'Welcome to the Dhankund Blog', content = '## Welcome to the Dhankund Blog
 
-यह Dhankund का आधिकारिक ब्लॉग है। यहाँ हम लोन टिप्स, DSA गाइड, बिज़नेस की जानकारी और समाचार साझा करेंगे।
+This is the official Dhankund blog. Here we will share loan tips, DSA guides, business insights and news.
 
-- **लोन टिप्स** — सही लोन कैसे चुनें
-- **DSA गाइड** — Direct Selling Agent कैसे बनें
-- **बिज़नेस** — वित्तीय वृद्धि की जानकारी
+- **Loan Tips** - how to choose the right loan
+- **DSA Guide** - how to become a Direct Selling Agent
+- **Business** - financial growth insights
 
-नियमित रूप से नए लेख आते रहेंगे। धन्यवाद!', 'Dhankund का आधिकारिक ब्लॉग — लोन, DSA और बिज़नेस की जानकारी।', NULL, NULL, NULL, '[]', 'hi', 'published', 'Dhankund Team', NULL, NULL, datetime('now'), datetime('now'), 0, datetime('now'));
+New articles will be published regularly. Thank you!', excerpt = 'The official Dhankund blog - loan tips, DSA guides and business insights.', seo_title = NULL, seo_description = NULL, updated_at = datetime('now') WHERE id = 'seed_welcome';
