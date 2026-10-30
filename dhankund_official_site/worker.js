@@ -1,37 +1,17 @@
-// Dynamic blog routes for the Dhankund website.
-// Handles /blog (live listing) and /blog/:slug (live article) on every request
-// by fetching from the shared API, so a newly published post appears instantly
-// without a redeploy. Server-rendered HTML keeps the pages SEO friendly.
+// Dhankund website entry Worker.
+// Wraps the next-on-pages Next.js output and adds live, server-rendered
+// dynamic routes for /blog (and legacy /api/* functions) that fetch fresh
+// data from the shared API on every request. Newly published blog posts
+// appear instantly without any redeploy.
+import nextWorker from "./.vercel/output/static/_worker.js/index.js";
 
 const API_BASE = "https://api.dhankund.com";
 const SITE_URL = "https://www.dhankund.com";
 const SITE_NAME = "Dhankund";
 
-interface BlogPost {
-  id: string;
-  title: string;
-  slug: string;
-  content: string | null;
-  excerpt: string | null;
-  cover_image: string | null;
-  category_id: string | null;
-  category_name: string | null;
-  tags: string[];
-  language: string;
-  status: string;
-  author_name: string | null;
-  published_at: string | null;
-  views: number;
-}
+// ---------- helpers ----------
 
-interface BlogCategory {
-  id: string;
-  name: string;
-  slug: string;
-  language: string;
-}
-
-function escapeHtml(str: string | null | undefined): string {
+function escapeHtml(str) {
   return String(str ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -40,13 +20,13 @@ function escapeHtml(str: string | null | undefined): string {
     .replace(/'/g, "&#039;");
 }
 
-function resolveUrl(url: string | null | undefined): string {
+function resolveUrl(url) {
   if (!url) return "";
   if (/^https?:\/\//.test(url)) return url;
   return API_BASE + url;
 }
 
-function formatDate(iso: string | null | undefined): string {
+function formatDate(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -57,9 +37,7 @@ function formatDate(iso: string | null | undefined): string {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-// ---------- minimal, safe Markdown rendering ----------
-
-function renderInline(text: string): string {
+function renderInline(text) {
   let t = escapeHtml(text);
   t = t.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => {
     const url = resolveUrl(String(src).trim());
@@ -76,12 +54,11 @@ function renderInline(text: string): string {
   return t;
 }
 
-function renderMarkdown(md: string | null | undefined): string {
+function renderMarkdown(md) {
   const lines = String(md ?? "").split("\n");
-  const html: string[] = [];
+  const html = [];
   let inList = false;
   let inBlockquote = false;
-
   function closeList() {
     if (inList) {
       html.push("</ul>");
@@ -94,11 +71,9 @@ function renderMarkdown(md: string | null | undefined): string {
       inBlockquote = false;
     }
   }
-
   for (const raw of lines) {
     const line = raw.replace(/\r$/, "");
     const trimmed = line.trim();
-
     if (trimmed === "") {
       closeList();
       closeQuote();
@@ -157,7 +132,7 @@ function renderMarkdown(md: string | null | undefined): string {
 
 // ---------- layout ----------
 
-function layout(opts: { title: string; description: string; active: string; body: string }): Response {
+function layout(opts) {
   const navItems = [
     { href: "/", label: "Home", key: "home" },
     { href: "/blog", label: "Blog", key: "blog" },
@@ -179,7 +154,7 @@ function layout(opts: { title: string; description: string; active: string; body
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(opts.title)}</title>
 <meta name="description" content="${escapeHtml(opts.description)}" />
-<link rel="canonical" href="${SITE_URL}${opts.active === "blog" ? "/blog" : "/blog/" + opts.active}" />
+<link rel="canonical" href="${SITE_URL}${opts.canonical || "/blog"}" />
 <style>
 :root { --primary:#1e3a8a; --primary-hover:#1e40af; --accent:#3b82f6; }
 * { box-sizing: border-box; }
@@ -293,17 +268,17 @@ main { flex:1; }
   });
 }
 
-function json(data: unknown, status = 200): Response {
+function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 }
 
-// ---------- routes ----------
+// ---------- blog routes ----------
 
-async function renderListing(context: { request: Request }): Promise<Response> {
-  const url = new URL(context.request.url);
+async function renderListing(request) {
+  const url = new URL(request.url);
   const category = url.searchParams.get("category") || "";
   const q = url.searchParams.get("q") || "";
 
@@ -315,9 +290,9 @@ async function renderListing(context: { request: Request }): Promise<Response> {
     fetch(`${API_BASE}/api/v1/blog?${params.toString()}`),
     fetch(`${API_BASE}/api/v1/blog-categories`),
   ]);
-  const postData = postRes.ok ? await postRes.json() : { posts: [] as BlogPost[] };
-  const posts: BlogPost[] = Array.isArray(postData.posts) ? postData.posts : [];
-  const categories: BlogCategory[] = catRes.ok ? ((await catRes.json()) as BlogCategory[]) : [];
+  const postData = postRes.ok ? await postRes.json() : { posts: [] };
+  const posts = Array.isArray(postData.posts) ? postData.posts : [];
+  const categories = catRes.ok ? await catRes.json() : [];
 
   const filterChips = ["", ...categories.map((c) => c.slug)].map((slug) => {
     const cat = categories.find((c) => c.slug === slug);
@@ -340,10 +315,8 @@ async function renderListing(context: { request: Request }): Promise<Response> {
           ].join("");
           const cover = post.cover_image
             ? `<div class="card-cover"><img src="${escapeHtml(resolveUrl(post.cover_image))}" alt="${escapeHtml(post.title)}" /></div>`
-            : `<div class="card-cover" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a8a,#3b82f6);"><span style="color:#fff;font-size:36px;font-weight:800;">${escapeHtml(post.title.slice(0, 1).toUpperCase())}</span></div>`;
-          const excerpt = post.excerpt
-            ? `<p>${escapeHtml(post.excerpt)}</p>`
-            : "";
+            : `<div class="card-cover" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1e3a8a,#3b82f6);"><span style="color:#fff;font-size:36px;font-weight:800;">${escapeHtml(String(post.title || "").slice(0, 1).toUpperCase())}</span></div>`;
+          const excerpt = post.excerpt ? `<p>${escapeHtml(post.excerpt)}</p>` : "";
           return `<a class="card" href="/blog/${encodeURIComponent(post.slug)}">
               ${cover}
               <div class="card-body">
@@ -377,17 +350,18 @@ async function renderListing(context: { request: Request }): Promise<Response> {
   });
 }
 
-async function renderDetail(context: { request: Request }, slug: string): Promise<Response> {
+async function renderDetail(request, slug) {
   const res = await fetch(`${API_BASE}/api/v1/blog/${encodeURIComponent(slug)}`);
   if (!res.ok) {
     return layout({
       title: "लेख नहीं मिला | Dhankund",
       description: "Requested blog post was not found.",
       active: "blog",
-      body: `<div class="article"><div class="empty"><p>लेख नहीं मिला</p>यह लेख उपलब्ध नहीं है।<p style="margin-top:20px;"><a class="btn-outline" href="/blog">← सभी लेख देखें</a></p></div></div>`,
+      canonical: `/blog/${encodeURIComponent(slug)}`,
+      body: `<div class="article"><div class="empty"><p>लेख नहीं मिला</p>यह लेख उपलब्ध नहीं है.<p style="margin-top:20px;"><a class="btn-outline" href="/blog">← सभी लेख देखें</a></p></div></div>`,
     });
   }
-  const post = (await res.json()) as BlogPost;
+  const post = await res.json();
 
   const badges = [
     post.category_name ? `<span class="badge badge-primary">${escapeHtml(post.category_name)}</span>` : "",
@@ -402,10 +376,10 @@ async function renderDetail(context: { request: Request }, slug: string): Promis
     post.author_name ? `<span class="author">${escapeHtml(post.author_name)}</span>` : "",
     `<span>•</span>`,
     `<span>${formatDate(post.published_at)}</span>`,
-    post.views > 0 ? `<span>•</span><span>${post.views.toLocaleString("en-IN")} पढ़े</span>` : "",
+    Number(post.views) > 0 ? `<span>•</span><span>${Number(post.views).toLocaleString("en-IN")} पढ़े</span>` : "",
   ].join(" ");
 
-  const tags = post.tags.length
+  const tags = Array.isArray(post.tags) && post.tags.length
     ? `<div class="tags">${post.tags.map((t) => `<span class="tag">#${escapeHtml(t)}</span>`).join("")}</div>`
     : "";
 
@@ -424,22 +398,31 @@ async function renderDetail(context: { request: Request }, slug: string): Promis
     title: `${post.title} | Dhankund`,
     description: post.excerpt || post.title,
     active: "blog",
+    canonical: `/blog/${encodeURIComponent(post.slug)}`,
     body,
   });
 }
 
-export async function onRequestGet(context: { request: Request }): Promise<Response> {
-  try {
-    const url = new URL(context.request.url);
-    const slug = url.pathname.replace(/^\/blog\/?/, "").trim();
-    if (!slug) return await renderListing(context);
-    return await renderDetail(context, decodeURIComponent(slug));
-  } catch (e) {
-    console.error("blog function error:", e);
-    return json({ error: "Server error" }, 500);
-  }
-}
+// ---------- worker ----------
 
-export async function onRequestOptions(): Promise<Response> {
-  return new Response(null, { status: 204 });
-}
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+
+    // Live blog routes (server-rendered HTML, always fresh from the API).
+    if (pathname === "/blog" || pathname.startsWith("/blog/")) {
+      try {
+        const slug = pathname.replace(/^\/blog\/?/, "").trim();
+        if (!slug) return await renderListing(request);
+        return await renderDetail(request, decodeURIComponent(slug));
+      } catch (e) {
+        console.error("blog render error:", e);
+        return json({ error: "Server error" }, 500);
+      }
+    }
+
+    // Everything else is handled by the next-on-pages Next.js worker.
+    return nextWorker.fetch(request, env, ctx);
+  },
+};
