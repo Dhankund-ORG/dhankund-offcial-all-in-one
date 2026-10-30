@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getPostBySlug, getCategories, resolveUrl, formatDate } from "../../../lib/blog";
 
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({

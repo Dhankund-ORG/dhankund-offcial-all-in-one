@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getPosts, getCategories, resolveUrl, formatDate, API_BASE } from "../../lib/blog";
 
+export const runtime = "edge";
+
 export const metadata: Metadata = {
   title: "Blog | Dhankund",
   description:
