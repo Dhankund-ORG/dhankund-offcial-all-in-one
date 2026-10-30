@@ -2,10 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import MarkdownContent from "../../../components/MarkdownContent";
-import { getPostBySlug, getCategories, resolveUrl, formatDate } from "../../../lib/blog";
+import { getPostBySlug, getPosts, getCategories, resolveUrl, formatDate } from "../../../lib/blog";
 
-export const runtime = "edge";
-export const dynamic = "force-dynamic";
+export const dynamicParams = false;
+
+// Build-time: pre-render every published post. New posts appear after the next
+// deploy (admin publishing a post and triggering a redeploy).
+export async function generateStaticParams() {
+  const { posts } = await getPosts({ limit: 50 });
+  return posts.map((post) => ({ slug: post.slug }));
+}
 
 export async function generateMetadata({
   params,

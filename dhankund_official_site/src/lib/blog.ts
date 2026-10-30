@@ -48,7 +48,7 @@ export async function getPosts(opts: {
   params.set("limit", String(opts.limit ?? 50));
   try {
     const res = await fetch(`${API_BASE}/api/v1/blog?${params.toString()}`, {
-      cache: "no-store",
+      cache: "force-cache",
     });
     if (!res.ok) return { posts: [], total: 0 };
     const data = await res.json();
@@ -64,7 +64,7 @@ export async function getPosts(opts: {
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/blog/${encodeURIComponent(slug)}`, {
-      cache: "no-store",
+      cache: "force-cache",
     });
     if (!res.ok) return null;
     return (await res.json()) as BlogPost;
@@ -76,7 +76,7 @@ export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
 export async function getCategories(): Promise<BlogCategory[]> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/blog-categories`, {
-      cache: "no-store",
+      cache: "force-cache",
     });
     if (!res.ok) return [];
     const data = await res.json();
