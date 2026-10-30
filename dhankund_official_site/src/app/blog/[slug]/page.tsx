@@ -1,50 +1,61 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import type { Metadata } from "next";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import MarkdownContent from "../../../components/MarkdownContent";
-import { getPostBySlug, getCategories, resolveUrl, formatDate } from "../../../lib/blog";
+import { getPostBySlug, resolveUrl, formatDate, type BlogPost } from "../../../lib/blog";
 
 export const runtime = "edge";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}): Promise<Metadata> {
-  const { slug } = await params;
-  const post = await getPostBySlug(slug);
-  if (!post) return { title: "Blog | Dhankund" };
-  const title = post.seo_title || post.title;
-  const description = post.seo_description || post.excerpt || post.title;
-  const images = post.cover_image ? [resolveUrl(post.cover_image)] : [];
-  return {
-    title: `${title} | Dhankund`,
-    description,
-    openGraph: {
-      title,
-      description,
-      type: "article",
-      publishedTime: post.published_at || undefined,
-      images,
-    },
-  };
-}
+export default function BlogPostPage() {
+  const { slug } = useParams<{ slug: string }>();
+  const [post, setPost] = useState<BlogPost | null>(null);
+  const [status, setStatus] = useState<"loading" | "found" | "missing">("loading");
 
-export default async function BlogPostPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  const post = await getPostBySlug(slug);
-  if (!post) notFound();
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const found = await getPostBySlug(String(slug ?? ""));
+      if (cancelled) return;
+      if (found) {
+        setPost(found);
+        setStatus("found");
+        if (found.seo_title || found.title) {
+          document.title = `${found.seo_title || found.title} | Dhankund`;
+        }
+      } else {
+        setStatus("missing");
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
-  const categories = await getCategories();
-  const currentCategory = categories.find((c) => c.id === post.category_id);
+  if (status === "loading") {
+    return (
+      <div className="container max-w-3xl mx-auto px-6 py-24 text-center text-slate-500">
+        लेख लोड हो रहा है...
+      </div>
+    );
+  }
+
+  if (status === "missing" || !post) {
+    return (
+      <div className="container max-w-3xl mx-auto px-6 py-24 text-center">
+        <p className="text-xl font-semibold mb-2">लेख नहीं मिला</p>
+        <p className="text-slate-500 mb-6">यह लेख उपलब्ध नहीं है।</p>
+        <Link href="/blog" className="btn-outline">
+          ← सभी लेख देखें
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center">
-      {/* Cover */}
       {post.cover_image ? (
         <section className="w-full h-72 md:h-96 bg-slate-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -59,12 +70,9 @@ export default async function BlogPostPage({
       <article className="container max-w-3xl mx-auto px-6 py-12">
         <div className="flex items-center gap-2 mb-4">
           {post.category_name && (
-            <Link
-              href={`/blog?category=${encodeURIComponent(currentCategory?.slug || "")}`}
-              className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full hover:bg-primary/20 transition-colors"
-            >
+            <span className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full">
               {post.category_name}
-            </Link>
+            </span>
           )}
           {post.language === "hi" && (
             <span className="bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
@@ -78,9 +86,7 @@ export default async function BlogPostPage({
         </h1>
 
         <div className="flex items-center gap-3 text-sm text-slate-500 mb-8 pb-6 border-b border-slate-200">
-          {post.author_name && (
-            <span className="font-semibold text-slate-700">{post.author_name}</span>
-          )}
+          {post.author_name && <span className="font-semibold text-slate-700">{post.author_name}</span>}
           <span>•</span>
           <span>{formatDate(post.published_at)}</span>
           {post.views > 0 && (
@@ -98,10 +104,7 @@ export default async function BlogPostPage({
         {post.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-10 pt-6 border-t border-slate-200">
             {post.tags.map((tag) => (
-              <span
-                key={tag}
-                className="bg-slate-100 text-slate-600 text-xs font-medium px-3 py-1.5 rounded-full"
-              >
+              <span key={tag} className="bg-slate-100 text-slate-600 text-xs font-medium px-3 py-1.5 rounded-full">
                 #{tag}
               </span>
             ))}
