@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-export const runtime = "edge";
-
 export const metadata: Metadata = {
   title: "Blog | Dhankund",
   description: "Dhankund Blog — loan tips, DSA guides and business insights.",
