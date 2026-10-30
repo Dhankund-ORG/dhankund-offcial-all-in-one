@@ -3,6 +3,7 @@ import { all, first, run, insertRow, updateRow, safeJson, nowIso, randomId } fro
 import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebasePassword } from './worker/auth.js';
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
+import { slugify, uniqueBlogSlug, blogPostOut } from './worker/blog.js';
 import {
   CloudflareError,
   accountFrom,
@@ -546,6 +547,141 @@ app.patch('/api/v1/news-feed/:id/like', auth, async function (c) { const me = c.
 app.get('/api/v1/admin-posts', auth, async function (c) { const rows = await all(c.env, 'SELECT * FROM admin_posts ORDER BY timestamp DESC'); return c.json(rows); });
 app.post('/api/v1/admin-posts', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'admin_posts', { id: id, uid: me.sub, name: isAdminRole(me.role) ? 'Admin' : (me.name || 'User'), title: b.title || null, content: b.content || null, imageUrl: b.imageUrl || null, timestamp: nowIso() }); return c.json({ success: true, id: id }); });
 app.delete('/api/v1/admin-posts/:id', auth, async function (c) { const me = c.get('user'); const id = c.req.param('id'); if (isAdminRole(me.role)) { await run(c.env, 'DELETE FROM admin_posts WHERE id = ?', [id]); } else { await run(c.env, 'DELETE FROM admin_posts WHERE id = ? AND uid = ?', [id, me.sub]); } return c.json({ success: true }); });
+
+// ---------- Blog (public) ----------
+app.get('/api/v1/blog', async function (c) {
+  const category = (c.req.query('category') || '').toString().trim();
+  const language = (c.req.query('language') || '').toString().trim();
+  const q = (c.req.query('q') || '').toString().trim();
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
+  const limit = Math.max(1, Math.min(50, parseInt(c.req.query('limit') || '10', 10) || 10));
+  const where = ["status = 'published'"];
+  const params = [];
+  if (category) { where.push('category_id IN (SELECT id FROM blog_categories WHERE slug = ?)'); params.push(category); }
+  if (language) { where.push('language = ?'); params.push(language); }
+  if (q) { where.push('(title LIKE ? OR excerpt LIKE ? OR content LIKE ?)'); const like = '%' + q + '%'; params.push(like, like, like); }
+  const offset = (page - 1) * limit;
+  const countRow = await first(c.env, 'SELECT COUNT(*) AS cnt FROM blog_posts WHERE ' + where.join(' AND '), params);
+  const rows = await all(c.env, 'SELECT * FROM blog_posts WHERE ' + where.join(' AND ') + ' ORDER BY published_at DESC LIMIT ? OFFSET ?', params.concat([limit, offset]));
+  return c.json({ posts: rows.map(blogPostOut), total: extractCount(countRow), page: page, limit: limit });
+});
+
+app.get('/api/v1/blog/:slug', async function (c) {
+  const row = await first(c.env, "SELECT * FROM blog_posts WHERE slug = ? AND status = 'published'", [c.req.param('slug')]);
+  if (!row) return c.json({ error: 'Not found' }, 404);
+  if (c.executionCtx && c.executionCtx.waitUntil) {
+    c.executionCtx.waitUntil(run(c.env, 'UPDATE blog_posts SET views = views + 1 WHERE id = ?', [row.id]));
+  }
+  return c.json(blogPostOut(row));
+});
+
+app.get('/api/v1/blog-categories', async function (c) {
+  const rows = await all(c.env, 'SELECT * FROM blog_categories ORDER BY name ASC');
+  return c.json(rows);
+});
+
+// ---------- Blog (admin) ----------
+app.get('/api/v1/admin/blog', requireAdmin, async function (c) {
+  const status = (c.req.query('status') || '').toString().trim();
+  const where = [];
+  const params = [];
+  if (status) { where.push('status = ?'); params.push(status); }
+  const rows = await all(c.env, 'SELECT * FROM blog_posts' + (where.length ? ' WHERE ' + where.join(' AND ') : '') + ' ORDER BY updated_at DESC', params);
+  return c.json(rows.map(blogPostOut));
+});
+
+app.post('/api/v1/admin/blog', requireAdmin, async function (c) {
+  const b = await readJson(c);
+  const title = (b.title || '').toString().trim();
+  if (!title) return c.json({ error: 'Title is required' }, 400);
+  const slug = await uniqueBlogSlug(c.env, slugify(b.slug || title), '');
+  const id = randomId();
+  const status = b.status === 'published' ? 'published' : 'draft';
+  const now = nowIso();
+  await insertRow(c.env, 'blog_posts', {
+    id: id, title: title, slug: slug,
+    content: (b.content || '').toString(),
+    excerpt: (b.excerpt || '').toString() || null,
+    cover_image: b.cover_image || null,
+    category_id: b.category_id || null,
+    category_name: b.category_name || null,
+    tags: Array.isArray(b.tags) ? JSON.stringify(b.tags) : (b.tags ? String(b.tags) : '[]'),
+    language: b.language === 'en' ? 'en' : 'hi',
+    status: status,
+    author_name: b.author_name || 'Dhankund',
+    seo_title: b.seo_title || null,
+    seo_description: b.seo_description || null,
+    published_at: status === 'published' ? now : null,
+    updated_at: now,
+    views: 0,
+    created_at: now,
+  });
+  return c.json({ success: true, id: id, slug: slug });
+});
+
+app.put('/api/v1/admin/blog/:id', requireAdmin, async function (c) {
+  const id = c.req.param('id');
+  const existing = await first(c.env, 'SELECT * FROM blog_posts WHERE id = ?', [id]);
+  if (!existing) return c.json({ error: 'Not found' }, 404);
+  const b = await readJson(c);
+  const title = b.title !== undefined && String(b.title).trim() ? String(b.title).trim() : existing.title;
+  const slug = b.slug !== undefined && String(b.slug).trim() ? await uniqueBlogSlug(c.env, slugify(b.slug), id) : existing.slug;
+  const status = b.status === 'published' || b.publish === true ? 'published' : (b.status === 'draft' ? 'draft' : existing.status);
+  const now = nowIso();
+  const published_at = status === 'published' && !existing.published_at ? now : existing.published_at;
+  await updateRow(c.env, 'blog_posts', 'id', id, {
+    title: title, slug: slug,
+    content: b.content !== undefined ? (b.content || '').toString() : existing.content,
+    excerpt: b.excerpt !== undefined ? (b.excerpt || '').toString() : existing.excerpt,
+    cover_image: b.cover_image !== undefined ? b.cover_image : existing.cover_image,
+    category_id: b.category_id !== undefined ? b.category_id : existing.category_id,
+    category_name: b.category_name !== undefined ? b.category_name : existing.category_name,
+    tags: b.tags !== undefined ? (Array.isArray(b.tags) ? JSON.stringify(b.tags) : String(b.tags)) : existing.tags,
+    language: b.language !== undefined ? (b.language === 'en' ? 'en' : 'hi') : existing.language,
+    status: status,
+    author_name: b.author_name !== undefined ? b.author_name : existing.author_name,
+    seo_title: b.seo_title !== undefined ? b.seo_title : existing.seo_title,
+    seo_description: b.seo_description !== undefined ? b.seo_description : existing.seo_description,
+    published_at: published_at,
+    updated_at: now,
+  });
+  return c.json({ success: true, id: id, slug: slug, status: status });
+});
+
+app.delete('/api/v1/admin/blog/:id', requireAdmin, async function (c) {
+  await run(c.env, 'DELETE FROM blog_posts WHERE id = ?', [c.req.param('id')]);
+  return c.json({ success: true });
+});
+
+app.get('/api/v1/admin/blog-categories', requireAdmin, async function (c) {
+  const rows = await all(c.env, 'SELECT * FROM blog_categories ORDER BY name ASC');
+  return c.json(rows);
+});
+
+app.post('/api/v1/admin/blog-categories', requireAdmin, async function (c) {
+  const b = await readJson(c);
+  const name = (b.name || '').toString().trim();
+  if (!name) return c.json({ error: 'Category name is required' }, 400);
+  const slug = slugify(b.slug || name) || 'category';
+  const existing = await first(c.env, 'SELECT id FROM blog_categories WHERE slug = ?', [slug]);
+  if (existing) return c.json({ error: 'Category with this slug already exists' }, 409);
+  await insertRow(c.env, 'blog_categories', {
+    id: randomId(), name: name, slug: slug,
+    language: b.language === 'en' ? 'en' : 'hi',
+    created_at: nowIso(),
+  });
+  return c.json({ success: true });
+});
+
+app.delete('/api/v1/admin/blog-categories/:id', requireAdmin, async function (c) {
+  const id = c.req.param('id');
+  const posts = await all(c.env, 'SELECT id FROM blog_posts WHERE category_id = ?', [id]);
+  for (const p of posts) {
+    await updateRow(c.env, 'blog_posts', 'id', p.id, { category_id: null, category_name: null });
+  }
+  await run(c.env, 'DELETE FROM blog_categories WHERE id = ?', [id]);
+  return c.json({ success: true });
+});
 
 app.get('/api/v1/directory', auth, async function (c) {
   const role = roleKey(c.req.query('role') || 'partner');

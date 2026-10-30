@@ -10,6 +10,7 @@ import 'pages/broadcast_page.dart';
 import 'pages/leads_report_page.dart';
 import 'pages/banker_policies_page.dart';
 import 'pages/cloudflare_migration_page.dart';
+import 'pages/blog_posts_page.dart';
 
 class DashboardLayout extends StatefulWidget {
   const DashboardLayout({super.key});
@@ -32,6 +33,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     'Leads Report',
     'Banker Policies',
     'Cloudflare Migration',
+    'Blog Posts',
   ];
 
   final List<IconData> _tabsIcons = [
@@ -45,6 +47,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     Icons.analytics_outlined,
     Icons.policy_outlined,
     Icons.cloud_sync_outlined,
+    Icons.article_outlined,
   ];
 
   late List<Widget> _pages;
@@ -67,6 +70,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
       const LeadsReportPage(),
       const BankerPoliciesPage(),
       const CloudflareMigrationPage(),
+      const BlogPostsPage(),
     ];
   }
 

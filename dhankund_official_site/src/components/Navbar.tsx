@@ -17,6 +17,7 @@ export default function Navbar() {
         {/* Desktop Menu */}
         <nav className="hidden md:flex space-x-8 items-center font-medium text-slate-700">
           <Link href="/" className="hover:text-accent transition-colors">Home</Link>
+          <Link href="/blog" className="hover:text-accent transition-colors">Blog</Link>
           <Link href="/about" className="hover:text-accent transition-colors">About Us</Link>
           <Link href="/contact" className="hover:text-accent transition-colors">Contact</Link>
           <Link href="/privacy" className="hover:text-accent transition-colors">Privacy Policy</Link>
@@ -50,6 +51,7 @@ export default function Navbar() {
       {isOpen && (
         <nav className="md:hidden bg-white border-b border-slate-200 px-6 py-4 flex flex-col space-y-4 font-medium text-slate-700 shadow-lg">
           <Link href="/" onClick={() => setIsOpen(false)} className="hover:text-accent">Home</Link>
+          <Link href="/blog" onClick={() => setIsOpen(false)} className="hover:text-accent">Blog</Link>
           <Link href="/about" onClick={() => setIsOpen(false)} className="hover:text-accent">About Us</Link>
           <Link href="/contact" onClick={() => setIsOpen(false)} className="hover:text-accent">Contact</Link>
           <Link href="/privacy" onClick={() => setIsOpen(false)} className="hover:text-accent">Privacy Policy</Link>

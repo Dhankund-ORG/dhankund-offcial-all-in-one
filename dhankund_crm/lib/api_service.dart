@@ -388,6 +388,42 @@ class ApiService {
     });
   }
 
+  // ---------- Blog ----------
+  Future<List<Map<String, dynamic>>> fetchBlogPosts({String? status}) async {
+    final data = await ApiClient.get(
+      status != null && status.isNotEmpty ? '/api/v1/admin/blog?status=$status' : '/api/v1/admin/blog');
+    return _asList(data);
+  }
+
+  Future<Map<String, dynamic>> createBlogPost(Map<String, dynamic> post) async {
+    return Map<String, dynamic>.from(await ApiClient.post('/api/v1/admin/blog', post));
+  }
+
+  Future<Map<String, dynamic>> updateBlogPost(String id, Map<String, dynamic> post) async {
+    return Map<String, dynamic>.from(await ApiClient.put('/api/v1/admin/blog/$id', post));
+  }
+
+  Future<void> deleteBlogPost(String id) async {
+    await ApiClient.delete('/api/v1/admin/blog/$id');
+  }
+
+  Future<List<Map<String, dynamic>>> fetchBlogCategories() async {
+    final data = await ApiClient.get('/api/v1/admin/blog-categories');
+    return _asList(data);
+  }
+
+  Future<void> createBlogCategory(String name, String slug, String language) async {
+    await ApiClient.post('/api/v1/admin/blog-categories', {
+      'name': name,
+      'slug': slug,
+      'language': language,
+    });
+  }
+
+  Future<void> deleteBlogCategory(String id) async {
+    await ApiClient.delete('/api/v1/admin/blog-categories/$id');
+  }
+
   Future<List<Map<String, dynamic>>> fetchNewsFeed() async {
     final data = await ApiClient.get('/api/v1/news-feed');
     return _asList(data);

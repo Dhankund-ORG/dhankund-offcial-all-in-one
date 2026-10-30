@@ -146,6 +146,39 @@ CREATE TABLE IF NOT EXISTS news_feed (
   timestamp TEXT
 );
 
+CREATE TABLE IF NOT EXISTS blog_categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  language TEXT NOT NULL DEFAULT 'hi',
+  created_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  content TEXT,
+  excerpt TEXT,
+  cover_image TEXT,
+  category_id TEXT,
+  category_name TEXT,
+  tags TEXT,
+  language TEXT NOT NULL DEFAULT 'hi',
+  status TEXT NOT NULL DEFAULT 'draft',
+  author_name TEXT,
+  seo_title TEXT,
+  seo_description TEXT,
+  published_at TEXT,
+  updated_at TEXT,
+  views INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts (slug);
+CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts (status);
+CREATE INDEX IF NOT EXISTS idx_blog_posts_published_at ON blog_posts (published_at);
+
 CREATE TABLE IF NOT EXISTS statuses (
   id TEXT PRIMARY KEY,
   uid TEXT,
