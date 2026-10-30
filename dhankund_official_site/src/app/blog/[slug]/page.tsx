@@ -1,58 +1,54 @@
-"use client";
-
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import MarkdownContent from "../../../components/MarkdownContent";
-import { getPostBySlug, resolveUrl, formatDate, type BlogPost } from "../../../lib/blog";
+import { getPostBySlug, getPosts, getCategories, resolveUrl, formatDate } from "../../../lib/blog";
 
-export const runtime = "edge";
+// Fully static: every published post is pre-rendered at deploy time. New posts
+// appear on the next deploy. No edge runtime — static output only.
+export const dynamic = "force-static";
+export const dynamicParams = false;
 
-export default function BlogPostPage() {
-  const { slug } = useParams<{ slug: string }>();
-  const [post, setPost] = useState<BlogPost | null>(null);
-  const [status, setStatus] = useState<"loading" | "found" | "missing">("loading");
+export async function generateStaticParams() {
+  const { posts } = await getPosts({ limit: 100 });
+  return posts.map((post) => ({ slug: post.slug }));
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const found = await getPostBySlug(String(slug ?? ""));
-      if (cancelled) return;
-      if (found) {
-        setPost(found);
-        setStatus("found");
-        if (found.seo_title || found.title) {
-          document.title = `${found.seo_title || found.title} | Dhankund`;
-        }
-      } else {
-        setStatus("missing");
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await getPostBySlug(slug);
+  if (!post) return { title: "Blog | Dhankund" };
+  const title = post.seo_title || post.title;
+  const description = post.seo_description || post.excerpt || post.title;
+  const images = post.cover_image ? [resolveUrl(post.cover_image)] : [];
+  return {
+    title: `${title} | Dhankund`,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      publishedTime: post.published_at || undefined,
+      images,
+    },
+  };
+}
 
-  if (status === "loading") {
-    return (
-      <div className="container max-w-3xl mx-auto px-6 py-24 text-center text-slate-500">
-        लेख लोड हो रहा है...
-      </div>
-    );
-  }
+export default async function BlogPostPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const post = await getPostBySlug(slug);
+  if (!post) notFound();
 
-  if (status === "missing" || !post) {
-    return (
-      <div className="container max-w-3xl mx-auto px-6 py-24 text-center">
-        <p className="text-xl font-semibold mb-2">लेख नहीं मिला</p>
-        <p className="text-slate-500 mb-6">यह लेख उपलब्ध नहीं है।</p>
-        <Link href="/blog" className="btn-outline">
-          ← सभी लेख देखें
-        </Link>
-      </div>
-    );
-  }
+  const categories = await getCategories();
+  const currentCategory = categories.find((c) => c.id === post.category_id);
 
   return (
     <div className="flex flex-col items-center">
@@ -70,9 +66,12 @@ export default function BlogPostPage() {
       <article className="container max-w-3xl mx-auto px-6 py-12">
         <div className="flex items-center gap-2 mb-4">
           {post.category_name && (
-            <span className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full">
+            <Link
+              href={`/blog?category=${encodeURIComponent(currentCategory?.slug || "")}`}
+              className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full hover:bg-primary/20 transition-colors"
+            >
               {post.category_name}
-            </span>
+            </Link>
           )}
           {post.language === "hi" && (
             <span className="bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-1 rounded-full">
