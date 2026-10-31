@@ -103,15 +103,54 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
     final specialFeaturesController = TextEditingController(text: existingPolicy?['special_features'] ?? '');
 
     String loanType = existingPolicy?['loan_type'] ?? 'Personal Loan';
-    String productType = existingPolicy?['product_type'] ?? 'Prime';
-    String vertical = existingPolicy?['vertical'] ?? 'DSA';
+    String vertical = existingPolicy?['vertical'] ?? existingPolicy?['product_type'] ?? 'Prime';
+    if (!['Prime', 'Affordable', 'Informal'].contains(vertical)) {
+      vertical = 'Prime';
+    }
+    String productType = vertical;
+    String segment = existingPolicy?['segment'] ?? (['DSA', 'Connector', 'Direct'].contains(existingPolicy?['vertical']) ? existingPolicy!['vertical'] : 'DSA');
     String mProfileAllowed = existingPolicy?['m_profile_allowed'] ?? 'YES';
+
+    // Home Loan & Mortgage Loan Exclusive Controllers
+    final ageLimitController = TextEditingController(text: existingPolicy?['age_limit'] ?? '21 - 65 Years');
+    final foirNormsController = TextEditingController(
+      text: existingPolicy?['foir_norms'] ?? '1L-7L: 60% | 7L-10L: 65% | 10L-12L: 70% | >=12L: 75%',
+    );
+    final existingObligationsController = TextEditingController(
+      text: existingPolicy?['existing_obligations'] ?? 'Deducted from net income (>6 months EMI balance counted)',
+    );
+    final employmentStabilityController = TextEditingController(
+      text: existingPolicy?['employment_stability'] ?? 'Min 2 yrs total experience / 1 yr current company',
+    );
+    final ltvOnPlotController = TextEditingController(
+      text: existingPolicy?['ltv_on_plot'] ?? '1L-30L: 90% | 30L-75L: 80% | >=75L: 70%',
+    );
+    final repaymentTenureController = TextEditingController(
+      text: existingPolicy?['repayment_tenure'] ?? 'Up to 30 Years (HL) / 20 Years (LAP)',
+    );
+
+    // 13 Property & Collateral Funding Options (YES / NO)
+    String roadWindingProperty = existingPolicy?['road_winding_property_funding'] ?? 'YES';
+    String gramPanchayatProperty = existingPolicy?['gram_panchayat_property_funding'] ?? 'YES';
+    String notaryToRegistry = existingPolicy?['notary_to_registry_funding'] ?? 'YES';
+    String gramPanchayatPatta = existingPolicy?['gram_panchayat_patta_funding'] ?? 'YES';
+    String dronPatta = existingPolicy?['dron_patta_funding'] ?? 'YES';
+    String highestTicketSizeNotary = existingPolicy?['highest_ticket_size_notary'] ?? 'YES';
+    String highTensionLine = existingPolicy?['high_tension_line_funding'] ?? 'NO';
+    String withoutDiversion = existingPolicy?['without_diversion_property_funding'] ?? 'NO';
+    String onlyDiversion = existingPolicy?['only_diversion_property_funding'] ?? 'YES';
+    String akvnProperty = existingPolicy?['akvn_property_funding'] ?? 'YES';
+    String greenBeltProperty = existingPolicy?['green_belt_property_funding'] ?? 'NO';
+    String plotPurchase = existingPolicy?['plot_purchase'] ?? 'YES';
+    String plotMortgage = existingPolicy?['plot_mortgage'] ?? 'YES';
 
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final isHomeOrMortgage = (loanType == 'Home Loan' || loanType == 'Mortgage Loan');
+
             return AlertDialog(
               backgroundColor: AppTheme.obsidianMedium,
               shape: RoundedRectangleBorder(
@@ -174,7 +213,14 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                                   'CC/OD Limit',
                                 ].map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
                                 onChanged: (val) {
-                                  if (val != null) setDialogState(() => loanType = val);
+                                  if (val != null) {
+                                    setDialogState(() {
+                                      loanType = val;
+                                      if ((val == 'Home Loan' || val == 'Mortgage Loan') && (ltvRatioController.text == 'Up to 90% LTV' || ltvRatioController.text.isEmpty)) {
+                                        ltvRatioController.text = '1L-30L: 90% | 30L-75L: 80% | >=75L: 70%';
+                                      }
+                                    });
+                                  }
                                 },
                               ),
                             ),
@@ -185,33 +231,38 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
-  isExpanded: true,
-                                value: productType,
+                                isExpanded: true,
+                                value: vertical,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(
-                                  labelText: 'Product Type *',
+                                  labelText: 'Vertical *',
                                   helperText: 'Prime / Affordable / Informal',
                                   helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
                                 ),
                                 items: const [
-                                  DropdownMenuItem(value: 'Prime', child: Text('Prime (Tier-1 Standard)')),
+                                  DropdownMenuItem(value: 'Prime', child: Text('Prime (Standard Tier-1)')),
                                   DropdownMenuItem(value: 'Affordable', child: Text('Affordable (Sub-Prime / Low Ticket)')),
                                   DropdownMenuItem(value: 'Informal', child: Text('Informal (Cash / Surrogate Segment)')),
                                 ],
                                 onChanged: (val) {
-                                  if (val != null) setDialogState(() => productType = val);
+                                  if (val != null) {
+                                    setDialogState(() {
+                                      vertical = val;
+                                      productType = val;
+                                    });
+                                  }
                                 },
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: DropdownButtonFormField<String>(
-  isExpanded: true,
-                                value: vertical,
+                                isExpanded: true,
+                                value: segment,
                                 dropdownColor: AppTheme.obsidianMedium,
                                 decoration: const InputDecoration(
-                                  labelText: 'Sourcing Vertical *',
-                                  helperText: 'Channel Partner Model',
+                                  labelText: 'Segment *',
+                                  helperText: 'DSA / Connector / Direct',
                                   helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
                                 ),
                                 items: const [
@@ -220,7 +271,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                                   DropdownMenuItem(value: 'Direct', child: Text('Direct / Branch Walk-in')),
                                 ],
                                 onChanged: (val) {
-                                  if (val != null) setDialogState(() => vertical = val);
+                                  if (val != null) setDialogState(() => segment = val);
                                 },
                               ),
                             ),
@@ -441,9 +492,281 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                           decoration: const InputDecoration(
                             labelText: 'Special Guidelines / Key Underwriting Highlights',
                             alignLabelWithHint: true,
-                            hintText: 'e.g. Immediate digital sanction for Super-A companies, no property verification for loans < â¹30L, banking surrogate program active.',
+                            hintText: 'e.g. Immediate digital sanction for Super-A companies, no property verification for loans < â‚¹30L, banking surrogate program active.',
                           ),
                         ),
+
+                        // SECTION 4: HOME & MORTGAGE LOAN EXCLUSIVE POLICIES (क्रेडिट एवं प्रॉपर्टी नियम)
+                        if (isHomeOrMortgage) ...[
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppTheme.royalGold.withOpacity(0.04),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppTheme.royalGold.withOpacity(0.25)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.home_work_outlined, color: AppTheme.royalGold, size: 20),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '4. HOME & MORTGAGE LOAN EXCLUSIVE POLICIES (अंडरराइटिंग एवं प्रॉपर्टी मानदंड)',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.royalGold,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Age Limit & Repayment Tenure
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: ageLimitController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Age Limit (आयु सीमा) *',
+                                          hintText: 'e.g. 21 - 65 Years',
+                                          helperText: 'Applicant age limit at loan maturity',
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: repaymentTenureController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Repayment Tenure (पुनर्भुगतान अवधि) *',
+                                          hintText: 'e.g. Up to 30 Years (HL) / 20 Years (LAP)',
+                                          helperText: 'Max allowable loan tenure',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Income ratio (FOIR)
+                                TextFormField(
+                                  controller: foirNormsController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Income Ratio (FOIR) *',
+                                    hintText: '1L-7L: 60% | 7L-10L: 65% | 10L-12L: 70% | >=12L: 75%',
+                                    helperText: 'Norms: 1L-7L = 60%, 7L-10L = 65%, 10L-12L = 70%, 12L & above = 75%',
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Existing Obligations & Employment Stability
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: existingObligationsController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Existing Obligations (मौजूदा देनदारियां) *',
+                                          hintText: 'e.g. Deducted from net income (>6 months EMI)',
+                                          helperText: 'Obligation treatment in FOIR calculation',
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: employmentStabilityController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Employment Stability Requirement *',
+                                          hintText: 'e.g. Min 2 yrs total / 1 yr current company',
+                                          helperText: 'Job or business vintage requirement',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // LTV on Plot
+                                TextFormField(
+                                  controller: ltvOnPlotController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'LTV on Plot (प्लॉट पर LTV अनुपात) *',
+                                    hintText: '1L-30L: 90%/80%/70% | 30L-75L: 90%/80%/70% | >=75L: 90%/80%/70%',
+                                    helperText: '1L-30L = 90%/80%/70% LTV, 30L-75L = 90%/80%/70% LTV, 75L+ = 90%/80%/70% LTV',
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                // 13 Property Funding Options (Yes/No)
+                                const Text(
+                                  'PROPERTY & COLLATERAL FUNDING PERMISSIONS (संपत्ति एवं पट्टा फंडिंग नियम)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white70,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Road winding property funding',
+                                        hindiLabel: 'रोड वाइंडिंग संपत्ति फंडिंग',
+                                        value: roadWindingProperty,
+                                        onChanged: (v) => setDialogState(() => roadWindingProperty = v ?? 'YES'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Gram panchayat property funding',
+                                        hindiLabel: 'ग्राम पंचायत संपत्ति फंडिंग',
+                                        value: gramPanchayatProperty,
+                                        onChanged: (v) => setDialogState(() => gramPanchayatProperty = v ?? 'YES'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Notry to registry funding',
+                                        hindiLabel: 'नोटरी से रजिस्ट्री फंडिंग',
+                                        value: notaryToRegistry,
+                                        onChanged: (v) => setDialogState(() => notaryToRegistry = v ?? 'YES'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Gram panchayat patta funding',
+                                        hindiLabel: 'ग्राम पंचायत पट्टा फंडिंग',
+                                        value: gramPanchayatPatta,
+                                        onChanged: (v) => setDialogState(() => gramPanchayatPatta = v ?? 'YES'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Dron patta funding',
+                                        hindiLabel: 'ड्रोन पट्टा फंडिंग',
+                                        value: dronPatta,
+                                        onChanged: (v) => setDialogState(() => dronPatta = v ?? 'YES'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Highest ticket size for notry property',
+                                        hindiLabel: 'नोटरी प्रॉपर्टी अधिकतम टिकट साइज',
+                                        value: highestTicketSizeNotary,
+                                        onChanged: (v) => setDialogState(() => highestTicketSizeNotary = v ?? 'YES'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Property under HIGH tension line funding',
+                                        hindiLabel: 'हाई टेंशन लाइन के नीचे संपत्ति फंडिंग',
+                                        value: highTensionLine,
+                                        onChanged: (v) => setDialogState(() => highTensionLine = v ?? 'NO'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Without diversion property funding',
+                                        hindiLabel: 'बिना डायवर्जन संपत्ति फंडिंग',
+                                        value: withoutDiversion,
+                                        onChanged: (v) => setDialogState(() => withoutDiversion = v ?? 'NO'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Only diversion property funding',
+                                        hindiLabel: 'केवल डायवर्जन संपत्ति फंडिंग',
+                                        value: onlyDiversion,
+                                        onChanged: (v) => setDialogState(() => onlyDiversion = v ?? 'YES'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'AKVN Property funding',
+                                        hindiLabel: 'AKVN संपत्ति फंडिंग',
+                                        value: akvnProperty,
+                                        onChanged: (v) => setDialogState(() => akvnProperty = v ?? 'YES'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Green belt property funding',
+                                        hindiLabel: 'ग्रीन बेल्ट संपत्ति फंडिंग',
+                                        value: greenBeltProperty,
+                                        onChanged: (v) => setDialogState(() => greenBeltProperty = v ?? 'NO'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Plot purchase',
+                                        hindiLabel: 'प्लॉट खरीद फंडिंग',
+                                        value: plotPurchase,
+                                        onChanged: (v) => setDialogState(() => plotPurchase = v ?? 'YES'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'Plot mortgage',
+                                        hindiLabel: 'प्लॉट बंधक / मॉर्टगेज',
+                                        value: plotMortgage,
+                                        onChanged: (v) => setDialogState(() => plotMortgage = v ?? 'YES'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -472,11 +795,13 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                       loanType: loanType,
                       productType: productType,
                       vertical: vertical,
+                      segment: segment,
                       minCibil: int.tryParse(minCibilController.text.trim()) ?? 700,
                       minIncome: minIncomeController.text.trim(),
                       minTicketSize: minTicketSizeController.text.trim(),
                       maxTicketSize: maxTicketSizeController.text.trim(),
                       ltvRatio: ltvRatioController.text.trim().isNotEmpty ? ltvRatioController.text.trim() : null,
+                      ltvOnPlot: isHomeOrMortgage && ltvOnPlotController.text.trim().isNotEmpty ? ltvOnPlotController.text.trim() : null,
                       mProfileAllowed: mProfileAllowed,
                       maxAllowedBounces: int.tryParse(maxBouncesController.text.trim()) ?? 0,
                       geoRadius: geoRadiusController.text.trim(),
@@ -485,14 +810,34 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                       processingFee: processingFeeController.text.trim(),
                       specialFeatures: specialFeaturesController.text.trim(),
                       tatDays: tatController.text.trim(),
+                      ageLimit: isHomeOrMortgage && ageLimitController.text.trim().isNotEmpty ? ageLimitController.text.trim() : null,
+                      foirNorms: isHomeOrMortgage && foirNormsController.text.trim().isNotEmpty ? foirNormsController.text.trim() : null,
+                      existingObligations: isHomeOrMortgage && existingObligationsController.text.trim().isNotEmpty ? existingObligationsController.text.trim() : null,
+                      employmentStability: isHomeOrMortgage && employmentStabilityController.text.trim().isNotEmpty ? employmentStabilityController.text.trim() : null,
+                      repaymentTenure: isHomeOrMortgage && repaymentTenureController.text.trim().isNotEmpty ? repaymentTenureController.text.trim() : null,
+                      roadWindingPropertyFunding: isHomeOrMortgage ? roadWindingProperty : null,
+                      gramPanchayatPropertyFunding: isHomeOrMortgage ? gramPanchayatProperty : null,
+                      notaryToRegistryFunding: isHomeOrMortgage ? notaryToRegistry : null,
+                      gramPanchayatPattaFunding: isHomeOrMortgage ? gramPanchayatPatta : null,
+                      dronPattaFunding: isHomeOrMortgage ? dronPatta : null,
+                      highestTicketSizeNotary: isHomeOrMortgage ? highestTicketSizeNotary : null,
+                      highTensionLineFunding: isHomeOrMortgage ? highTensionLine : null,
+                      withoutDiversionPropertyFunding: isHomeOrMortgage ? withoutDiversion : null,
+                      onlyDiversionPropertyFunding: isHomeOrMortgage ? onlyDiversion : null,
+                      akvnPropertyFunding: isHomeOrMortgage ? akvnProperty : null,
+                      greenBeltPropertyFunding: isHomeOrMortgage ? greenBeltProperty : null,
+                      plotPurchase: isHomeOrMortgage ? plotPurchase : null,
+                      plotMortgage: isHomeOrMortgage ? plotMortgage : null,
                     );
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(isEdit ? 'Bank policy updated successfully!' : 'Bank policy created successfully!'),
-                        backgroundColor: AppTheme.emeraldGreen,
-                      ),
-                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(isEdit ? 'Bank policy updated successfully!' : 'Bank policy created successfully!'),
+                          backgroundColor: AppTheme.emeraldGreen,
+                        ),
+                      );
+                    }
 
                     _loadPolicies();
                   },
@@ -709,7 +1054,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                     : GridView.builder(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          childAspectRatio: 1.40,
+                          childAspectRatio: 1.25,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
                         ),
@@ -772,10 +1117,12 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
     final maxBounces = policy['max_allowed_bounces'] ?? 0;
     final productType = policy['product_type'] ?? 'Prime';
     final vertical = policy['vertical'] ?? 'DSA';
+    final segment = policy['segment'];
     final mProfile = policy['m_profile_allowed'] ?? 'YES';
     final ltv = policy['ltv_ratio'] ?? 'N/A';
-    final minTicket = policy['min_ticket_size'] ?? 'â¹1 Lakh';
-    final maxTicket = policy['max_ticket_size'] ?? (policy['max_loan_amount'] ?? 'â¹50 Lakh');
+    final minTicket = policy['min_ticket_size'] ?? '₹1 Lakh';
+    final maxTicket = policy['max_ticket_size'] ?? (policy['max_loan_amount'] ?? '₹50 Lakh');
+    final isHomeOrLap = policy['loan_type'] == 'Home Loan' || policy['loan_type'] == 'Mortgage Loan';
 
     final Color productBadgeColor = productType == 'Prime'
         ? AppTheme.royalGold
@@ -861,6 +1208,20 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                               style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 9),
                             ),
                           ),
+                          if (segment != null && segment.toString().isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: Colors.indigo.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'SEGMENT: $segment',
+                                style: const TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold, fontSize: 9),
+                              ),
+                            ),
+                          ],
                           const SizedBox(width: 6),
                           // M-Profile Badge
                           Container(
@@ -967,9 +1328,46 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
               _buildCriterionBadge('Login Fee: ${policy['login_fee'] ?? 'Nil'}', Colors.purpleAccent),
               _buildCriterionBadge('ROI: ${policy['interest_rate']}', Colors.amber),
               _buildCriterionBadge('TAT: ${policy['tat_days']}', Colors.lightGreenAccent),
+              if (policy['repayment_tenure'] != null && policy['repayment_tenure'].toString().isNotEmpty)
+                _buildCriterionBadge('Tenure: ${policy['repayment_tenure']}', Colors.lightBlueAccent),
+              if (policy['age_limit'] != null && policy['age_limit'].toString().isNotEmpty)
+                _buildCriterionBadge('Age: ${policy['age_limit']}', Colors.pinkAccent),
+              if (policy['ltv_on_plot'] != null && policy['ltv_on_plot'].toString().isNotEmpty)
+                _buildCriterionBadge('Plot LTV: ${policy['ltv_on_plot']}', Colors.deepOrangeAccent),
+              if (policy['foir_norms'] != null && policy['foir_norms'].toString().isNotEmpty)
+                _buildCriterionBadge('FOIR Norms Active', Colors.amberAccent),
             ],
           ),
           const SizedBox(height: 6),
+
+          if (isHomeOrLap) ...[
+            InkWell(
+              onTap: () => _showPropertyNormsDialog(policy),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.royalGold.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.royalGold.withOpacity(0.35)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.home_work_outlined, size: 13, color: AppTheme.royalGold),
+                    SizedBox(width: 6),
+                    Text(
+                      'View HL/LAP Underwriting & 13 Property Norms',
+                      style: TextStyle(color: AppTheme.royalGold, fontWeight: FontWeight.bold, fontSize: 10),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios, size: 9, color: AppTheme.royalGold),
+                  ],
+                ),
+              ),
+            ),
+          ],
 
           // Guidelines snippet
           Expanded(
@@ -996,6 +1394,235 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
       child: Text(
         text,
         style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  static Widget _buildPropertyYesNoField({
+    required String label,
+    required String hindiLabel,
+    required String value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final isYes = value.toUpperCase() == 'YES';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.02),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  hindiLabel,
+                  style: const TextStyle(fontSize: 9.5, color: AppTheme.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isYes ? AppTheme.emeraldGreen.withOpacity(0.15) : AppTheme.rubyRed.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: isYes ? AppTheme.emeraldGreen.withOpacity(0.4) : AppTheme.rubyRed.withOpacity(0.4)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: isYes ? 'YES' : 'NO',
+                dropdownColor: AppTheme.obsidianMedium,
+                isDense: true,
+                items: const [
+                  DropdownMenuItem(
+                    value: 'YES',
+                    child: Text('YES', style: TextStyle(color: AppTheme.emeraldGreen, fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                  DropdownMenuItem(
+                    value: 'NO',
+                    child: Text('NO', style: TextStyle(color: AppTheme.rubyRed, fontWeight: FontWeight.bold, fontSize: 11)),
+                  ),
+                ],
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPropertyNormsDialog(Map<String, dynamic> policy) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppTheme.obsidianMedium,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppTheme.royalGold.withOpacity(0.25)),
+          ),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.home_work_outlined, color: AppTheme.royalGold, size: 22),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${policy['bank_name']} - ${policy['loan_type']} Criteria',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textPrimary),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppTheme.textSecondary),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 740,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Underwriting Slabs Box
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'UNDERWRITING & RATIO NORMS',
+                          style: TextStyle(color: AppTheme.royalGold, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildDetailRow('Age Limit (आयु सीमा):', policy['age_limit'] ?? '21 - 65 Years'),
+                        _buildDetailRow('Repayment Tenure (अवधि):', policy['repayment_tenure'] ?? 'Up to 30 Years'),
+                        _buildDetailRow('Income Ratio (FOIR):', policy['foir_norms'] ?? '1L-7L: 60% | 7L-10L: 65% | 10L-12L: 70% | >=12L: 75%'),
+                        _buildDetailRow('Existing Obligations:', policy['existing_obligations'] ?? 'Deducted from net income'),
+                        _buildDetailRow('Employment Stability:', policy['employment_stability'] ?? 'Min 2 yrs total / 1 yr current'),
+                        _buildDetailRow('LTV Ratio:', policy['ltv_ratio'] ?? '1L-30L: 90% | 30L-75L: 80% | >=75L: 70%'),
+                        _buildDetailRow('LTV on Plot (प्लॉट LTV):', policy['ltv_on_plot'] ?? '1L-30L: 90%/80%/70% | 30L-75L: 90%/80%/70% | >=75L: 90%/80%/70%'),
+                        _buildDetailRow('Vertical / Segment:', '${policy['vertical'] ?? 'Prime'} | ${policy['segment'] ?? 'DSA'}'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'PROPERTY & COLLATERAL FUNDING PERMISSIONS (13 NORMS)',
+                    style: TextStyle(color: AppTheme.royalGold, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _buildPropertyStatusChip('Road Winding Property', policy['road_winding_property_funding']),
+                      _buildPropertyStatusChip('Gram Panchayat Property', policy['gram_panchayat_property_funding']),
+                      _buildPropertyStatusChip('Notary to Registry', policy['notary_to_registry_funding']),
+                      _buildPropertyStatusChip('Gram Panchayat Patta', policy['gram_panchayat_patta_funding']),
+                      _buildPropertyStatusChip('Dron Patta Funding', policy['dron_patta_funding']),
+                      _buildPropertyStatusChip('Highest Ticket Notary', policy['highest_ticket_size_notary']),
+                      _buildPropertyStatusChip('High Tension Line', policy['high_tension_line_funding']),
+                      _buildPropertyStatusChip('Without Diversion', policy['without_diversion_property_funding']),
+                      _buildPropertyStatusChip('Only Diversion', policy['only_diversion_property_funding']),
+                      _buildPropertyStatusChip('AKVN Property Funding', policy['akvn_property_funding']),
+                      _buildPropertyStatusChip('Green Belt Property', policy['green_belt_property_funding']),
+                      _buildPropertyStatusChip('Plot Purchase Funding', policy['plot_purchase']),
+                      _buildPropertyStatusChip('Plot Mortgage Funding', policy['plot_mortgage']),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 170,
+            child: Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 11, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _buildPropertyStatusChip(String label, dynamic val) {
+    final isYes = (val?.toString().toUpperCase() ?? 'NO') == 'YES';
+    return Container(
+      width: 225,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isYes ? AppTheme.emeraldGreen.withOpacity(0.08) : AppTheme.rubyRed.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: isYes ? AppTheme.emeraldGreen.withOpacity(0.3) : AppTheme.rubyRed.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 11),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: isYes ? AppTheme.emeraldGreen.withOpacity(0.2) : AppTheme.rubyRed.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              isYes ? 'YES' : 'NO',
+              style: TextStyle(
+                color: isYes ? AppTheme.emeraldGreen : AppTheme.rubyRed,
+                fontWeight: FontWeight.bold,
+                fontSize: 9.5,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
