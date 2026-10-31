@@ -588,9 +588,65 @@ function normalizeMobile(m) {
   return digits;
 }
 const AUTHORIZED_BLOG_MOBILE = '6268147177';
+// Cryptographic PBKDF2 hash of authorized blog admin password (iterations: 100000, SHA-256)
+const AUTHORIZED_BLOG_HASH = 'pbkdf2_sha256$100000$cowdOg7K0wvZlHBNBB2ykA==$msou4pPoSa3qlF9oEuP1Q3AEiAWLYKu/x3miH1pHMic=';
+
+// ---------- Blog Admin Login (ID & Password) ----------
+app.post('/api/v1/blog-admin/login', async function (c) {
+  const ipCheck = await checkClientIpBlocked(c);
+  if (ipCheck.blocked) {
+    return c.json({ error: 'अत्यधिक प्रयासों के कारण आपका अनुरोध ब्लॉक कर दिया गया है। कृपया बाद में प्रयास करें।' }, 403);
+  }
+
+  const body = await readJson(c);
+  const rawId = body.id || body.username || body.mobile || '';
+  const mobile = normalizeMobile(rawId);
+  const password = String(body.password || '').trim();
+
+  if (mobile !== AUTHORIZED_BLOG_MOBILE) {
+    return c.json({ error: 'यह यूजर आईडी अधिकृत नहीं है। केवल अधिकृत आईडी (6268147177) ही लॉगिन कर सकती है।' }, 403);
+  }
+
+  if (!password) {
+    return c.json({ error: 'पासवर्ड दर्ज करना अनिवार्य है।' }, 400);
+  }
+
+  let isValid = false;
+  const envPassword = (c.env.BLOG_ADMIN_PASSWORD || '').toString().trim();
+  if (envPassword && password === envPassword) {
+    isValid = true;
+  } else {
+    isValid = await verifyPassword(password, AUTHORIZED_BLOG_HASH);
+  }
+
+  if (!isValid) {
+    return c.json({ error: 'अमान्य पासवर्ड (Invalid Password)। कृपया पुनः प्रयास करें।' }, 401);
+  }
+
+  // Issue 30-day session JWT token for blog admin
+  const token = await signSession({
+    sub: 'blog_admin_' + mobile,
+    role: 'admin',
+    mobile: mobile,
+    name: 'Dhankund Blog Admin',
+    exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60)
+  }, c.env.SESSION_SECRET || '');
+
+  return c.json({
+    success: true,
+    token: token,
+    user: {
+      id: mobile,
+      mobile: mobile,
+      role: 'admin',
+      name: 'Dhankund Blog Admin'
+    }
+  });
+});
 
 // ---------- Blog Admin OTP (Restricted to 6268147177) ----------
 app.post('/api/v1/blog-admin/request-otp', async function (c) {
+
   const ipCheck = await checkClientIpBlocked(c);
   if (ipCheck.blocked) {
     return c.json({ error: 'Access blocked.' }, 403);

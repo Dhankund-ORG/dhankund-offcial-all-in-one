@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { slugify, blogPostOut } from '../worker/blog.js';
+import { verifyPassword } from '../worker/auth.js';
+
 
 test('slugify produces clean English slugs', () => {
   assert.equal(slugify('Loan Tips for 2026'), 'loan-tips-for-2026');
@@ -67,4 +69,20 @@ test('Mobile normalization and 6268147177 single-number restriction', () => {
   assert.notEqual(normalizeMobile('9876543210'), AUTHORIZED_BLOG_MOBILE);
   assert.notEqual(normalizeMobile('9999999999'), AUTHORIZED_BLOG_MOBILE);
   assert.notEqual(normalizeMobile(''), AUTHORIZED_BLOG_MOBILE);
-});
+});
+
+test('Blog admin password verification matches Ankit@5298!$ and rejects wrong passwords', async () => {
+  const AUTHORIZED_BLOG_HASH = 'pbkdf2_sha256$100000$cowdOg7K0wvZlHBNBB2ykA==$msou4pPoSa3qlF9oEuP1Q3AEiAWLYKu/x3miH1pHMic=';
+  const matches = await verifyPassword('Ankit@5298!$', AUTHORIZED_BLOG_HASH);
+  assert.equal(matches, true);
+
+  const wrong1 = await verifyPassword('WrongPassword', AUTHORIZED_BLOG_HASH);
+  assert.equal(wrong1, false);
+
+  const wrong2 = await verifyPassword('ankit@5298!$', AUTHORIZED_BLOG_HASH);
+  assert.equal(wrong2, false);
+
+  const wrong3 = await verifyPassword('', AUTHORIZED_BLOG_HASH);
+  assert.equal(wrong3, false);
+});
+
