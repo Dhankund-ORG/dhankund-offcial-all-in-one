@@ -176,8 +176,85 @@ function loanColumns(b) {
   return { loan_type: b.loan_type || null, full_name: b.full_name || null, pan_number: b.pan_number || null, aadhaar_number: b.aadhaar_number || null, mobile_number: b.mobile_number || null, email: b.email || null, loan_amount: b.loan_amount || null, salary: b.salary || null, turnover: b.turnover || null, father_name: b.father_name || null, mother_name: b.mother_name || null, marital_status: b.marital_status || null, spouse_name: b.spouse_name || null, occupation: b.occupation || null, personal_email: b.personal_email || null, official_email: b.official_email || null, current_address: b.current_address || null, office_address: b.office_address || null, ref1_name: b.ref1_name || null, ref1_mobile: b.ref1_mobile || null, ref1_address: b.ref1_address || null, ref2_name: b.ref2_name || null, ref2_mobile: b.ref2_mobile || null, ref2_address: b.ref2_address || null, applicant_documents: b.applicant_documents ? JSON.stringify(b.applicant_documents) : null, co_applicants: b.co_applicants ? JSON.stringify(b.co_applicants) : null, status: b.status || 'Pending', login_company_name: b.login_company_name || null, bank_executive_name: b.bank_executive_name || null, gender: b.gender || null, applicant_cibil: (b.applicant_cibil != null) ? b.applicant_cibil : null };
 }
 
+let bankPolicySchemaEnsured = false;
+async function ensureBankPolicySchema(env) {
+  if (bankPolicySchemaEnsured || !env || !env.DB) return;
+  try {
+    const cols = await all(env, 'PRAGMA table_info(bank_policies)');
+    const colNames = new Set((cols || []).map(function (c) { return c.name; }));
+    if (colNames.size > 0) {
+      const newCols = [
+        'segment', 'ltv_on_plot', 'age_limit', 'foir_norms', 'existing_obligations',
+        'employment_stability', 'repayment_tenure', 'road_winding_property_funding',
+        'gram_panchayat_property_funding', 'notary_to_registry_funding',
+        'gram_panchayat_patta_funding', 'dron_patta_funding',
+        'highest_ticket_size_notary', 'high_tension_line_funding',
+        'without_diversion_property_funding', 'only_diversion_property_funding',
+        'akvn_property_funding', 'green_belt_property_funding',
+        'plot_purchase', 'plot_mortgage'
+      ];
+      for (const col of newCols) {
+        if (!colNames.has(col)) {
+          await run(env, 'ALTER TABLE bank_policies ADD COLUMN ' + col + ' TEXT');
+        }
+      }
+    }
+    bankPolicySchemaEnsured = true;
+  } catch (err) {
+    console.error('ensureBankPolicySchema warning:', err);
+  }
+}
+
 function policyColumns(b) {
-  return { bank_name: b.bank_name || null, banker_name: b.banker_name || null, banker_mobile: b.banker_mobile || null, office_address: b.office_address || null, l1_manager_name: b.l1_manager_name || null, l1_manager_mobile: b.l1_manager_mobile || null, l2_manager_name: b.l2_manager_name || null, l2_manager_mobile: b.l2_manager_mobile || null, loan_type: b.loan_type || null, product_type: b.product_type || null, vertical: b.vertical || null, min_cibil: (b.min_cibil != null) ? b.min_cibil : null, min_income: b.min_income || null, min_ticket_size: b.min_ticket_size || null, max_ticket_size: b.max_ticket_size || null, ticket_size: ((b.min_ticket_size || '') + ' - ' + (b.max_ticket_size || '')), max_loan_amount: b.max_ticket_size || null, ltv_ratio: b.ltv_ratio || null, m_profile_allowed: b.m_profile_allowed || null, max_allowed_bounces: (b.max_allowed_bounces != null) ? b.max_allowed_bounces : null, geo_radius: b.geo_radius || null, login_fee: b.login_fee || null, interest_rate: b.interest_rate || null, processing_fee: b.processing_fee || null, special_features: b.special_features || null, tat_days: b.tat_days || null, updated_at: nowIso() };
+  return {
+    bank_name: b.bank_name || null,
+    banker_name: b.banker_name || null,
+    banker_mobile: b.banker_mobile || null,
+    office_address: b.office_address || null,
+    l1_manager_name: b.l1_manager_name || null,
+    l1_manager_mobile: b.l1_manager_mobile || null,
+    l2_manager_name: b.l2_manager_name || null,
+    l2_manager_mobile: b.l2_manager_mobile || null,
+    loan_type: b.loan_type || null,
+    product_type: b.product_type || null,
+    vertical: b.vertical || null,
+    segment: b.segment || null,
+    min_cibil: (b.min_cibil != null) ? b.min_cibil : null,
+    min_income: b.min_income || null,
+    min_ticket_size: b.min_ticket_size || null,
+    max_ticket_size: b.max_ticket_size || null,
+    ticket_size: ((b.min_ticket_size || '') + ' - ' + (b.max_ticket_size || '')),
+    max_loan_amount: b.max_ticket_size || null,
+    ltv_ratio: b.ltv_ratio || null,
+    ltv_on_plot: b.ltv_on_plot || null,
+    m_profile_allowed: b.m_profile_allowed || null,
+    max_allowed_bounces: (b.max_allowed_bounces != null) ? b.max_allowed_bounces : null,
+    geo_radius: b.geo_radius || null,
+    login_fee: b.login_fee || null,
+    interest_rate: b.interest_rate || null,
+    processing_fee: b.processing_fee || null,
+    special_features: b.special_features || null,
+    tat_days: b.tat_days || null,
+    age_limit: b.age_limit || null,
+    foir_norms: b.foir_norms || null,
+    existing_obligations: b.existing_obligations || null,
+    employment_stability: b.employment_stability || null,
+    repayment_tenure: b.repayment_tenure || null,
+    road_winding_property_funding: b.road_winding_property_funding || null,
+    gram_panchayat_property_funding: b.gram_panchayat_property_funding || null,
+    notary_to_registry_funding: b.notary_to_registry_funding || null,
+    gram_panchayat_patta_funding: b.gram_panchayat_patta_funding || null,
+    dron_patta_funding: b.dron_patta_funding || null,
+    highest_ticket_size_notary: b.highest_ticket_size_notary || null,
+    high_tension_line_funding: b.high_tension_line_funding || null,
+    without_diversion_property_funding: b.without_diversion_property_funding || null,
+    only_diversion_property_funding: b.only_diversion_property_funding || null,
+    akvn_property_funding: b.akvn_property_funding || null,
+    green_belt_property_funding: b.green_belt_property_funding || null,
+    plot_purchase: b.plot_purchase || null,
+    plot_mortgage: b.plot_mortgage || null,
+    updated_at: nowIso()
+  };
 }
 
 async function notifyAdmins(env, title, body) {
@@ -866,7 +943,7 @@ app.get('/api/v1/directory', auth, async function (c) {
   const rows = await all(c.env, "SELECT * FROM registrations WHERE lower(role) = lower(?) AND lower(status) = 'approved' ORDER BY created_at DESC", [role]);
   return c.json(rows.map(rowToRegistration));
 });
-app.get('/api/v1/bank-policies', auth, async function (c) { const rows = await all(c.env, 'SELECT * FROM bank_policies ORDER BY updated_at DESC'); return c.json(rows); });
+app.get('/api/v1/bank-policies', auth, async function (c) { await ensureBankPolicySchema(c.env); const rows = await all(c.env, 'SELECT * FROM bank_policies ORDER BY updated_at DESC'); return c.json(rows); });
 
 app.get('/api/v1/banners', async function (c) { const rows = await all(c.env, 'SELECT * FROM banners WHERE is_active = 1 ORDER BY created_at DESC'); return c.json(rows); });
 app.post('/api/v1/banners', requireAdmin, async function (c) { const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'banners', { id: id, title: b.title || '', subtitle: b.subtitle || '', color_hex: b.color_hex || '', image_url: b.image_url || null, is_active: (b.is_active !== undefined) ? (b.is_active ? 1 : 0) : 1, created_at: nowIso() }); return c.json({ success: true, id: id }); });
@@ -888,8 +965,8 @@ app.put('/api/v1/loans/:id', requireAdmin, async function (c) { const id = c.req
 app.patch('/api/v1/loans/:id/status', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'loan_applications', 'id', id, { status: (b.status || 'Pending').toString(), updated_at: nowIso() }); return c.json({ success: true }); });
 app.get('/api/v1/referrals', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM referrals ORDER BY created_at DESC'); return c.json(boolify(rows, ['consent_given'])); });
 app.patch('/api/v1/referrals/:id/status', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'referrals', 'id', id, { status: (b.status || 'Invited').toString() }); return c.json({ success: true }); });
-app.post('/api/v1/bank-policies', requireAdmin, async function (c) { const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'bank_policies', Object.assign({ id: id }, policyColumns(b))); return c.json({ success: true, id: id }); });
-app.put('/api/v1/bank-policies/:id', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'bank_policies', 'id', id, policyColumns(b)); return c.json({ success: true }); });
+app.post('/api/v1/bank-policies', requireAdmin, async function (c) { await ensureBankPolicySchema(c.env); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'bank_policies', Object.assign({ id: id }, policyColumns(b))); return c.json({ success: true, id: id }); });
+app.put('/api/v1/bank-policies/:id', requireAdmin, async function (c) { await ensureBankPolicySchema(c.env); const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'bank_policies', 'id', id, policyColumns(b)); return c.json({ success: true }); });
 app.get('/api/v1/broadcasts', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM broadcast_history ORDER BY timestamp DESC'); return c.json(parseJsonList(boolify(rows, ['send_whatsapp', 'send_email', 'send_push']), 'audiences')); });
 app.post('/api/v1/broadcasts', requireAdmin, async function (c) { const b = await readJson(c); const id = randomId(); const audiences = Array.isArray(b.audiences) ? b.audiences : []; const sendPush = !!b.send_push || !!b.sendPush; await insertRow(c.env, 'broadcast_history', { id: id, audiences: JSON.stringify(audiences), send_whatsapp: b.send_whatsapp ? 1 : 0, send_email: b.send_email ? 1 : 0, send_push: sendPush ? 1 : 0, subject: b.subject || null, message: b.message || null, recipient_count: (b.recipient_count != null) ? b.recipient_count : 0, timestamp: nowIso() }); let pushSent = 0; if (sendPush) { const tokens = await all(c.env, 'SELECT token FROM fcm_tokens'); for (const t of tokens) { try { await sendFcm(c.env, { token: t.token, title: b.subject || 'Dhankund', body: b.message || '', data: {} }); pushSent += 1; } catch (e) { console.error('push failed', e.message); } } } return c.json({ success: true, id: id, push_sent: pushSent }); });
 app.post('/api/v1/push', requireAdmin, async function (c) { const b = await readJson(c); if (!b.token) return c.json({ error: 'token is required' }, 400); await sendFcm(c.env, { token: String(b.token), title: b.title || '', body: b.body || '', data: b.data || {} }); return c.json({ success: true }); });
