@@ -24,21 +24,47 @@ test('slugify handles edge cases', () => {
   assert.equal(slugify('---'), '');
 });
 
-test('blogPostOut parses tags JSON and normalizes views', () => {
+test('blogPostOut parses tags and faqs JSON and normalizes views', () => {
   const row = {
     id: 'p1',
     title: 'Test',
     tags: '["loan","tips"]',
+    faqs: '[{"question":"What is Personal Loan?","answer":"An unsecured loan"}]',
     views: '7',
   };
   const out = blogPostOut(row);
   assert.deepEqual(out.tags, ['loan', 'tips']);
+  assert.equal(out.faqs.length, 1);
+  assert.equal(out.faqs[0].question, 'What is Personal Loan?');
   assert.equal(out.views, 7);
   assert.equal(out.id, 'p1');
 });
 
-test('blogPostOut handles missing tags and non-numeric views', () => {
-  const out = blogPostOut({ id: 'p2', title: 'T', tags: null, views: 'abc' });
+test('blogPostOut handles missing tags and faqs', () => {
+  const out = blogPostOut({ id: 'p2', title: 'T', tags: null, faqs: null, views: 'abc' });
   assert.deepEqual(out.tags, []);
+  assert.deepEqual(out.faqs, []);
   assert.equal(out.views, 0);
 });
+
+test('Mobile normalization and 6268147177 single-number restriction', () => {
+  function normalizeMobile(m) {
+    const digits = String(m || '').replace(/\D/g, '');
+    if (digits.length === 10) return digits;
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+    return digits;
+  }
+  const AUTHORIZED_BLOG_MOBILE = '6268147177';
+
+  assert.equal(normalizeMobile('6268147177'), AUTHORIZED_BLOG_MOBILE);
+  assert.equal(normalizeMobile('+916268147177'), AUTHORIZED_BLOG_MOBILE);
+  assert.equal(normalizeMobile('916268147177'), AUTHORIZED_BLOG_MOBILE);
+  assert.equal(normalizeMobile('06268147177'), AUTHORIZED_BLOG_MOBILE);
+  assert.equal(normalizeMobile('+91 62681-47177'), AUTHORIZED_BLOG_MOBILE);
+
+  // Unauthorized numbers
+  assert.notEqual(normalizeMobile('9876543210'), AUTHORIZED_BLOG_MOBILE);
+  assert.notEqual(normalizeMobile('9999999999'), AUTHORIZED_BLOG_MOBILE);
+  assert.notEqual(normalizeMobile(''), AUTHORIZED_BLOG_MOBILE);
+});

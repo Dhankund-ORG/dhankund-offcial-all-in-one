@@ -24,10 +24,10 @@ export async function uniqueBlogSlug(env, slug, excludeId) {
     candidate = base + '-' + n;
   }
 }
-
 export function blogPostOut(row) {
   return Object.assign({}, row, {
     tags: safeJson(row.tags, []),
+    faqs: safeJson(row.faqs, []),
     views: Number(row.views) || 0,
   });
-}
+}
