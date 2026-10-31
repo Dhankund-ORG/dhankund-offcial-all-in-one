@@ -3,7 +3,7 @@ import { all, first, run, insertRow, updateRow, safeJson, nowIso, randomId } fro
 import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebasePassword } from './worker/auth.js';
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
-import { slugify, uniqueBlogSlug, blogPostOut } from './worker/blog.js';
+import { slugify, uniqueBlogSlug, blogPostOut, ensureBlogSchema } from './worker/blog.js';
 import {
   CloudflareError,
   accountFrom,
@@ -550,6 +550,7 @@ app.delete('/api/v1/admin-posts/:id', auth, async function (c) { const me = c.ge
 
 // ---------- Blog (public) ----------
 app.get('/api/v1/blog', async function (c) {
+  await ensureBlogSchema(c.env);
   const category = (c.req.query('category') || '').toString().trim();
   const language = (c.req.query('language') || '').toString().trim();
   const q = (c.req.query('q') || '').toString().trim();
@@ -567,6 +568,7 @@ app.get('/api/v1/blog', async function (c) {
 });
 
 app.get('/api/v1/blog/:slug', async function (c) {
+  await ensureBlogSchema(c.env);
   const row = await first(c.env, "SELECT * FROM blog_posts WHERE slug = ? AND status = 'published'", [c.req.param('slug')]);
   if (!row) return c.json({ error: 'Not found' }, 404);
   if (c.executionCtx && c.executionCtx.waitUntil) {
@@ -740,6 +742,7 @@ app.post('/api/v1/blog-admin/verify-otp', async function (c) {
 
 // ---------- Blog (admin) ----------
 app.get('/api/v1/admin/blog', requireAdmin, async function (c) {
+  await ensureBlogSchema(c.env);
   const status = (c.req.query('status') || '').toString().trim();
   const where = [];
   const params = [];
@@ -749,65 +752,77 @@ app.get('/api/v1/admin/blog', requireAdmin, async function (c) {
 });
 
 app.post('/api/v1/admin/blog', requireAdmin, async function (c) {
-  const b = await readJson(c);
-  const title = (b.title || '').toString().trim();
-  if (!title) return c.json({ error: 'Title is required' }, 400);
-  const slug = await uniqueBlogSlug(c.env, slugify(b.slug || title), '');
-  const id = randomId();
-  const status = b.status === 'published' ? 'published' : 'draft';
-  const now = nowIso();
-  await insertRow(c.env, 'blog_posts', {
-    id: id, title: title, slug: slug,
-    content: (b.content || '').toString(),
-    excerpt: (b.excerpt || '').toString() || null,
-    cover_image: b.cover_image || null,
-    category_id: b.category_id || null,
-    category_name: b.category_name || null,
-    tags: Array.isArray(b.tags) ? JSON.stringify(b.tags) : (b.tags ? String(b.tags) : '[]'),
-    language: b.language === 'en' ? 'en' : 'hi',
-    status: status,
-    author_name: b.author_name || 'Dhankund Team',
-    seo_title: b.seo_title || null,
-    seo_description: b.seo_description || null,
-    keywords: b.keywords ? String(b.keywords).trim() : null,
-    faqs: Array.isArray(b.faqs) ? JSON.stringify(b.faqs) : (b.faqs ? String(b.faqs) : '[]'),
-    published_at: status === 'published' ? now : null,
-    updated_at: now,
-    views: 0,
-    created_at: now,
-  });
-  return c.json({ success: true, id: id, slug: slug });
+  try {
+    await ensureBlogSchema(c.env);
+    const b = await readJson(c);
+    const title = (b.title || '').toString().trim();
+    if (!title) return c.json({ error: 'Title is required' }, 400);
+    const slug = await uniqueBlogSlug(c.env, slugify(b.slug || title), '');
+    const id = randomId();
+    const status = b.status === 'published' ? 'published' : 'draft';
+    const now = nowIso();
+    await insertRow(c.env, 'blog_posts', {
+      id: id, title: title, slug: slug,
+      content: (b.content || '').toString(),
+      excerpt: (b.excerpt || '').toString() || null,
+      cover_image: b.cover_image || null,
+      category_id: b.category_id || null,
+      category_name: b.category_name || null,
+      tags: Array.isArray(b.tags) ? JSON.stringify(b.tags) : (b.tags ? String(b.tags) : '[]'),
+      language: b.language === 'en' ? 'en' : 'hi',
+      status: status,
+      author_name: b.author_name || 'Dhankund Team',
+      seo_title: b.seo_title || null,
+      seo_description: b.seo_description || null,
+      keywords: b.keywords ? String(b.keywords).trim() : null,
+      faqs: Array.isArray(b.faqs) ? JSON.stringify(b.faqs) : (b.faqs ? String(b.faqs) : '[]'),
+      published_at: status === 'published' ? now : null,
+      updated_at: now,
+      views: 0,
+      created_at: now,
+    });
+    return c.json({ success: true, id: id, slug: slug });
+  } catch (err) {
+    console.error('Create blog post error:', err);
+    return c.json({ error: err.message || 'Failed to create blog post' }, 500);
+  }
 });
 
 app.put('/api/v1/admin/blog/:id', requireAdmin, async function (c) {
-  const id = c.req.param('id');
-  const existing = await first(c.env, 'SELECT * FROM blog_posts WHERE id = ?', [id]);
-  if (!existing) return c.json({ error: 'Not found' }, 404);
-  const b = await readJson(c);
-  const title = b.title !== undefined && String(b.title).trim() ? String(b.title).trim() : existing.title;
-  const slug = b.slug !== undefined && String(b.slug).trim() ? await uniqueBlogSlug(c.env, slugify(b.slug), id) : existing.slug;
-  const status = b.status === 'published' || b.publish === true ? 'published' : (b.status === 'draft' ? 'draft' : existing.status);
-  const now = nowIso();
-  const published_at = status === 'published' && !existing.published_at ? now : existing.published_at;
-  await updateRow(c.env, 'blog_posts', 'id', id, {
-    title: title, slug: slug,
-    content: b.content !== undefined ? (b.content || '').toString() : existing.content,
-    excerpt: b.excerpt !== undefined ? (b.excerpt || '').toString() : existing.excerpt,
-    cover_image: b.cover_image !== undefined ? b.cover_image : existing.cover_image,
-    category_id: b.category_id !== undefined ? b.category_id : existing.category_id,
-    category_name: b.category_name !== undefined ? b.category_name : existing.category_name,
-    tags: b.tags !== undefined ? (Array.isArray(b.tags) ? JSON.stringify(b.tags) : String(b.tags)) : existing.tags,
-    language: b.language !== undefined ? (b.language === 'en' ? 'en' : 'hi') : existing.language,
-    status: status,
-    author_name: b.author_name !== undefined ? b.author_name : existing.author_name,
-    seo_title: b.seo_title !== undefined ? b.seo_title : existing.seo_title,
-    seo_description: b.seo_description !== undefined ? b.seo_description : existing.seo_description,
-    keywords: b.keywords !== undefined ? (b.keywords ? String(b.keywords).trim() : null) : existing.keywords,
-    faqs: b.faqs !== undefined ? (Array.isArray(b.faqs) ? JSON.stringify(b.faqs) : String(b.faqs)) : existing.faqs,
-    published_at: published_at,
-    updated_at: now,
-  });
-  return c.json({ success: true, id: id, slug: slug, status: status });
+  try {
+    await ensureBlogSchema(c.env);
+    const id = c.req.param('id');
+    const existing = await first(c.env, 'SELECT * FROM blog_posts WHERE id = ?', [id]);
+    if (!existing) return c.json({ error: 'Not found' }, 404);
+    const b = await readJson(c);
+    const title = b.title !== undefined && String(b.title).trim() ? String(b.title).trim() : existing.title;
+    const slug = b.slug !== undefined && String(b.slug).trim() ? await uniqueBlogSlug(c.env, slugify(b.slug), id) : existing.slug;
+    const status = b.status === 'published' || b.publish === true ? 'published' : (b.status === 'draft' ? 'draft' : existing.status);
+    const now = nowIso();
+    const published_at = status === 'published' && !existing.published_at ? now : existing.published_at;
+    await updateRow(c.env, 'blog_posts', 'id', id, {
+      title: title, slug: slug,
+      content: b.content !== undefined ? (b.content || '').toString() : existing.content,
+      excerpt: b.excerpt !== undefined ? (b.excerpt || '').toString() : existing.excerpt,
+      cover_image: b.cover_image !== undefined ? b.cover_image : existing.cover_image,
+      category_id: b.category_id !== undefined ? b.category_id : existing.category_id,
+      category_name: b.category_name !== undefined ? b.category_name : existing.category_name,
+      tags: b.tags !== undefined ? (Array.isArray(b.tags) ? JSON.stringify(b.tags) : String(b.tags)) : existing.tags,
+      language: b.language !== undefined ? (b.language === 'en' ? 'en' : 'hi') : existing.language,
+      status: status,
+      author_name: b.author_name !== undefined ? b.author_name : existing.author_name,
+      seo_title: b.seo_title !== undefined ? b.seo_title : existing.seo_title,
+      seo_description: b.seo_description !== undefined ? b.seo_description : existing.seo_description,
+      keywords: b.keywords !== undefined ? (b.keywords ? String(b.keywords).trim() : null) : existing.keywords,
+      faqs: b.faqs !== undefined ? (Array.isArray(b.faqs) ? JSON.stringify(b.faqs) : String(b.faqs)) : existing.faqs,
+      published_at: published_at,
+      updated_at: now,
+    });
+    return c.json({ success: true, id: id, slug: slug, status: status });
+  } catch (err) {
+    console.error('Update blog post error:', err);
+    return c.json({ error: err.message || 'Failed to update blog post' }, 500);
+  }
 });
 
 

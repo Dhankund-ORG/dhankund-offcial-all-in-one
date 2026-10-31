@@ -1108,6 +1108,16 @@ const API_BASE = "${apiBase}";
 const AUTHORIZED_MOBILE = "${AUTHORIZED_BLOG_MOBILE}";
 let categoriesList = [];
 
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function checkExistingSession() {
   const token = localStorage.getItem('dhankund_blog_token');
   if (token) {
@@ -1339,17 +1349,46 @@ function insertFormat(prefix, suffix, placeholder) {
 
 function addFaqRow(q = '', a = '') {
   const container = document.getElementById('faqContainer');
+  if (!container) return;
   const row = document.createElement('div');
   row.className = 'faq-builder-row';
   row.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px;';
-  row.innerHTML = \`
-    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-      <span style="font-size:12px;font-weight:700;color:var(--primary);">FAQ प्रश्न</span>
-      <button type="button" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;" onclick="this.closest('.faq-builder-row').remove();updateSeoScore();">हटाएं</button>
-    </div>
-    <input type="text" class="faq-q-input" placeholder="प्रश्न लिखें..." value="\${escapeHtml(q)}" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-bottom:6px;" />
-    <textarea class="faq-a-input" placeholder="विस्तृत उत्तर लिखें..." rows="2" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">\${escapeHtml(a)}</textarea>
-  \`;
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;';
+  const label = document.createElement('span');
+  label.style.cssText = 'font-size:12px;font-weight:700;color:var(--primary);';
+  label.textContent = 'FAQ प्रश्न व उत्तर';
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.style.cssText = 'background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;font-weight:600;';
+  delBtn.textContent = 'हटाएं ✕';
+  delBtn.onclick = function() {
+    row.remove();
+    updateSeoScore();
+  };
+  header.appendChild(label);
+  header.appendChild(delBtn);
+
+  const qInput = document.createElement('input');
+  qInput.type = 'text';
+  qInput.className = 'faq-q-input';
+  qInput.placeholder = 'प्रश्न लिखें (उदा. पर्सनल लोन के लिए सिबिल स्कोर कितना होना चाहिए?)...';
+  qInput.value = q || '';
+  qInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-bottom:6px;box-sizing:border-box;';
+  qInput.oninput = updateSeoScore;
+
+  const aInput = document.createElement('textarea');
+  aInput.className = 'faq-a-input';
+  aInput.placeholder = 'विस्तृत उत्तर लिखें...';
+  aInput.rows = 2;
+  aInput.value = a || '';
+  aInput.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;box-sizing:border-box;';
+  aInput.oninput = updateSeoScore;
+
+  row.appendChild(header);
+  row.appendChild(qInput);
+  row.appendChild(aInput);
   container.appendChild(row);
   updateSeoScore();
 }
@@ -1358,8 +1397,10 @@ function getFaqsData() {
   const rows = document.querySelectorAll('.faq-builder-row');
   const faqs = [];
   rows.forEach(r => {
-    const q = r.querySelector('.faq-q-input').value.trim();
-    const a = r.querySelector('.faq-a-input').value.trim();
+    const qEl = r.querySelector('.faq-q-input');
+    const aEl = r.querySelector('.faq-a-input');
+    const q = qEl ? qEl.value.trim() : '';
+    const a = aEl ? aEl.value.trim() : '';
     if (q && a) faqs.push({ question: q, answer: a });
   });
   return faqs;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { slugify, blogPostOut } from '../worker/blog.js';
+import { slugify, blogPostOut, ensureBlogSchema } from '../worker/blog.js';
 import { verifyPassword } from '../worker/auth.js';
 
 
@@ -85,4 +85,43 @@ test('Blog admin password verification matches Ankit@5298!$ and rejects wrong pa
   const wrong3 = await verifyPassword('', AUTHORIZED_BLOG_HASH);
   assert.equal(wrong3, false);
 });
+
+test('ensureBlogSchema dynamically alters table to add missing keywords and faqs columns', async () => {
+  const executedSql = [];
+  const fakeEnv = {
+    DB: {
+      prepare(sql) {
+        return {
+          bind() {
+            return {
+              async all() {
+                if (sql.includes('PRAGMA table_info')) {
+                  // Simulate old table without keywords and faqs
+                  return {
+                    results: [
+                      { name: 'id' },
+                      { name: 'title' },
+                      { name: 'slug' },
+                      { name: 'content' }
+                    ]
+                  };
+                }
+                return { results: [] };
+              },
+              async run() {
+                executedSql.push(sql);
+                return { success: true };
+              }
+            };
+          }
+        };
+      }
+    }
+  };
+
+  await ensureBlogSchema(fakeEnv);
+  assert.ok(executedSql.some(s => s.includes('ADD COLUMN keywords TEXT')), 'keywords column should be added');
+  assert.ok(executedSql.some(s => s.includes('ADD COLUMN faqs TEXT')), 'faqs column should be added');
+});
+
 
