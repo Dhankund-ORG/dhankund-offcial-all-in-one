@@ -319,3 +319,56 @@ INSERT INTO users (
   CURRENT_TIMESTAMP
 ) ON CONFLICT(email) DO NOTHING;
 
+CREATE TABLE IF NOT EXISTS blog_categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  language TEXT NOT NULL DEFAULT 'hi',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  content TEXT NOT NULL,
+  excerpt TEXT,
+  cover_image TEXT,
+  category_id TEXT,
+  category_name TEXT,
+  tags TEXT,
+  language TEXT NOT NULL DEFAULT 'hi',
+  status TEXT NOT NULL DEFAULT 'draft',
+  author_name TEXT NOT NULL DEFAULT 'Dhankund Team',
+  seo_title TEXT,
+  seo_description TEXT,
+  keywords TEXT,
+  faqs TEXT,
+  views INTEGER NOT NULL DEFAULT 0,
+  published_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS blog_admin_otps (
+  mobile TEXT NOT NULL,
+  otp TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts(slug);
+CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts(status, published_at);
+CREATE INDEX IF NOT EXISTS idx_blog_posts_category ON blog_posts(category_id);
+CREATE INDEX IF NOT EXISTS idx_blog_categories_slug ON blog_categories(slug);
+CREATE INDEX IF NOT EXISTS idx_blog_admin_otps_mobile ON blog_admin_otps(mobile);
+
+-- Seed Initial Blog Categories for Dhankund Loan Services
+INSERT INTO blog_categories (id, name, slug, language, created_at) VALUES
+  ('cat_personal_loan', 'पर्सनल लोन (Personal Loan)', 'personal-loan', 'hi', CURRENT_TIMESTAMP),
+  ('cat_home_loan', 'होम लोन (Home Loan)', 'home-loan', 'hi', CURRENT_TIMESTAMP),
+  ('cat_business_loan', 'बिजनेस लोन (Business Loan)', 'business-loan', 'hi', CURRENT_TIMESTAMP),
+  ('cat_lap', 'लोन अगेंस्ट प्रॉपर्टी (LAP)', 'loan-against-property', 'hi', CURRENT_TIMESTAMP),
+  ('cat_cibil_tips', 'सिबिल स्कोर गाइड (CIBIL Tips)', 'cibil-score-guide', 'hi', CURRENT_TIMESTAMP),
+  ('cat_dsa_guide', 'DSA पार्टनर गाइड (DSA Guide)', 'dsa-guide', 'hi', CURRENT_TIMESTAMP)
+ON CONFLICT(slug) DO NOTHING;

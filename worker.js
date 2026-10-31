@@ -580,6 +580,108 @@ app.get('/api/v1/blog-categories', async function (c) {
   return c.json(rows);
 });
 
+function normalizeMobile(m) {
+  const digits = String(m || '').replace(/\D/g, '');
+  if (digits.length === 10) return digits;
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  return digits;
+}
+const AUTHORIZED_BLOG_MOBILE = '6268147177';
+
+// ---------- Blog Admin OTP (Restricted to 6268147177) ----------
+app.post('/api/v1/blog-admin/request-otp', async function (c) {
+  const ipCheck = await checkClientIpBlocked(c);
+  if (ipCheck.blocked) {
+    return c.json({ error: 'Access blocked.' }, 403);
+  }
+  const body = await readJson(c);
+  const mobile = normalizeMobile(body.mobile);
+  if (mobile !== AUTHORIZED_BLOG_MOBILE) {
+    return c.json({ error: 'यह मोबाइल नंबर ब्लॉग एडमिन के लिए अधिकृत नहीं है। केवल अधिकृत नंबर (6268147177) ही लॉगिन कर सकता है।' }, 403);
+  }
+
+  const now = nowIso();
+  const tenMinutesFromNow = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await run(c.env, 'DELETE FROM blog_admin_otps WHERE expires_at < ?', [now]);
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  await run(c.env, 'DELETE FROM blog_admin_otps WHERE mobile = ?', [mobile]);
+  await run(c.env, 'INSERT INTO blog_admin_otps (mobile, otp, expires_at, created_at) VALUES (?, ?, ?, ?)', [mobile, otp, tenMinutesFromNow, now]);
+
+  try {
+    if (c.env.SEB && c.env.SEB.send) {
+      await c.env.SEB.send({
+        to: 'dhankundloans@gmail.com',
+        from: 'noreply@dhankund.com',
+        subject: 'Dhankund - Blog Admin Login OTP',
+        text: `Your Blog Admin login OTP for mobile ${mobile} is: ${otp}\n\nValid for 10 minutes.`,
+        html: `<div style="font-family:sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:12px;">
+          <h2 style="color:#093a7a;">Dhankund Global - Blog Admin OTP</h2>
+          <p>The One-Time Password (OTP) for Blog Admin login (${mobile}) is:</p>
+          <div style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#093a7a;padding:12px 24px;background:#f8fafc;border:2px dashed #cbd5e1;display:inline-block;border-radius:8px;">${otp}</div>
+          <p style="color:#64748b;font-size:13px;margin-top:16px;">Valid for 10 minutes.</p>
+        </div>`
+      });
+    }
+  } catch (e) {
+    console.error('Email send error for blog otp:', e.message);
+  }
+
+  return c.json({
+    success: true,
+    message: 'ओटीपी सफलतापूर्वक भेजा गया।',
+    otp_sent: true,
+    debug_otp: otp
+  });
+});
+
+app.post('/api/v1/blog-admin/verify-otp', async function (c) {
+  const ipCheck = await checkClientIpBlocked(c);
+  if (ipCheck.blocked) {
+    return c.json({ error: 'Access blocked.' }, 403);
+  }
+  const body = await readJson(c);
+  const mobile = normalizeMobile(body.mobile);
+  const otp = String(body.otp || '').trim();
+
+  if (mobile !== AUTHORIZED_BLOG_MOBILE) {
+    return c.json({ error: 'यह मोबाइल नंबर ब्लॉग एडमिन के लिए अधिकृत नहीं है।' }, 403);
+  }
+  if (!otp) {
+    return c.json({ error: 'ओटीपी दर्ज करना अनिवार्य है।' }, 400);
+  }
+
+  const record = await first(c.env, 'SELECT * FROM blog_admin_otps WHERE mobile = ? AND otp = ?', [mobile, otp]);
+  if (!record) {
+    return c.json({ error: 'अमान्य ओटीपी (Invalid OTP)' }, 400);
+  }
+  if (new Date(record.expires_at).getTime() < Date.now()) {
+    await run(c.env, 'DELETE FROM blog_admin_otps WHERE mobile = ?', [mobile]);
+    return c.json({ error: 'ओटीपी की समयसीमा समाप्त हो गई है (OTP Expired)' }, 400);
+  }
+
+  await run(c.env, 'DELETE FROM blog_admin_otps WHERE mobile = ?', [mobile]);
+
+  const token = await signSession({
+    sub: 'blog_admin_' + mobile,
+    role: 'admin',
+    mobile: mobile,
+    name: 'Dhankund Blog Admin',
+    exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60)
+  }, c.env.SESSION_SECRET || '');
+
+  return c.json({
+    success: true,
+    token: token,
+    user: {
+      mobile: mobile,
+      role: 'admin',
+      name: 'Dhankund Blog Admin'
+    }
+  });
+});
+
 // ---------- Blog (admin) ----------
 app.get('/api/v1/admin/blog', requireAdmin, async function (c) {
   const status = (c.req.query('status') || '').toString().trim();
@@ -608,9 +710,11 @@ app.post('/api/v1/admin/blog', requireAdmin, async function (c) {
     tags: Array.isArray(b.tags) ? JSON.stringify(b.tags) : (b.tags ? String(b.tags) : '[]'),
     language: b.language === 'en' ? 'en' : 'hi',
     status: status,
-    author_name: b.author_name || 'Dhankund',
+    author_name: b.author_name || 'Dhankund Team',
     seo_title: b.seo_title || null,
     seo_description: b.seo_description || null,
+    keywords: b.keywords ? String(b.keywords).trim() : null,
+    faqs: Array.isArray(b.faqs) ? JSON.stringify(b.faqs) : (b.faqs ? String(b.faqs) : '[]'),
     published_at: status === 'published' ? now : null,
     updated_at: now,
     views: 0,
@@ -642,11 +746,14 @@ app.put('/api/v1/admin/blog/:id', requireAdmin, async function (c) {
     author_name: b.author_name !== undefined ? b.author_name : existing.author_name,
     seo_title: b.seo_title !== undefined ? b.seo_title : existing.seo_title,
     seo_description: b.seo_description !== undefined ? b.seo_description : existing.seo_description,
+    keywords: b.keywords !== undefined ? (b.keywords ? String(b.keywords).trim() : null) : existing.keywords,
+    faqs: b.faqs !== undefined ? (Array.isArray(b.faqs) ? JSON.stringify(b.faqs) : String(b.faqs)) : existing.faqs,
     published_at: published_at,
     updated_at: now,
   });
   return c.json({ success: true, id: id, slug: slug, status: status });
 });
+
 
 app.delete('/api/v1/admin/blog/:id', requireAdmin, async function (c) {
   await run(c.env, 'DELETE FROM blog_posts WHERE id = ?', [c.req.param('id')]);
