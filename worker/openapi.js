@@ -20,6 +20,7 @@ export const endpoints = [
   { method: 'GET', path: '/api/v1/blog', auth: false, summary: 'List published blog posts (public)' },
   { method: 'GET', path: '/api/v1/blog/{slug}', auth: false, summary: 'Get one published blog post by slug (public)' },
   { method: 'GET', path: '/api/v1/blog-categories', auth: false, summary: 'List blog categories (public)' },
+  { method: 'POST', path: '/api/v1/blog-admin/login', auth: false, summary: 'Blog admin login with ID and password (restricted to 6268147177)' },
   { method: 'POST', path: '/api/v1/blog-admin/request-otp', auth: false, summary: 'Request OTP for blog admin (restricted to 6268147177)' },
   { method: 'POST', path: '/api/v1/blog-admin/verify-otp', auth: false, summary: 'Verify OTP and get admin session token' },
   { method: 'GET', path: '/api/v1/admin/blog', auth: 'admin', summary: 'List all blog posts incl. drafts (admin)' },

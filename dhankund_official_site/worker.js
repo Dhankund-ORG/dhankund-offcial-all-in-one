@@ -909,43 +909,34 @@ body { margin:0; font-family:'Inter',system-ui,-apple-system,sans-serif; backgro
 </header>
 
 <main class="container">
-  <!-- 1. LOGIN SCREEN (Strictly restricted to 6268147177) -->
+  <!-- 1. LOGIN SCREEN (Strictly restricted to 6268147177 with ID & Password) -->
   <div id="loginSection" class="auth-card">
     <div style="font-size:40px;margin-bottom:12px;">🔐</div>
     <h2>लेखक &amp; एडमिन लॉगिन</h2>
-    <p>धनकुण्ड की आधिकारिक वेबसाइट पर एसईओ ब्लॉग पोस्ट करने हेतु केवल अधिकृत मोबाइल नंबर से लॉगिन करें।</p>
+    <p>धनकुण्ड की आधिकारिक वेबसाइट पर एसईओ ब्लॉग पोस्ट करने हेतु अपनी यूजर आईडी एवं पासवर्ड से लॉगिन करें।</p>
     
     <div class="notice">
-      🔒 <strong>सुरक्षा प्रतिबंध:</strong> केवल अधिकृत मोबाइल नंबर (<strong>6268147177</strong>) द्वारा ओटीपी के माध्यम से ही लॉगिन अनुमत है।
+      🔒 <strong>सुरक्षा सूचना:</strong> केवल अधिकृत आईडी (<strong>6268147177</strong>) एवं पासवर्ड द्वारा ही लॉगिन अनुमत है।
     </div>
 
     <div id="loginAlert" class="alert-box"></div>
 
-    <!-- Step 1: Mobile Input -->
-    <div id="mobileStep">
+    <form id="loginForm" onsubmit="handleLogin(event)">
       <div class="input-group">
-        <label for="adminMobile">अधिकृत मोबाइल नंबर:</label>
-        <input type="tel" id="adminMobile" value="6268147177" placeholder="10 अंकों का मोबाइल नंबर" maxlength="10" />
+        <label for="adminId">यूजर आईडी / मोबाइल नंबर:</label>
+        <input type="text" id="adminId" value="6268147177" placeholder="6268147177" required />
       </div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" onclick="requestOtp()">
-        ओटीपी प्राप्त करें &rarr;
-      </button>
-    </div>
-
-    <!-- Step 2: OTP Verification -->
-    <div id="otpStep" style="display:none;">
       <div class="input-group">
-        <label for="adminOtp">6 अंकों का ओटीपी दर्ज करें:</label>
-        <input type="text" id="adminOtp" placeholder="123456" maxlength="6" style="letter-spacing:6px;font-size:20px;text-align:center;font-weight:bold;" />
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label for="adminPassword" style="margin-bottom:0;">पासवर्ड (Password):</label>
+          <span style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;" onclick="togglePasswordVisibility()">👁️ पासवर्ड देखें/छिपाएं</span>
+        </div>
+        <input type="password" id="adminPassword" placeholder="पासवर्ड दर्ज करें..." required />
       </div>
-      <p id="otpNote" style="font-size:12px;color:#64748b;margin-bottom:16px;">ओटीपी आपके अधिकृत नंबर एवं व्यवस्थापक ईमेल पर प्रेषित किया गया है।</p>
-      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-bottom:10px;" onclick="verifyOtp()">
-        सत्यापित करें एवं स्टूडियो खोलें &rarr;
+      <button type="submit" id="loginSubmitBtn" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;font-size:15px;margin-top:8px;">
+        लॉगिन करें एवं स्टूडियो खोलें &rarr;
       </button>
-      <button class="btn btn-secondary" style="width:100%;justify-content:center;font-size:13px;" onclick="resetLogin()">
-        नंबर बदलें
-      </button>
-    </div>
+    </form>
   </div>
 
   <!-- 2. STUDIO DASHBOARD -->
@@ -1131,72 +1122,56 @@ function showAlert(msg, isError = true) {
   box.style.display = 'block';
 }
 
-async function requestOtp() {
-  const mobileInput = document.getElementById('adminMobile').value.trim();
-  const digits = mobileInput.replace(/\\D/g, '');
-
-  if (digits !== AUTHORIZED_MOBILE) {
-    showAlert('अस्वीकृत: यह मोबाइल नंबर ब्लॉग एडमिन के लिए अधिकृत नहीं है। केवल अधिकृत नंबर ' + AUTHORIZED_MOBILE + ' ही मान्य है।', true);
-    return;
-  }
-
-  showAlert('ओटीपी भेजा जा रहा है...', false);
-  try {
-    const res = await fetch(API_BASE + '/api/v1/blog-admin/request-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobile: digits })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showAlert(data.error || 'ओटीपी भेजने में त्रुटि हुई।', true);
-      return;
-    }
-
-    showAlert('ओटीपी सफलतापूर्वक भेजा गया!', false);
-    document.getElementById('mobileStep').style.display = 'none';
-    document.getElementById('otpStep').style.display = 'block';
-    if (data.debug_otp) {
-      document.getElementById('adminOtp').value = data.debug_otp;
-    }
-  } catch (err) {
-    showAlert('सर्वर से संपर्क करने में असमर्थ।', true);
-  }
+function togglePasswordVisibility() {
+  const pwd = document.getElementById('adminPassword');
+  pwd.type = pwd.type === 'password' ? 'text' : 'password';
 }
 
-async function verifyOtp() {
-  const digits = document.getElementById('adminMobile').value.replace(/\\D/g, '');
-  const otp = document.getElementById('adminOtp').value.trim();
-  if (!otp) {
-    showAlert('कृपया 6 अंकों का ओटीपी दर्ज करें।', true);
+async function handleLogin(e) {
+  if (e) e.preventDefault();
+  const idInput = document.getElementById('adminId').value.trim();
+  const password = document.getElementById('adminPassword').value.trim();
+  const btn = document.getElementById('loginSubmitBtn');
+
+  if (!idInput) {
+    showAlert('कृपया यूजर आईडी दर्ज करें।', true);
+    return;
+  }
+  if (!password) {
+    showAlert('कृपया पासवर्ड दर्ज करें।', true);
     return;
   }
 
   showAlert('सत्यापन किया जा रहा है...', false);
+  btn.disabled = true;
+  btn.textContent = 'सत्यापित हो रहा है...';
+
   try {
-    const res = await fetch(API_BASE + '/api/v1/blog-admin/verify-otp', {
+    const res = await fetch(API_BASE + '/api/v1/blog-admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mobile: digits, otp: otp })
+      body: JSON.stringify({ id: idInput, password: password })
     });
     const data = await res.json();
     if (!res.ok) {
-      showAlert(data.error || 'अमान्य ओटीपी दर्ज किया गया।', true);
+      showAlert(data.error || 'अमान्य आईडी या पासवर्ड। कृपया पुनः प्रयास करें।', true);
+      btn.disabled = false;
+      btn.textContent = 'लॉगिन करें एवं स्टूडियो खोलें →';
       return;
     }
 
     localStorage.setItem('dhankund_blog_token', data.token);
-    showStudio();
+    showAlert('सफलतापूर्वक लॉगिन हो गया!', false);
+    setTimeout(() => {
+      showStudio();
+    }, 400);
   } catch (err) {
-    showAlert('सत्यापन के दौरान त्रुटि हुई।', true);
+    showAlert('सर्वर से संपर्क करने में असमर्थ। कृपया इंटरनेट कनेक्शन जांचें।', true);
+    btn.disabled = false;
+    btn.textContent = 'लॉगिन करें एवं स्टूडियो खोलें →';
   }
 }
 
-function resetLogin() {
-  document.getElementById('otpStep').style.display = 'none';
-  document.getElementById('mobileStep').style.display = 'block';
-  document.getElementById('loginAlert').style.display = 'none';
-}
 
 function logoutAdmin() {
   localStorage.removeItem('dhankund_blog_token');
