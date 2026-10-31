@@ -364,11 +364,10 @@ CREATE INDEX IF NOT EXISTS idx_blog_categories_slug ON blog_categories(slug);
 CREATE INDEX IF NOT EXISTS idx_blog_admin_otps_mobile ON blog_admin_otps(mobile);
 
 -- Seed Initial Blog Categories for Dhankund Loan Services
-INSERT INTO blog_categories (id, name, slug, language, created_at) VALUES
+INSERT OR IGNORE INTO blog_categories (id, name, slug, language, created_at) VALUES
   ('cat_personal_loan', 'पर्सनल लोन (Personal Loan)', 'personal-loan', 'hi', CURRENT_TIMESTAMP),
   ('cat_home_loan', 'होम लोन (Home Loan)', 'home-loan', 'hi', CURRENT_TIMESTAMP),
   ('cat_business_loan', 'बिजनेस लोन (Business Loan)', 'business-loan', 'hi', CURRENT_TIMESTAMP),
   ('cat_lap', 'लोन अगेंस्ट प्रॉपर्टी (LAP)', 'loan-against-property', 'hi', CURRENT_TIMESTAMP),
   ('cat_cibil_tips', 'सिबिल स्कोर गाइड (CIBIL Tips)', 'cibil-score-guide', 'hi', CURRENT_TIMESTAMP),
-  ('cat_dsa_guide', 'DSA पार्टनर गाइड (DSA Guide)', 'dsa-guide', 'hi', CURRENT_TIMESTAMP)
-ON CONFLICT(slug) DO NOTHING;
+  ('cat_dsa_guide', 'DSA पार्टनर गाइड (DSA Guide)', 'dsa-guide', 'hi', CURRENT_TIMESTAMP);
