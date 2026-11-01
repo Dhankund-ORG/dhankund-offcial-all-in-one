@@ -90,9 +90,9 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
 
     // Underwriting & Parameters
     final minCibilController = TextEditingController(text: (existingPolicy?['min_cibil'] ?? 700).toString());
-    final minIncomeController = TextEditingController(text: existingPolicy?['min_income'] ?? 'â¹25,000 / mo');
-    final minTicketSizeController = TextEditingController(text: existingPolicy?['min_ticket_size'] ?? 'â¹1,00,000');
-    final maxTicketSizeController = TextEditingController(text: existingPolicy?['max_ticket_size'] ?? (existingPolicy?['max_loan_amount'] ?? 'â¹50,00,000'));
+    final minIncomeController = TextEditingController(text: existingPolicy?['min_income'] ?? '₹25,000 / mo');
+    final minTicketSizeController = TextEditingController(text: existingPolicy?['min_ticket_size'] ?? '₹1,00,000');
+    final maxTicketSizeController = TextEditingController(text: existingPolicy?['max_ticket_size'] ?? (existingPolicy?['max_loan_amount'] ?? '₹50,00,000'));
     final ltvRatioController = TextEditingController(text: existingPolicy?['ltv_ratio'] ?? 'Up to 90% LTV');
     final maxBouncesController = TextEditingController(text: (existingPolicy?['max_allowed_bounces'] ?? 0).toString());
     final geoRadiusController = TextEditingController(text: existingPolicy?['geo_radius'] ?? '50 km radius');
@@ -362,7 +362,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: minTicketSizeController,
-                                decoration: const InputDecoration(labelText: 'Min. Loan Ticket Size *', hintText: 'e.g. â¹1,00,000'),
+                                decoration: const InputDecoration(labelText: 'Min. Loan Ticket Size *', hintText: 'e.g. ₹1,00,000'),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
                               ),
                             ),
@@ -370,7 +370,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: maxTicketSizeController,
-                                decoration: const InputDecoration(labelText: 'Max. Loan Ticket Size *', hintText: 'e.g. â¹50,00,000'),
+                                decoration: const InputDecoration(labelText: 'Max. Loan Ticket Size *', hintText: 'e.g. ₹50,00,000'),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
                               ),
                             ),
@@ -427,7 +427,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: minIncomeController,
-                                decoration: const InputDecoration(labelText: 'Min Income / Turnover *', hintText: 'â¹25,000 / mo or â¹30 Lakh / yr'),
+                                decoration: const InputDecoration(labelText: 'Min Income / Turnover *', hintText: '₹25,000 / mo or ₹30 Lakh / yr'),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
                               ),
                             ),
@@ -456,7 +456,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: loginFeeController,
-                                decoration: const InputDecoration(labelText: 'Bank Login Fee *', hintText: 'e.g. â¹2,500 + GST or Nil'),
+                                decoration: const InputDecoration(labelText: 'Bank Login Fee *', hintText: 'e.g. ₹2,500 + GST or Nil'),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
                               ),
                             ),
@@ -483,7 +483,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: processingFeeController,
-                          decoration: const InputDecoration(labelText: 'Processing Fee Policy', hintText: 'e.g. 0.99% flat or â¹3,000 promo'),
+                          decoration: const InputDecoration(labelText: 'Processing Fee Policy', hintText: 'e.g. 0.99% flat or ₹3,000 promo'),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -492,7 +492,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                           decoration: const InputDecoration(
                             labelText: 'Special Guidelines / Key Underwriting Highlights',
                             alignLabelWithHint: true,
-                            hintText: 'e.g. Immediate digital sanction for Super-A companies, no property verification for loans < â‚¹30L, banking surrogate program active.',
+                            hintText: 'e.g. Immediate digital sanction for Super-A companies, no property verification for loans < ₹30L, banking surrogate program active.',
                           ),
                         ),
 
@@ -935,7 +935,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
               _buildMetricCard(
                 icon: Icons.currency_rupee,
                 title: 'Ticket Sizes Supported',
-                value: 'â¹50K to â¹10 Cr',
+                value: '₹50K to ₹10 Cr',
                 subtitle: 'Micro to Super-HNI loans',
                 color: Colors.purpleAccent,
               ),
