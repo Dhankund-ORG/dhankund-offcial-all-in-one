@@ -360,6 +360,8 @@ class ApiService {
     required String loanType,
     required String estimatedAmount,
     required bool consentGiven,
+    String? documentUrl,
+    String? leadId,
     String status = 'Invited',
   }) async {
     await ApiClient.post('/api/v1/referrals', {
@@ -370,6 +372,8 @@ class ApiService {
       'relationship': relationship,
       'loan_type': loanType,
       'estimated_amount': estimatedAmount,
+      'document_url': documentUrl,
+      'lead_id': leadId,
       'consent_given': consentGiven,
       'status': status,
     });

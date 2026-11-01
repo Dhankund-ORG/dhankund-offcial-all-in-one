@@ -147,8 +147,8 @@ class ApiService {
   Future<void> createLoan(Map<String, dynamic> body) async { await ApiClient.post('/api/v1/loans', body); }
 
   Future<List<Map<String, dynamic>>> fetchMyReferrals() async { final data = await ApiClient.get('/api/v1/me/referrals'); return _asList(data); }
-  Future<void> createReferral({required String friendName, required String friendMobile, String? friendEmail, required String relationship, required String loanType, required String estimatedAmount, required bool consentGiven, String status = 'Invited'}) async {
-    await ApiClient.post('/api/v1/referrals', {'friend_name': friendName, 'friend_mobile': friendMobile, 'friend_email': friendEmail, 'relationship': relationship, 'loan_type': loanType, 'estimated_amount': estimatedAmount, 'consent_given': consentGiven, 'status': status});
+  Future<void> createReferral({required String friendName, required String friendMobile, String? friendEmail, required String relationship, required String loanType, required String estimatedAmount, required bool consentGiven, String? documentUrl, String status = 'Invited'}) async {
+    await ApiClient.post('/api/v1/referrals', {'friend_name': friendName, 'friend_mobile': friendMobile, 'friend_email': friendEmail, 'relationship': relationship, 'loan_type': loanType, 'estimated_amount': estimatedAmount, 'document_url': documentUrl, 'consent_given': consentGiven, 'status': status});
   }
 
   Future<List<Map<String, dynamic>>> fetchNewsFeed() async { final data = await ApiClient.get('/api/v1/news-feed'); return _asList(data); }

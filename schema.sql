@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS loan_applications (
 
 CREATE TABLE IF NOT EXISTS referrals (
   id TEXT PRIMARY KEY,
+  lead_id TEXT,
   referrer_id TEXT,
   friend_name TEXT,
   friend_mobile TEXT,
@@ -117,6 +118,7 @@ CREATE TABLE IF NOT EXISTS referrals (
   relationship TEXT,
   loan_type TEXT,
   estimated_amount TEXT,
+  document_url TEXT,
   consent_given INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'Invited',
   created_at TEXT
@@ -281,6 +283,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
 CREATE INDEX IF NOT EXISTS idx_loans_submitted_at ON loan_applications (submitted_at);
 CREATE INDEX IF NOT EXISTS idx_loans_email ON loan_applications (email);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_lead_id ON referrals (lead_id);
 
 CREATE TABLE IF NOT EXISTS banners (
   id TEXT PRIMARY KEY,
