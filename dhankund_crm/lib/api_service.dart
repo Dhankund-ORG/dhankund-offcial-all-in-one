@@ -485,6 +485,14 @@ class ApiService {
     String? greenBeltPropertyFunding,
     String? plotPurchase,
     String? plotMortgage,
+    String? isSalarySlipRequired,
+    String? residenceOwnershipType,
+    String? businessOwnershipType,
+    String? isGstRequired,
+    String? isItrRequired,
+    String? isUdyamRequired,
+    String? isCurrentAccountRequired,
+    String? bankingsConsidered,
   }) async {
     final body = {
       'bank_name': bankName,
@@ -533,6 +541,14 @@ class ApiService {
       'green_belt_property_funding': greenBeltPropertyFunding,
       'plot_purchase': plotPurchase,
       'plot_mortgage': plotMortgage,
+      'is_salary_slip_required': isSalarySlipRequired,
+      'residence_ownership_type': residenceOwnershipType,
+      'business_ownership_type': businessOwnershipType,
+      'is_gst_required': isGstRequired,
+      'is_itr_required': isItrRequired,
+      'is_udyam_required': isUdyamRequired,
+      'is_current_account_required': isCurrentAccountRequired,
+      'bankings_considered': bankingsConsidered,
     };
     if (docId != null && docId.isNotEmpty) {
       await ApiClient.put('/api/v1/bank-policies/' + docId, body);

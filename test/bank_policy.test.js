@@ -50,6 +50,14 @@ function policyColumns(b) {
     green_belt_property_funding: b.green_belt_property_funding || null,
     plot_purchase: b.plot_purchase || null,
     plot_mortgage: b.plot_mortgage || null,
+    is_salary_slip_required: b.is_salary_slip_required || null,
+    residence_ownership_type: b.residence_ownership_type || null,
+    business_ownership_type: b.business_ownership_type || null,
+    is_gst_required: b.is_gst_required || null,
+    is_itr_required: b.is_itr_required || null,
+    is_udyam_required: b.is_udyam_required || null,
+    is_current_account_required: b.is_current_account_required || null,
+    bankings_considered: b.bankings_considered || null,
   };
 }
 
@@ -104,6 +112,52 @@ test('policyColumns properly formats Home Loan & Mortgage Loan underwriting fiel
   assert.equal(output.plot_mortgage, 'YES');
 });
 
+test('policyColumns handles Personal Loan policies without LTV and with salary/residence norms', () => {
+  const input = {
+    bank_name: 'ICICI Bank',
+    loan_type: 'Personal Loan',
+    ltv_ratio: null,
+    max_allowed_bounces: 0,
+    is_salary_slip_required: 'YES - Mandatory (अनिवार्य)',
+    residence_ownership_type: 'Owned Only Required (केवल खुद का मकान)',
+  };
+
+  const output = policyColumns(input);
+
+  assert.equal(output.bank_name, 'ICICI Bank');
+  assert.equal(output.loan_type, 'Personal Loan');
+  assert.equal(output.ltv_ratio, null);
+  assert.equal(output.max_allowed_bounces, 0);
+  assert.equal(output.is_salary_slip_required, 'YES - Mandatory (अनिवार्य)');
+  assert.equal(output.residence_ownership_type, 'Owned Only Required (केवल खुद का मकान)');
+});
+
+test('policyColumns handles Business Loan policies without LTV and with business/doc norms', () => {
+  const input = {
+    bank_name: 'Axis Bank',
+    loan_type: 'Business Loan',
+    ltv_ratio: null,
+    business_ownership_type: 'At least One Owned Required (Residence or Office)',
+    is_gst_required: 'YES',
+    is_itr_required: 'YES',
+    is_udyam_required: 'YES',
+    is_current_account_required: 'YES',
+    bankings_considered: '6+',
+  };
+
+  const output = policyColumns(input);
+
+  assert.equal(output.bank_name, 'Axis Bank');
+  assert.equal(output.loan_type, 'Business Loan');
+  assert.equal(output.ltv_ratio, null);
+  assert.equal(output.business_ownership_type, 'At least One Owned Required (Residence or Office)');
+  assert.equal(output.is_gst_required, 'YES');
+  assert.equal(output.is_itr_required, 'YES');
+  assert.equal(output.is_udyam_required, 'YES');
+  assert.equal(output.is_current_account_required, 'YES');
+  assert.equal(output.bankings_considered, '6+');
+});
+
 test('policyColumns safely handles missing fields and defaults to null', () => {
   const output = policyColumns({});
   assert.equal(output.bank_name, null);
@@ -113,4 +167,12 @@ test('policyColumns safely handles missing fields and defaults to null', () => {
   assert.equal(output.ltv_on_plot, null);
   assert.equal(output.segment, null);
   assert.equal(output.road_winding_property_funding, null);
+  assert.equal(output.is_salary_slip_required, null);
+  assert.equal(output.residence_ownership_type, null);
+  assert.equal(output.business_ownership_type, null);
+  assert.equal(output.is_gst_required, null);
+  assert.equal(output.is_itr_required, null);
+  assert.equal(output.is_udyam_required, null);
+  assert.equal(output.is_current_account_required, null);
+  assert.equal(output.bankings_considered, null);
 });

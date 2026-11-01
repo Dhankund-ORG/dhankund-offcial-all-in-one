@@ -144,12 +144,27 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
     String plotPurchase = existingPolicy?['plot_purchase'] ?? 'YES';
     String plotMortgage = existingPolicy?['plot_mortgage'] ?? 'YES';
 
+    // Personal Loan Specific Policies
+    String isSalarySlipRequired = existingPolicy?['is_salary_slip_required'] ?? 'YES';
+    String residenceOwnershipType = existingPolicy?['residence_ownership_type'] ?? 'Owned Only';
+
+    // Business Loan Specific Policies
+    String businessOwnershipType = existingPolicy?['business_ownership_type'] ?? 'At least One Owned Required';
+    String isGstRequired = existingPolicy?['is_gst_required'] ?? 'YES';
+    String isItrRequired = existingPolicy?['is_itr_required'] ?? 'YES';
+    String isUdyamRequired = existingPolicy?['is_udyam_required'] ?? 'YES';
+    String isCurrentAccountRequired = existingPolicy?['is_current_account_required'] ?? 'YES';
+    String bankingsConsidered = existingPolicy?['bankings_considered'] ?? '6';
+
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final isHomeOrMortgage = (loanType == 'Home Loan' || loanType == 'Mortgage Loan');
+            final isPersonalLoan = (loanType == 'Personal Loan');
+            final isBusinessLoan = (loanType == 'Business Loan');
+            final isUnsecured = (isPersonalLoan || isBusinessLoan);
 
             return AlertDialog(
               backgroundColor: AppTheme.obsidianMedium,
@@ -377,41 +392,61 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: ltvRatioController,
-                                decoration: const InputDecoration(
-                                  labelText: 'LTV (Loan to Value Ratio) *',
-                                  hintText: 'e.g. Up to 90% LTV / N/A (Unsecured)',
-                                  helperText: 'For Property / LAP / Home Loans',
-                                  helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                        if (!isUnsecured) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: ltvRatioController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'LTV (Loan to Value Ratio) *',
+                                    hintText: 'e.g. Up to 90% LTV',
+                                    helperText: 'For Property / LAP / Home Loans',
+                                    helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-  isExpanded: true,
-                                value: mProfileAllowed,
-                                dropdownColor: AppTheme.obsidianMedium,
-                                decoration: const InputDecoration(
-                                  labelText: 'M Profile Funding *',
-                                  helperText: 'Muslim / Minority community loan policy',
-                                  helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  isExpanded: true,
+                                  value: mProfileAllowed,
+                                  dropdownColor: AppTheme.obsidianMedium,
+                                  decoration: const InputDecoration(
+                                    labelText: 'M Profile Funding *',
+                                    helperText: 'Muslim / Minority community loan policy',
+                                    helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'YES', child: Text('YES - M Profile Funded')),
+                                    DropdownMenuItem(value: 'NO', child: Text('NO - M Profile Restricted')),
+                                  ],
+                                  onChanged: (val) {
+                                    if (val != null) setDialogState(() => mProfileAllowed = val);
+                                  },
                                 ),
-                                items: const [
-                                  DropdownMenuItem(value: 'YES', child: Text('YES - M Profile Funded')),
-                                  DropdownMenuItem(value: 'NO', child: Text('NO - M Profile Restricted')),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) setDialogState(() => mProfileAllowed = val);
-                                },
                               ),
+                            ],
+                          ),
+                        ] else ...[
+                          DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            value: mProfileAllowed,
+                            dropdownColor: AppTheme.obsidianMedium,
+                            decoration: const InputDecoration(
+                              labelText: 'M Profile Funding *',
+                              helperText: 'Muslim / Minority community loan policy',
+                              helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
                             ),
-                          ],
-                        ),
+                            items: const [
+                              DropdownMenuItem(value: 'YES', child: Text('YES - M Profile Funded')),
+                              DropdownMenuItem(value: 'NO', child: Text('NO - M Profile Restricted')),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) setDialogState(() => mProfileAllowed = val);
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         Row(
                           children: [
@@ -436,7 +471,12 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                               child: TextFormField(
                                 controller: maxBouncesController,
                                 keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(labelText: 'Max Allowed Bounces *', hintText: '0, 1 or 2'),
+                                decoration: const InputDecoration(
+                                  labelText: 'Max Allowed Bounces (in case of BALANCE TRANSFER) *',
+                                  hintText: '0, 1 or 2',
+                                  helperText: 'in case of BALANCE TRANSFER',
+                                  helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 10),
+                                ),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
                               ),
                             ),
@@ -767,6 +807,235 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             ),
                           ),
                         ],
+
+                        // SECTION: PERSONAL LOAN EXCLUSIVE POLICIES (पर्सनल लोन अंडरराइटिंग मानदंड)
+                        if (isPersonalLoan) ...[
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.blueAccent.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.25)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.person_pin_outlined, color: Colors.blueAccent, size: 20),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '4. PERSONAL LOAN EXCLUSIVE POLICIES (पर्सनल लोन अंडरराइटिंग मानदंड)',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blueAccent,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        isExpanded: true,
+                                        value: isSalarySlipRequired,
+                                        dropdownColor: AppTheme.obsidianMedium,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Is Salary Slip Required? *',
+                                          helperText: 'सैलरी स्लिप की अनिवार्यता',
+                                          helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'YES', child: Text('YES - Salary Slip Mandatory (अनिवार्य)')),
+                                          DropdownMenuItem(value: 'NO', child: Text('NO - Banking / Surrogate Program Allowed (आवश्यक नहीं)')),
+                                        ],
+                                        onChanged: (val) {
+                                          if (val != null) setDialogState(() => isSalarySlipRequired = val);
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        isExpanded: true,
+                                        value: residenceOwnershipType,
+                                        dropdownColor: AppTheme.obsidianMedium,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Customer Residence Status *',
+                                          helperText: 'निवास स्वामित्व आवश्यकता',
+                                          helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'Owned Only', child: Text('Owned Only Required (केवल खुद का मकान)')),
+                                          DropdownMenuItem(value: 'Rented Allowed', child: Text('Rented Allowed (किरायेदार भी मान्य)')),
+                                        ],
+                                        onChanged: (val) {
+                                          if (val != null) setDialogState(() => residenceOwnershipType = val);
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // SECTION: BUSINESS LOAN EXCLUSIVE POLICIES (बिजनेस लोन अंडरराइटिंग एवं बैंकिंग मानदंड)
+                        if (isBusinessLoan) ...[
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppTheme.emeraldGreen.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.25)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.storefront_outlined, color: AppTheme.emeraldGreen, size: 20),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '4. BUSINESS LOAN EXCLUSIVE POLICIES (बिजनेस लोन अंडरराइटिंग एवं बैंकिंग मानदंड)',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.emeraldGreen,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Residence / Business Ownership & Bankings Considered
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: DropdownButtonFormField<String>(
+                                        isExpanded: true,
+                                        value: businessOwnershipType,
+                                        dropdownColor: AppTheme.obsidianMedium,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Residence / Business Ownership *',
+                                          helperText: 'निवास या व्यवसाय स्वामित्व मानदंड',
+                                          helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'At least One Owned Required',
+                                            child: Text('At least One Owned Required (Residence or Office - 1 खुद का)'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'Both Rented Allowed',
+                                            child: Text('Both Rented Allowed (दोनों किराये पर भी मान्य)'),
+                                          ),
+                                        ],
+                                        onChanged: (val) {
+                                          if (val != null) setDialogState(() => businessOwnershipType = val);
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      flex: 2,
+                                      child: DropdownButtonFormField<String>(
+                                        isExpanded: true,
+                                        value: bankingsConsidered,
+                                        dropdownColor: AppTheme.obsidianMedium,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Bankings Considered *',
+                                          helperText: '(in case of banking surrogate income program)',
+                                          helperStyle: TextStyle(color: AppTheme.textSecondary, fontSize: 10),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: '1', child: Text('1 Month Banking')),
+                                          DropdownMenuItem(value: '2', child: Text('2 Months Banking')),
+                                          DropdownMenuItem(value: '3', child: Text('3 Months Banking')),
+                                          DropdownMenuItem(value: '4', child: Text('4 Months Banking')),
+                                          DropdownMenuItem(value: '5', child: Text('5 Months Banking')),
+                                          DropdownMenuItem(value: '6', child: Text('6 Months Banking')),
+                                          DropdownMenuItem(value: '6+', child: Text('6+ Months Banking')),
+                                        ],
+                                        onChanged: (val) {
+                                          if (val != null) setDialogState(() => bankingsConsidered = val);
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+
+                                // 4 Compliance & Document Check Dropdowns (GST, ITR, Udyam, Current Account)
+                                const Text(
+                                  'REGISTRATION & BANKING CRITERIA (अनिवार्य दस्तावेज एवं खाता आवश्यकता):',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.textSecondary,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'IS GST REQUIRED? *',
+                                        hindiLabel: 'GST रजिस्ट्रेशन अनिवार्य',
+                                        value: isGstRequired,
+                                        onChanged: (v) => setDialogState(() => isGstRequired = v ?? 'YES'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'IS ITR REQUIRED? *',
+                                        hindiLabel: 'ITR रिटर्न अनिवार्य',
+                                        value: isItrRequired,
+                                        onChanged: (v) => setDialogState(() => isItrRequired = v ?? 'YES'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'IS UDYAM REQUIRED? *',
+                                        hindiLabel: 'उद्यम आधार अनिवार्य',
+                                        value: isUdyamRequired,
+                                        onChanged: (v) => setDialogState(() => isUdyamRequired = v ?? 'YES'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildPropertyYesNoField(
+                                        label: 'CURRENT A/C REQUIRED? *',
+                                        hindiLabel: 'करंट अकाउंट अनिवार्य',
+                                        value: isCurrentAccountRequired,
+                                        onChanged: (v) => setDialogState(() => isCurrentAccountRequired = v ?? 'YES'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -800,7 +1069,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                       minIncome: minIncomeController.text.trim(),
                       minTicketSize: minTicketSizeController.text.trim(),
                       maxTicketSize: maxTicketSizeController.text.trim(),
-                      ltvRatio: ltvRatioController.text.trim().isNotEmpty ? ltvRatioController.text.trim() : null,
+                      ltvRatio: isUnsecured ? null : (ltvRatioController.text.trim().isNotEmpty ? ltvRatioController.text.trim() : null),
                       ltvOnPlot: isHomeOrMortgage && ltvOnPlotController.text.trim().isNotEmpty ? ltvOnPlotController.text.trim() : null,
                       mProfileAllowed: mProfileAllowed,
                       maxAllowedBounces: int.tryParse(maxBouncesController.text.trim()) ?? 0,
@@ -828,6 +1097,14 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                       greenBeltPropertyFunding: isHomeOrMortgage ? greenBeltProperty : null,
                       plotPurchase: isHomeOrMortgage ? plotPurchase : null,
                       plotMortgage: isHomeOrMortgage ? plotMortgage : null,
+                      isSalarySlipRequired: isPersonalLoan ? isSalarySlipRequired : null,
+                      residenceOwnershipType: isPersonalLoan ? residenceOwnershipType : null,
+                      businessOwnershipType: isBusinessLoan ? businessOwnershipType : null,
+                      isGstRequired: isBusinessLoan ? isGstRequired : null,
+                      isItrRequired: isBusinessLoan ? isItrRequired : null,
+                      isUdyamRequired: isBusinessLoan ? isUdyamRequired : null,
+                      isCurrentAccountRequired: isBusinessLoan ? isCurrentAccountRequired : null,
+                      bankingsConsidered: isBusinessLoan ? bankingsConsidered : null,
                     );
 
                     if (mounted) {
@@ -1123,6 +1400,8 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
     final minTicket = policy['min_ticket_size'] ?? '₹1 Lakh';
     final maxTicket = policy['max_ticket_size'] ?? (policy['max_loan_amount'] ?? '₹50 Lakh');
     final isHomeOrLap = policy['loan_type'] == 'Home Loan' || policy['loan_type'] == 'Mortgage Loan';
+    final isPersonal = policy['loan_type'] == 'Personal Loan';
+    final isBusiness = policy['loan_type'] == 'Business Loan';
 
     final Color productBadgeColor = productType == 'Prime'
         ? AppTheme.royalGold
@@ -1320,7 +1599,8 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
             children: [
               _buildCriterionBadge('Min: $minTicket', Colors.cyanAccent),
               _buildCriterionBadge('Max: $maxTicket', Colors.cyanAccent),
-              _buildCriterionBadge('LTV: $ltv', Colors.orangeAccent),
+              if (!isPersonal && !isBusiness)
+                _buildCriterionBadge('LTV: $ltv', Colors.orangeAccent),
               _buildCriterionBadge('Min CIBIL: $minCibil', minCibil >= 720 ? Colors.orange : AppTheme.emeraldGreen),
               _buildCriterionBadge('Income: ${policy['min_income']}', AppTheme.royalGold),
               _buildCriterionBadge('Bounces: $maxBounces Max', maxBounces == 0 ? Colors.redAccent : Colors.teal),
@@ -1328,6 +1608,26 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
               _buildCriterionBadge('Login Fee: ${policy['login_fee'] ?? 'Nil'}', Colors.purpleAccent),
               _buildCriterionBadge('ROI: ${policy['interest_rate']}', Colors.amber),
               _buildCriterionBadge('TAT: ${policy['tat_days']}', Colors.lightGreenAccent),
+              if (isPersonal) ...[
+                if (policy['is_salary_slip_required'] != null)
+                  _buildCriterionBadge('Salary Slip: ${policy['is_salary_slip_required']}', Colors.blueAccent),
+                if (policy['residence_ownership_type'] != null)
+                  _buildCriterionBadge('Residence: ${policy['residence_ownership_type']}', Colors.purpleAccent),
+              ],
+              if (isBusiness) ...[
+                if (policy['business_ownership_type'] != null)
+                  _buildCriterionBadge('Ownership: ${policy['business_ownership_type']}', Colors.tealAccent),
+                if (policy['bankings_considered'] != null)
+                  _buildCriterionBadge('Banking: ${policy['bankings_considered']} Mo', Colors.lightGreenAccent),
+                if (policy['is_gst_required'] != null)
+                  _buildCriterionBadge('GST: ${policy['is_gst_required']}', Colors.orangeAccent),
+                if (policy['is_itr_required'] != null)
+                  _buildCriterionBadge('ITR: ${policy['is_itr_required']}', Colors.amberAccent),
+                if (policy['is_udyam_required'] != null)
+                  _buildCriterionBadge('Udyam: ${policy['is_udyam_required']}', Colors.cyanAccent),
+                if (policy['is_current_account_required'] != null)
+                  _buildCriterionBadge('Current A/C: ${policy['is_current_account_required']}', Colors.indigoAccent),
+              ],
               if (policy['repayment_tenure'] != null && policy['repayment_tenure'].toString().isNotEmpty)
                 _buildCriterionBadge('Tenure: ${policy['repayment_tenure']}', Colors.lightBlueAccent),
               if (policy['age_limit'] != null && policy['age_limit'].toString().isNotEmpty)
@@ -1363,6 +1663,62 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                     ),
                     SizedBox(width: 4),
                     Icon(Icons.arrow_forward_ios, size: 9, color: AppTheme.royalGold),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (isPersonal && (policy['is_salary_slip_required'] != null || policy['residence_ownership_type'] != null)) ...[
+            InkWell(
+              onTap: () => _showPersonalLoanNormsDialog(policy),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.35)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_pin_outlined, size: 13, color: Colors.blueAccent),
+                    SizedBox(width: 6),
+                    Text(
+                      'View Personal Loan Underwriting Norms',
+                      style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 10),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios, size: 9, color: Colors.blueAccent),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (isBusiness && (policy['business_ownership_type'] != null || policy['bankings_considered'] != null || policy['is_gst_required'] != null)) ...[
+            InkWell(
+              onTap: () => _showBusinessLoanNormsDialog(policy),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.emeraldGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.emeraldGreen.withValues(alpha: 0.35)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.storefront_outlined, size: 13, color: AppTheme.emeraldGreen),
+                    SizedBox(width: 6),
+                    Text(
+                      'View Business Loan & Banking Norms',
+                      style: TextStyle(color: AppTheme.emeraldGreen, fontWeight: FontWeight.bold, fontSize: 10),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios, size: 9, color: AppTheme.emeraldGreen),
                   ],
                 ),
               ),
@@ -1624,6 +1980,162 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showPersonalLoanNormsDialog(Map<String, dynamic> policy) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppTheme.obsidianMedium,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.blueAccent.withValues(alpha: 0.25)),
+          ),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.person_pin_outlined, color: Colors.blueAccent, size: 22),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${policy['bank_name']} - Personal Loan Criteria',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textPrimary),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppTheme.textSecondary),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 650,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'PERSONAL LOAN UNDERWRITING NORMS',
+                          style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildDetailRow('Salary Slip Requirement:', policy['is_salary_slip_required'] == 'YES' ? 'YES - Salary Slip Mandatory (अनिवार्य)' : 'NO - Banking / Surrogate Allowed (आवश्यक नहीं)'),
+                        _buildDetailRow('Residence Status Requirement:', policy['residence_ownership_type'] ?? 'Owned Only Required'),
+                        _buildDetailRow('Minimum CIBIL Score:', '${policy['min_cibil'] ?? 700} Cutoff'),
+                        _buildDetailRow('Min Net Monthly Salary:', policy['min_income'] ?? '₹25,000 / mo'),
+                        _buildDetailRow('Ticket Size Range:', '${policy['min_ticket_size'] ?? '₹1 Lakh'} to ${policy['max_ticket_size'] ?? '₹50 Lakh'}'),
+                        _buildDetailRow('Max Allowed Bounces (BT):', '${policy['max_allowed_bounces'] ?? 0} allowed'),
+                        _buildDetailRow('Bank Login Fee:', policy['login_fee'] ?? 'Nil'),
+                        _buildDetailRow('Processing Fee:', policy['processing_fee'] ?? 'Standard'),
+                        _buildDetailRow('Interest Rate Range:', policy['interest_rate'] ?? 'N/A'),
+                        _buildDetailRow('TAT Days:', policy['tat_days'] ?? '3 Days'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showBusinessLoanNormsDialog(Map<String, dynamic> policy) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppTheme.obsidianMedium,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: AppTheme.emeraldGreen.withValues(alpha: 0.25)),
+          ),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.storefront_outlined, color: AppTheme.emeraldGreen, size: 22),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${policy['bank_name']} - Business Loan Criteria',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.textPrimary),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppTheme.textSecondary),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 650,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'BUSINESS LOAN UNDERWRITING & BANKING NORMS',
+                          style: TextStyle(color: AppTheme.emeraldGreen, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.8),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildDetailRow('Residence / Business Ownership:', policy['business_ownership_type'] ?? 'At least One Owned Required'),
+                        _buildDetailRow('Bankings Considered (Surrogate):', '${policy['bankings_considered'] ?? '6'} Months'),
+                        _buildDetailRow('GST Registration Required:', policy['is_gst_required'] ?? 'YES'),
+                        _buildDetailRow('ITR Filing Required:', policy['is_itr_required'] ?? 'YES'),
+                        _buildDetailRow('Udyam Aadhar Required:', policy['is_udyam_required'] ?? 'YES'),
+                        _buildDetailRow('Current Account Required:', policy['is_current_account_required'] ?? 'YES'),
+                        _buildDetailRow('Minimum CIBIL Score:', '${policy['min_cibil'] ?? 700} Cutoff'),
+                        _buildDetailRow('Min Turnover / Income:', policy['min_income'] ?? '₹30 Lakh / yr'),
+                        _buildDetailRow('Ticket Size Range:', '${policy['min_ticket_size'] ?? '₹1 Lakh'} to ${policy['max_ticket_size'] ?? '₹50 Lakh'}'),
+                        _buildDetailRow('Max Allowed Bounces (BT):', '${policy['max_allowed_bounces'] ?? 0} allowed'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
