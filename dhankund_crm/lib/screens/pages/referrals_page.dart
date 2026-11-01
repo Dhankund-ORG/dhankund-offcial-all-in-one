@@ -257,7 +257,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: amountController,
-                                decoration: const InputDecoration(labelText: 'Estimated Amount (â¹)'),
+                                decoration: const InputDecoration(labelText: 'Estimated Amount (₹)'),
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -402,7 +402,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Text('â¹', style: TextStyle(fontSize: 20, color: AppTheme.emeraldGreen, fontWeight: FontWeight.bold)),
+                            const Text('₹', style: TextStyle(fontSize: 20, color: AppTheme.emeraldGreen, fontWeight: FontWeight.bold)),
                             const SizedBox(width: 4),
                             Text(
                               _totalDisbursed.toStringAsFixed(0),
@@ -427,7 +427,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Text('â¹', style: TextStyle(fontSize: 20, color: Colors.amber, fontWeight: FontWeight.bold)),
+                            const Text('₹', style: TextStyle(fontSize: 20, color: Colors.amber, fontWeight: FontWeight.bold)),
                             const SizedBox(width: 4),
                             Text(
                               _totalProcessing.toStringAsFixed(0),
@@ -556,7 +556,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                                         const Text('LOAN TARGET', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.bold)),
                                         const SizedBox(height: 2),
                                         Text(ref['loan_type'] ?? 'Personal Loan', style: const TextStyle(fontWeight: FontWeight.w600)),
-                                        Text('Est. â¹${ref['estimated_amount'] ?? '0'}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                                        Text('Est. ₹${ref['estimated_amount'] ?? '0'}', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                                       ],
                                     ),
                                   ),
@@ -566,7 +566,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                                       crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
                                         Text(
-                                          payoutReward > 0 ? '+â¹ ${payoutReward.toStringAsFixed(0)}' : 'â¹ 0',
+                                          payoutReward > 0 ? '+₹ ${payoutReward.toStringAsFixed(0)}' : '₹ 0',
                                           style: TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
