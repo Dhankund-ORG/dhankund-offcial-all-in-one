@@ -36,6 +36,11 @@ CREATE TABLE IF NOT EXISTS users (
   area_manager_mobile TEXT,
   nominee_name TEXT,
   office_address TEXT,
+  alternate_mobile TEXT,
+  dob TEXT,
+  pan_number TEXT,
+  company_address TEXT,
+  custom_id TEXT,
   data TEXT,
   created_at TEXT,
   updated_at TEXT
@@ -377,3 +382,21 @@ INSERT OR IGNORE INTO blog_categories (id, name, slug, language, created_at) VAL
   ('cat_lap', 'लोन अगेंस्ट प्रॉपर्टी (LAP)', 'loan-against-property', 'hi', CURRENT_TIMESTAMP),
   ('cat_cibil_tips', 'सिबिल स्कोर गाइड (CIBIL Tips)', 'cibil-score-guide', 'hi', CURRENT_TIMESTAMP),
   ('cat_dsa_guide', 'DSA पार्टनर गाइड (DSA Guide)', 'dsa-guide', 'hi', CURRENT_TIMESTAMP);
+
+CREATE TABLE IF NOT EXISTS insurance_applications (
+  id TEXT PRIMARY KEY,
+  insurance_type TEXT,
+  name TEXT,
+  dob TEXT,
+  mobile_number TEXT,
+  email TEXT,
+  address TEXT,
+  yearly_income TEXT,
+  dependents TEXT,
+  occupation TEXT,
+  status TEXT DEFAULT 'Pending',
+  user_id TEXT,
+  created_at TEXT,
+  updated_at TEXT
+);
+

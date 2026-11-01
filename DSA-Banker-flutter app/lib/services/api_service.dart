@@ -167,6 +167,11 @@ class ApiService {
   Future<List<Map<String, dynamic>>> fetchDirectory(String role) async { final data = await ApiClient.get('/api/v1/directory?role=' + role); return _asList(data); }
   Future<List<Map<String, dynamic>>> fetchBankPolicies() async { final data = await ApiClient.get('/api/v1/bank-policies'); return _asList(data); }
   Future<List<Map<String, dynamic>>> fetchBanners() async { final data = await ApiClient.get('/api/v1/banners'); return _asList(data); }
+  Future<Map<String, dynamic>> submitInsuranceApplication(Map<String, dynamic> body) async {
+    final res = await ApiClient.post('/api/v1/insurance-applications', body);
+    if (res is Map) return res.cast<String, dynamic>();
+    return {'success': true};
+  }
 
   Future<void> registerDevice(String token, {String? platform}) async { await ApiClient.post('/api/v1/devices', {'token': token, 'platform': platform}); }
 

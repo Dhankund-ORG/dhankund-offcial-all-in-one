@@ -103,6 +103,49 @@ function rowToUser(row) {
     managerName: pick('manager_name', 'managerName'), managerMobile: pick('manager_mobile', 'managerMobile'),
     areaManagerName: pick('area_manager_name', 'areaManagerName'), areaManagerMobile: pick('area_manager_mobile', 'areaManagerMobile'),
     nomineeName: pick('nominee_name', 'nomineeName'), officeAddress: pick('office_address', 'officeAddress'),
+    alternateMobile: pick('alternate_mobile', 'alternateMobile'),
+    dob: pick('dob', 'dob'),
+    panNumber: pick('pan_number', 'panNumber'),
+    companyAddress: pick('company_address', 'companyAddress') || pick('office_address', 'officeAddress'),
+    companyName: pick('company', 'companyName') || pick('company', 'company'),
+    customId: (function() {
+      const isCust = (row.role || data.role || '').toString().toLowerCase().includes('customer');
+      let cid = row.custom_id || data.customId || data.customerId || data.partnerId;
+      if (!cid) {
+        const rawSeed = (row.mobile || data.mobile || row.email || data.email || row.id || '').toString().replace(/\D/g, '');
+        const suffix = (rawSeed.length >= 6) ? rawSeed.slice(-6) : Math.floor(100000 + Math.random() * 900000).toString();
+        cid = isCust ? ('CUST-' + suffix) : ('DK-PTR-' + suffix);
+      }
+      return cid;
+    })(),
+    customerId: (function() {
+      const isCust = (row.role || data.role || '').toString().toLowerCase().includes('customer');
+      if (isCust) {
+        let cid = row.custom_id || data.customId || data.customerId;
+        if (!cid) {
+          const rawSeed = (row.mobile || data.mobile || row.email || data.email || row.id || '').toString().replace(/\D/g, '');
+          const suffix = (rawSeed.length >= 6) ? rawSeed.slice(-6) : Math.floor(100000 + Math.random() * 900000).toString();
+          cid = 'CUST-' + suffix;
+        }
+        return cid;
+      }
+      return null;
+    })(),
+    partnerId: (function() {
+      const isCust = (row.role || data.role || '').toString().toLowerCase().includes('customer');
+      if (!isCust) {
+        let pid = row.custom_id || data.customId || data.partnerId;
+        if (!pid) {
+          const rawSeed = (row.mobile || data.mobile || row.email || data.email || row.id || '').toString().replace(/\D/g, '');
+          const suffix = (rawSeed.length >= 6) ? rawSeed.slice(-6) : Math.floor(100000 + Math.random() * 900000).toString();
+          pid = 'DK-PTR-' + suffix;
+        }
+        return pid;
+      }
+      return null;
+    })(),
+    sinceDate: row.created_at || data.createdAt || data.sinceDate || nowIso(),
+    createdAt: row.created_at || data.createdAt || nowIso(),
   });
 }
 
@@ -168,6 +211,12 @@ async function mergeUserData(env, uid, patch) {
   if (patch.bankIfsc != null) cols.bank_ifsc = String(patch.bankIfsc);
   if (patch.bankProofUrl != null) cols.bank_proof_url = String(patch.bankProofUrl);
   if (patch.profileCompleted != null) cols.profile_completed = patch.profileCompleted ? 1 : 0;
+  if (patch.alternateMobile != null) cols.alternate_mobile = String(patch.alternateMobile);
+  if (patch.dob != null) cols.dob = String(patch.dob);
+  if (patch.panNumber != null) cols.pan_number = String(patch.panNumber);
+  if (patch.companyAddress != null) cols.company_address = String(patch.companyAddress);
+  if (patch.companyName != null) cols.company = String(patch.companyName);
+  if (patch.customId != null) cols.custom_id = String(patch.customId);
   await updateRow(env, 'users', 'id', uid, Object.assign({ data: JSON.stringify(merged), updated_at: nowIso() }, cols));
   return merged;
 }
@@ -242,6 +291,51 @@ async function ensureReferralSchema(env) {
     referralSchemaEnsured = true;
   } catch (err) {
     console.error('ensureReferralSchema warning:', err);
+  }
+}
+
+let userSchemaEnsured = false;
+async function ensureUserSchema(env) {
+  if (userSchemaEnsured || !env || !env.DB) return;
+  try {
+    const cols = await all(env, 'PRAGMA table_info(users)');
+    const colNames = new Set((cols || []).map(function (c) { return c.name; }));
+    if (colNames.size > 0) {
+      if (!colNames.has('alternate_mobile')) await run(env, 'ALTER TABLE users ADD COLUMN alternate_mobile TEXT');
+      if (!colNames.has('dob')) await run(env, 'ALTER TABLE users ADD COLUMN dob TEXT');
+      if (!colNames.has('pan_number')) await run(env, 'ALTER TABLE users ADD COLUMN pan_number TEXT');
+      if (!colNames.has('company_address')) await run(env, 'ALTER TABLE users ADD COLUMN company_address TEXT');
+      if (!colNames.has('custom_id')) await run(env, 'ALTER TABLE users ADD COLUMN custom_id TEXT');
+    }
+    userSchemaEnsured = true;
+  } catch (err) {
+    console.error('ensureUserSchema warning:', err);
+  }
+}
+
+let insuranceSchemaEnsured = false;
+async function ensureInsuranceSchema(env) {
+  if (insuranceSchemaEnsured || !env || !env.DB) return;
+  try {
+    await run(env, `CREATE TABLE IF NOT EXISTS insurance_applications (
+      id TEXT PRIMARY KEY,
+      insurance_type TEXT,
+      name TEXT,
+      dob TEXT,
+      mobile_number TEXT,
+      email TEXT,
+      address TEXT,
+      yearly_income TEXT,
+      dependents TEXT,
+      occupation TEXT,
+      status TEXT DEFAULT 'Pending',
+      user_id TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    )`);
+    insuranceSchemaEnsured = true;
+  } catch (err) {
+    console.error('ensureInsuranceSchema warning:', err);
   }
 }
 
@@ -597,14 +691,18 @@ app.post('/api/v1/auth/reset-password', async function (c) {
 app.post('/api/v1/auth/verify-password', auth, async function (c) { const body = await readJson(c); const me = c.get('user'); const user = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]); if (!user || !user.password_hash) return c.json({ error: 'Not found' }, 404); const ok = await verifyPassword((body.password || '').toString(), user.password_hash); if (!ok) return c.json({ error: 'Incorrect password' }, 401); return c.json({ success: true }); });
 
 app.get('/api/v1/me/profile', auth, async function (c) {
+  await ensureUserSchema(c.env);
   const me = c.get('user'); const user = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]);
   if (!user) return c.json({ error: 'Not found' }, 404);
   const profile = rowToUser(user);
   if (!profile.profileCompleted) { const reg = await first(c.env, 'SELECT id FROM registrations WHERE uid = ? LIMIT 1', [me.sub]); if (reg) profile.profileCompleted = true; }
+  if (!user.custom_id && profile.customId) {
+    try { await updateRow(c.env, 'users', 'id', me.sub, { custom_id: profile.customId }); } catch (_) {}
+  }
   return c.json(profile);
 });
 
-app.put('/api/v1/me/profile', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const merged = await mergeUserData(c.env, me.sub, b); return c.json({ success: true, data: merged }); });
+app.put('/api/v1/me/profile', auth, async function (c) { await ensureUserSchema(c.env); const me = c.get('user'); const b = await readJson(c); const merged = await mergeUserData(c.env, me.sub, b); return c.json({ success: true, data: merged }); });
 
 app.post('/api/v1/me/kyc', auth, async function (c) {
   const me = c.get('user'); const b = await readJson(c);
@@ -692,13 +790,26 @@ app.post('/api/v1/referrals', auth, async function (c) {
   return c.json({ success: true, id: id, lead_id: leadId });
 });
 
-app.get('/api/v1/statuses', auth, async function (c) { const rows = await all(c.env, 'SELECT * FROM statuses ORDER BY timestamp DESC'); return c.json(rows); });
+app.get('/api/v1/statuses', auth, async function (c) {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  try { await run(c.env, 'DELETE FROM statuses WHERE timestamp < ?', [cutoff]); } catch (_) {}
+  const rows = await all(c.env, 'SELECT * FROM statuses WHERE timestamp >= ? ORDER BY timestamp DESC', [cutoff]);
+  return c.json(rows);
+});
 app.post('/api/v1/statuses', auth, async function (c) {
   const me = c.get('user'); const b = await readJson(c); const user = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]); const data = user ? safeJson(user.data, {}) : {}; const id = randomId();
   await insertRow(c.env, 'statuses', { id: id, uid: me.sub, name: data.name || me.name || 'User', role: (user && user.role) || 'User', company: data.company || '', mobile: data.mobile || (user && user.mobile) || '', text: (b.text || '').toString(), gradientIndex: (b.gradientIndex != null) ? b.gradientIndex : 0, mediaUrl: b.mediaUrl || null, mediaType: b.mediaType || 'text', profilePictureUrl: data.profilePictureUrl || null, timestamp: nowIso() });
   return c.json({ success: true, id: id });
 });
-app.delete('/api/v1/statuses/:id', auth, async function (c) { const me = c.get('user'); const id = c.req.param('id'); await run(c.env, 'DELETE FROM statuses WHERE id = ? AND uid = ?', [id, me.sub]); return c.json({ success: true }); });
+app.delete('/api/v1/statuses/:id', auth, async function (c) {
+  const me = c.get('user'); const id = c.req.param('id');
+  if (isAdminRole(me.role)) {
+    await run(c.env, 'DELETE FROM statuses WHERE id = ?', [id]);
+  } else {
+    await run(c.env, 'DELETE FROM statuses WHERE id = ? AND uid = ?', [id, me.sub]);
+  }
+  return c.json({ success: true });
+});
 
 app.get('/api/v1/news-feed', auth, async function (c) { const rows = await all(c.env, 'SELECT * FROM news_feed ORDER BY timestamp DESC'); return c.json(parseJsonList(rows, 'likes')); });
 app.post('/api/v1/news-feed', auth, async function (c) {
@@ -1033,12 +1144,67 @@ app.get('/api/v1/directory', auth, async function (c) {
 });
 app.get('/api/v1/bank-policies', auth, async function (c) { await ensureBankPolicySchema(c.env); const rows = await all(c.env, 'SELECT * FROM bank_policies ORDER BY updated_at DESC'); return c.json(rows); });
 
-app.get('/api/v1/banners', async function (c) { const rows = await all(c.env, 'SELECT * FROM banners WHERE is_active = 1 ORDER BY created_at DESC'); return c.json(rows); });
+app.get('/api/v1/banners', async function (c) { const rows = await all(c.env, 'SELECT * FROM banners WHERE is_active = 1 ORDER BY created_at DESC LIMIT 5'); return c.json(rows); });
+app.get('/api/v1/admin/banners', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM banners ORDER BY created_at DESC'); return c.json(rows); });
 app.post('/api/v1/banners', requireAdmin, async function (c) { const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'banners', { id: id, title: b.title || '', subtitle: b.subtitle || '', color_hex: b.color_hex || '', image_url: b.image_url || null, is_active: (b.is_active !== undefined) ? (b.is_active ? 1 : 0) : 1, created_at: nowIso() }); return c.json({ success: true, id: id }); });
+app.patch('/api/v1/banners/:id/status', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'banners', 'id', id, { is_active: b.is_active ? 1 : 0 }); return c.json({ success: true }); });
 app.delete('/api/v1/banners/:id', requireAdmin, async function (c) { const id = c.req.param('id'); await run(c.env, 'DELETE FROM banners WHERE id = ?', [id]); return c.json({ success: true }); });
 
+app.post('/api/v1/insurance-applications', auth, async function (c) {
+  await ensureInsuranceSchema(c.env);
+  const me = c.get('user');
+  const b = await readJson(c);
+  const id = randomId();
+  await insertRow(c.env, 'insurance_applications', {
+    id: id,
+    insurance_type: b.insurance_type || b.insuranceType || 'General Insurance',
+    name: b.name || me.name || '',
+    dob: b.dob || '',
+    mobile_number: b.mobile_number || b.mobileNumber || me.mobile || '',
+    email: b.email || b.mailId || me.email || '',
+    address: b.address || '',
+    yearly_income: b.yearly_income || b.yearlyIncome || '',
+    dependents: b.dependents || '',
+    occupation: b.occupation || '',
+    status: 'Pending',
+    user_id: me.sub,
+    created_at: nowIso(),
+    updated_at: nowIso()
+  });
+  if (c.executionCtx && c.executionCtx.waitUntil) {
+    c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Insurance Application', `${b.name || me.name || 'A customer'} applied for ${b.insurance_type || 'Insurance'}.`));
+  }
+  return c.json({ success: true, id: id, message: 'Insurance application submitted successfully.' });
+});
+
+app.get('/api/v1/insurance-applications', auth, async function (c) {
+  await ensureInsuranceSchema(c.env);
+  const me = c.get('user');
+  let rows;
+  if (isAdminRole(me.role)) {
+    rows = await all(c.env, 'SELECT * FROM insurance_applications ORDER BY created_at DESC');
+  } else {
+    rows = await all(c.env, 'SELECT * FROM insurance_applications WHERE user_id = ? ORDER BY created_at DESC', [me.sub]);
+  }
+  return c.json(rows);
+});
+
 app.post('/api/v1/devices', async function (c) { const b = await readJson(c); if (!b.token) return c.json({ error: 'token is required' }, 400); const now = nowIso(); const existing = await first(c.env, 'SELECT token FROM fcm_tokens WHERE token = ?', [String(b.token)]); if (existing) { await updateRow(c.env, 'fcm_tokens', 'token', String(b.token), { user_id: b.user_id || null, platform: b.platform || null, updated_at: now }); } else { await insertRow(c.env, 'fcm_tokens', { token: String(b.token), user_id: b.user_id || null, platform: b.platform || null, created_at: now, updated_at: now }); } return c.json({ success: true }); });
-app.get('/api/v1/download/:filename', async function (c) { const filename = c.req.param('filename'); const object = await c.env.R2_BUCKET.get(filename); if (!object) return c.json({ error: 'Not found' }, 404); const headers = {}; if (object.httpMetadata && object.httpMetadata.contentType) headers['Content-Type'] = object.httpMetadata.contentType; return new Response(object.body, { headers: headers }); });
+app.get('/api/v1/download/:filename{.*}', async function (c) {
+  let filename = c.req.param('filename') || '';
+  if (filename.startsWith('/')) filename = filename.slice(1);
+  let object = await c.env.R2_BUCKET.get(filename);
+  if (!object) {
+    try {
+      const decoded = decodeURIComponent(filename);
+      if (decoded !== filename) object = await c.env.R2_BUCKET.get(decoded);
+    } catch (_) {}
+  }
+  if (!object) return c.json({ error: 'Not found' }, 404);
+  const headers = {};
+  if (object.httpMetadata && object.httpMetadata.contentType) headers['Content-Type'] = object.httpMetadata.contentType;
+  return new Response(object.body, { headers: headers });
+});
 app.post('/api/v1/upload', auth, async function (c) { const filename = c.req.query('filename'); if (!filename) return c.json({ error: 'filename query parameter is required' }, 400); const contentType = c.req.header('Content-Type') || 'application/octet-stream'; const body = await c.req.raw.arrayBuffer(); await c.env.R2_BUCKET.put(filename, body, { httpMetadata: { contentType: contentType } }); return c.json({ success: true, url: '/api/v1/download/' + encodeURIComponent(filename) }); });
 
 app.get('/api/v1/overview', requireAdmin, async function (c) { const env = c.env; const totalUsers = ((await first(env, 'SELECT COUNT(*) AS n FROM users')) || {}).n || 0; const totalLoans = ((await first(env, 'SELECT COUNT(*) AS n FROM loan_applications')) || {}).n || 0; const totalReferrals = ((await first(env, 'SELECT COUNT(*) AS n FROM referrals')) || {}).n || 0; const pendingApprovals = ((await first(env, "SELECT COUNT(*) AS n FROM registrations WHERE lower(status) = 'pending'")) || {}).n || 0; const refs = await all(env, 'SELECT status FROM referrals'); let d = 0, p = 0; for (const r of refs) { const s = (r.status || '').toLowerCase(); if (s === 'earned') d += 5000; else if (s === 'approved') p += 5000; } return c.json({ totalUsers, totalLoans, totalReferrals, pendingApprovals, disbursedCommission: d, pendingCommission: p }); });

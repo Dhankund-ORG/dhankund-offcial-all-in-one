@@ -586,5 +586,39 @@ class ApiService {
     });
   }
 
+  Future<List<Map<String, dynamic>>> fetchBanners() async {
+    final data = await ApiClient.get('/api/v1/admin/banners');
+    return _asList(data);
+  }
 
+  Future<void> createBanner({
+    required String title,
+    required String subtitle,
+    required String colorHex,
+    String? imageUrl,
+    bool isActive = true,
+  }) async {
+    await ApiClient.post('/api/v1/banners', {
+      'title': title,
+      'subtitle': subtitle,
+      'color_hex': colorHex,
+      'image_url': imageUrl,
+      'is_active': isActive,
+    });
+  }
+
+  Future<void> updateBannerStatus(String id, bool isActive) async {
+    await ApiClient.patch('/api/v1/banners/' + id + '/status', {
+      'is_active': isActive,
+    });
+  }
+
+  Future<void> deleteBanner(String id) async {
+    await ApiClient.delete('/api/v1/banners/' + id);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchInsuranceApplications() async {
+    final data = await ApiClient.get('/api/v1/insurance-applications');
+    return _asList(data);
+  }
 }
