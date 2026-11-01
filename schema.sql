@@ -244,6 +244,14 @@ CREATE TABLE IF NOT EXISTS bank_policies (
   green_belt_property_funding TEXT,
   plot_purchase TEXT,
   plot_mortgage TEXT,
+  is_salary_slip_required TEXT,
+  residence_ownership_type TEXT,
+  business_ownership_type TEXT,
+  is_gst_required TEXT,
+  is_itr_required TEXT,
+  is_udyam_required TEXT,
+  is_current_account_required TEXT,
+  bankings_considered TEXT,
   updated_at TEXT
 );
 

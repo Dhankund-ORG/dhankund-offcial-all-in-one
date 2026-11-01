@@ -191,7 +191,10 @@ async function ensureBankPolicySchema(env) {
         'highest_ticket_size_notary', 'high_tension_line_funding',
         'without_diversion_property_funding', 'only_diversion_property_funding',
         'akvn_property_funding', 'green_belt_property_funding',
-        'plot_purchase', 'plot_mortgage'
+        'plot_purchase', 'plot_mortgage',
+        'is_salary_slip_required', 'residence_ownership_type',
+        'business_ownership_type', 'is_gst_required', 'is_itr_required',
+        'is_udyam_required', 'is_current_account_required', 'bankings_considered'
       ];
       for (const col of newCols) {
         if (!colNames.has(col)) {
@@ -253,6 +256,14 @@ function policyColumns(b) {
     green_belt_property_funding: b.green_belt_property_funding || null,
     plot_purchase: b.plot_purchase || null,
     plot_mortgage: b.plot_mortgage || null,
+    is_salary_slip_required: b.is_salary_slip_required || null,
+    residence_ownership_type: b.residence_ownership_type || null,
+    business_ownership_type: b.business_ownership_type || null,
+    is_gst_required: b.is_gst_required || null,
+    is_itr_required: b.is_itr_required || null,
+    is_udyam_required: b.is_udyam_required || null,
+    is_current_account_required: b.is_current_account_required || null,
+    bankings_considered: b.bankings_considered || null,
     updated_at: nowIso()
   };
 }

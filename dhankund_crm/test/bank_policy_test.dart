@@ -34,4 +34,46 @@ void main() {
     expect(policy['plot_purchase'], 'YES');
     expect(policy['plot_mortgage'], 'YES');
   });
+
+  test('Personal Loan policy parameter verification - LTV null and salary/residence norms', () {
+    final personalLoanPolicy = {
+      'loan_type': 'Personal Loan',
+      'vertical': 'Prime',
+      'segment': 'DSA',
+      'ltv_ratio': null,
+      'max_allowed_bounces': 0,
+      'is_salary_slip_required': 'YES - Mandatory (अनिवार्य)',
+      'residence_ownership_type': 'Owned Only Required (केवल खुद का मकान)',
+    };
+
+    expect(personalLoanPolicy['loan_type'], 'Personal Loan');
+    expect(personalLoanPolicy['ltv_ratio'], isNull);
+    expect(personalLoanPolicy['is_salary_slip_required'], 'YES - Mandatory (अनिवार्य)');
+    expect(personalLoanPolicy['residence_ownership_type'], 'Owned Only Required (केवल खुद का मकान)');
+  });
+
+  test('Business Loan policy parameter verification - LTV null, doc mandatory checks and bankings', () {
+    final businessLoanPolicy = {
+      'loan_type': 'Business Loan',
+      'vertical': 'Prime',
+      'segment': 'DSA',
+      'ltv_ratio': null,
+      'business_ownership_type': 'At least One Owned Required (Residence or Office)',
+      'is_gst_required': 'YES',
+      'is_itr_required': 'YES',
+      'is_udyam_required': 'YES',
+      'is_current_account_required': 'YES',
+      'bankings_considered': '6+',
+    };
+
+    expect(businessLoanPolicy['loan_type'], 'Business Loan');
+    expect(businessLoanPolicy['ltv_ratio'], isNull);
+    expect(businessLoanPolicy['business_ownership_type'], 'At least One Owned Required (Residence or Office)');
+    expect(businessLoanPolicy['is_gst_required'], 'YES');
+    expect(businessLoanPolicy['is_itr_required'], 'YES');
+    expect(businessLoanPolicy['is_udyam_required'], 'YES');
+    expect(businessLoanPolicy['is_current_account_required'], 'YES');
+    expect(businessLoanPolicy['bankings_considered'], '6+');
+  });
 }
+
