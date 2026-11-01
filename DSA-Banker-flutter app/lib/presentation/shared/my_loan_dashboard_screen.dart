@@ -6,6 +6,7 @@ import 'package:my_flutter_app/presentation/customer_app/personal_loan_form_scre
 import 'package:my_flutter_app/presentation/customer_app/business_loan_form_screen.dart';
 import 'package:my_flutter_app/presentation/customer_app/general_loan_form_screen.dart';
 import 'package:my_flutter_app/presentation/customer_app/financial_checkup_screen.dart';
+import 'package:my_flutter_app/presentation/customer_app/emi_calculator_screen.dart';
 import 'package:my_flutter_app/presentation/shared/help_support_screen.dart';
 
 class MyLoanDashboardScreen extends StatefulWidget {
@@ -87,7 +88,9 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   }
 
   void _showComingSoon(String service) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$service application coming soon!'))); }
-  void _openEmiCalculator() { showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (context) => const EmiCalculatorBottomSheet()); }
+  void _openEmiCalculator() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => const EmiCalculatorScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {

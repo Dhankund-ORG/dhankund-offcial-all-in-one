@@ -208,6 +208,43 @@ async function ensureBankPolicySchema(env) {
   }
 }
 
+function getIstDateParts(date = new Date()) {
+  const istOffsetMs = 330 * 60 * 1000;
+  const istTime = new Date(date.getTime() + istOffsetMs);
+  const dd = String(istTime.getUTCDate()).padStart(2, '0');
+  const mm = String(istTime.getUTCMonth() + 1).padStart(2, '0');
+  const yy = String(istTime.getUTCFullYear()).slice(-2);
+  const hh = String(istTime.getUTCHours()).padStart(2, '0');
+  const min = String(istTime.getUTCMinutes()).padStart(2, '0');
+  return { dd, mm, yy, hh, min, dateStr: `${dd}${mm}${yy}`, timeStr: `${hh}${min}` };
+}
+
+function formatLeadId(date = new Date(), sequence = 1) {
+  const p = getIstDateParts(date);
+  const seqStr = String(sequence).slice(-6).padStart(6, '0');
+  return `${p.dateStr}${p.timeStr}${seqStr}`;
+}
+
+let referralSchemaEnsured = false;
+async function ensureReferralSchema(env) {
+  if (referralSchemaEnsured || !env || !env.DB) return;
+  try {
+    const cols = await all(env, 'PRAGMA table_info(referrals)');
+    const colNames = new Set((cols || []).map(function (c) { return c.name; }));
+    if (colNames.size > 0) {
+      if (!colNames.has('lead_id')) {
+        await run(env, 'ALTER TABLE referrals ADD COLUMN lead_id TEXT');
+      }
+      if (!colNames.has('document_url')) {
+        await run(env, 'ALTER TABLE referrals ADD COLUMN document_url TEXT');
+      }
+    }
+    referralSchemaEnsured = true;
+  } catch (err) {
+    console.error('ensureReferralSchema warning:', err);
+  }
+}
+
 function policyColumns(b) {
   return {
     bank_name: b.bank_name || null,
@@ -588,7 +625,19 @@ app.post('/api/v1/me/bank', auth, async function (c) {
 });
 
 app.get('/api/v1/me/loans', auth, async function (c) { const me = c.get('user'); const rows = await all(c.env, 'SELECT * FROM loan_applications WHERE lower(email) = lower(?) ORDER BY submitted_at DESC', [(me.email || '').toString().toLowerCase()]); return c.json(rows.map(rowToLoan)); });
-app.get('/api/v1/me/referrals', auth, async function (c) { const me = c.get('user'); const rows = await all(c.env, 'SELECT * FROM referrals WHERE referrer_id = ? ORDER BY created_at DESC', [me.sub]); return c.json(boolify(rows, ['consent_given'])); });
+app.get('/api/v1/me/referrals', auth, async function (c) {
+  await ensureReferralSchema(c.env);
+  const me = c.get('user');
+  const rows = await all(c.env, 'SELECT * FROM referrals WHERE referrer_id = ? ORDER BY created_at DESC', [me.sub]);
+  const mapped = rows.map(function (r, idx) {
+    const o = Object.assign({}, r);
+    if (!o.lead_id) {
+      o.lead_id = formatLeadId(r.created_at ? new Date(r.created_at) : new Date(), rows.length - idx);
+    }
+    return o;
+  });
+  return c.json(boolify(mapped, ['consent_given']));
+});
 
 app.post('/api/v1/registrations', auth, async function (c) {
   const me = c.get('user'); const b = await readJson(c); const role = roleKey(b.role || 'customer'); const now = nowIso(); const id = randomId();
@@ -613,7 +662,35 @@ app.post('/api/v1/registrations', auth, async function (c) {
 });
 
 app.post('/api/v1/loans', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); const cols = loanColumns(b); if (!cols.email) cols.email = me.email; await insertRow(c.env, 'loan_applications', Object.assign({ id: id, submitted_at: nowIso() }, cols)); if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Loan Application', `${me.name || 'A user'} has submitted a new ${b.loan_type || 'loan'} application.`)); return c.json({ success: true, id: id }); });
-app.post('/api/v1/referrals', auth, async function (c) { const me = c.get('user'); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'referrals', { id: id, referrer_id: me.sub, friend_name: b.friend_name || null, friend_mobile: b.friend_mobile || null, friend_email: b.friend_email || null, relationship: b.relationship || null, loan_type: b.loan_type || null, estimated_amount: b.estimated_amount || null, consent_given: b.consent_given ? 1 : 0, status: b.status || 'Invited', created_at: nowIso() }); if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Referral', `${me.name || 'A user'} has referred ${b.friend_name || 'a friend'}.`)); return c.json({ success: true, id: id }); });
+app.post('/api/v1/referrals', auth, async function (c) {
+  await ensureReferralSchema(c.env);
+  const me = c.get('user');
+  const b = await readJson(c);
+  const id = randomId();
+  const countRow = await first(c.env, 'SELECT COUNT(*) as cnt FROM referrals');
+  const nextSeq = ((countRow && countRow.cnt != null) ? countRow.cnt : 0) + 1;
+  const leadId = b.lead_id || formatLeadId(new Date(), nextSeq);
+
+  await insertRow(c.env, 'referrals', {
+    id: id,
+    lead_id: leadId,
+    referrer_id: me.sub,
+    friend_name: b.friend_name || null,
+    friend_mobile: b.friend_mobile || null,
+    friend_email: b.friend_email || null,
+    relationship: b.relationship || null,
+    loan_type: b.loan_type || null,
+    estimated_amount: b.estimated_amount || null,
+    document_url: b.document_url || b.documents || null,
+    consent_given: b.consent_given ? 1 : 0,
+    status: b.status || 'Invited',
+    created_at: nowIso()
+  });
+  if (c.executionCtx && c.executionCtx.waitUntil) {
+    c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Referral', `${me.name || 'A user'} has referred ${b.friend_name || 'a friend'}. Lead ID: ${leadId}`));
+  }
+  return c.json({ success: true, id: id, lead_id: leadId });
+});
 
 app.get('/api/v1/statuses', auth, async function (c) { const rows = await all(c.env, 'SELECT * FROM statuses ORDER BY timestamp DESC'); return c.json(rows); });
 app.post('/api/v1/statuses', auth, async function (c) {
@@ -974,7 +1051,18 @@ app.delete('/api/v1/users/:uid', requireAdmin, async function (c) { const uid = 
 app.get('/api/v1/loans', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM loan_applications ORDER BY submitted_at DESC'); return c.json(rows.map(rowToLoan)); });
 app.put('/api/v1/loans/:id', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'loan_applications', 'id', id, loanColumns(b)); return c.json({ success: true }); });
 app.patch('/api/v1/loans/:id/status', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'loan_applications', 'id', id, { status: (b.status || 'Pending').toString(), updated_at: nowIso() }); return c.json({ success: true }); });
-app.get('/api/v1/referrals', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM referrals ORDER BY created_at DESC'); return c.json(boolify(rows, ['consent_given'])); });
+app.get('/api/v1/referrals', requireAdmin, async function (c) {
+  await ensureReferralSchema(c.env);
+  const rows = await all(c.env, 'SELECT * FROM referrals ORDER BY created_at DESC');
+  const mapped = rows.map(function (r, idx) {
+    const o = Object.assign({}, r);
+    if (!o.lead_id) {
+      o.lead_id = formatLeadId(r.created_at ? new Date(r.created_at) : new Date(), rows.length - idx);
+    }
+    return o;
+  });
+  return c.json(boolify(mapped, ['consent_given']));
+});
 app.patch('/api/v1/referrals/:id/status', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'referrals', 'id', id, { status: (b.status || 'Invited').toString() }); return c.json({ success: true }); });
 app.post('/api/v1/bank-policies', requireAdmin, async function (c) { await ensureBankPolicySchema(c.env); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'bank_policies', Object.assign({ id: id }, policyColumns(b))); return c.json({ success: true, id: id }); });
 app.put('/api/v1/bank-policies/:id', requireAdmin, async function (c) { await ensureBankPolicySchema(c.env); const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'bank_policies', 'id', id, policyColumns(b)); return c.json({ success: true }); });

@@ -539,6 +539,20 @@ class _ReferralsPageState extends State<ReferralsPage> {
                                           ],
                                         ),
                                         const SizedBox(height: 8),
+                                        if ((ref['lead_id'] ?? '').toString().isNotEmpty) ...[
+                                          Text(
+                                            'Lead ID: ${ref['lead_id']}',
+                                            style: const TextStyle(color: AppTheme.royalGold, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5),
+                                          ),
+                                          const SizedBox(height: 2),
+                                        ],
+                                        if ((ref['created_at'] ?? '').toString().isNotEmpty) ...[
+                                          Text(
+                                            'Referred: ${ref['created_at'].toString().replaceFirst('T', ' ').split('.').first}',
+                                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+                                          ),
+                                          const SizedBox(height: 4),
+                                        ],
                                         Text('Candidate: ${ref['friend_email'] ?? 'N/A'} | ${ref['friend_mobile'] ?? 'N/A'}'),
                                         const SizedBox(height: 4),
                                         Text(
