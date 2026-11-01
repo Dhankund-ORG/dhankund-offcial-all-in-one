@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../api_service.dart';
 import '../../cloudflare_r2_service.dart';
@@ -66,15 +66,19 @@ class _BannersPageState extends State<BannersPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceDark,
-        title: const Text('Delete Banner', style: TextStyle(color: Colors.white)),
-        content: const Text('Are you sure you want to delete this promotional banner?', style: TextStyle(color: Colors.white70)),
+        backgroundColor: AppTheme.obsidianMedium,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Banner', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to delete this promotional banner?', style: TextStyle(color: AppTheme.textSecondary)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -112,13 +116,13 @@ class _BannersPageState extends State<BannersPage> {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppTheme.surfaceDark,
+          backgroundColor: AppTheme.obsidianMedium,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Row(
             children: [
               Icon(Icons.add_photo_alternate_outlined, color: AppTheme.royalGold),
               SizedBox(width: 10),
-              Text('Create New App Banner', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Create New App Banner', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
           content: SizedBox(
@@ -128,37 +132,37 @@ class _BannersPageState extends State<BannersPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Title / Offer Heading', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text('Title / Offer Heading', style: TextStyle(color: AppTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: titleController,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'e.g. Special Personal Loan Offer',
-                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                      hintStyle: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+                      fillColor: AppTheme.obsidianLight,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  const Text('Subtitle / Offer Description', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text('Subtitle / Offer Description', style: TextStyle(color: AppTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   TextField(
                     controller: subtitleController,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppTheme.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'e.g. Lowest interest rates starting @ 10.49% p.a.',
-                      hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                      hintStyle: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.05),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+                      fillColor: AppTheme.obsidianLight,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey.shade300)),
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  const Text('Theme Background Color', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text('Theme Background Color', style: TextStyle(color: AppTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 10,
@@ -174,9 +178,12 @@ class _BannersPageState extends State<BannersPage> {
                             color: c,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: isSelected ? Colors.white : Colors.transparent,
-                              width: 2.5,
+                              color: isSelected ? AppTheme.royalGold : Colors.transparent,
+                              width: 3.0,
                             ),
+                            boxShadow: isSelected
+                                ? [BoxShadow(color: AppTheme.royalGold.withOpacity(0.4), blurRadius: 6, spreadRadius: 1)]
+                                : null,
                           ),
                           child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
                         ),
@@ -186,7 +193,7 @@ class _BannersPageState extends State<BannersPage> {
                   const SizedBox(height: 20),
 
                   // Image Upload Section
-                  const Text('Banner Image (Optional - Overrides Background)', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                  const Text('Banner Image (Optional - Overrides Background)', style: TextStyle(color: AppTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   if (uploadedImageUrl != null)
                     Stack(
@@ -194,7 +201,9 @@ class _BannersPageState extends State<BannersPage> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.network(
-                            uploadedImageUrl!.startsWith('http') ? uploadedImageUrl! : (ApiClient.baseUrl + (uploadedImageUrl!.startsWith('/') ? uploadedImageUrl! : '/$uploadedImageUrl')),
+                            uploadedImageUrl!.startsWith('http')
+                                ? uploadedImageUrl!
+                                : (ApiClient.baseUrl + (uploadedImageUrl!.startsWith('/') ? uploadedImageUrl! : '/$uploadedImageUrl')),
                             height: 120,
                             width: double.infinity,
                             fit: BoxFit.cover,
@@ -203,11 +212,14 @@ class _BannersPageState extends State<BannersPage> {
                         Positioned(
                           top: 8,
                           right: 8,
-                          child: GestureDetector(
+                          child: InkWell(
                             onTap: () => setDialogState(() => uploadedImageUrl = null),
                             child: Container(
                               padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
                               child: const Icon(Icons.close, color: Colors.white, size: 16),
                             ),
                           ),
@@ -220,86 +232,53 @@ class _BannersPageState extends State<BannersPage> {
                           ? null
                           : () async {
                               try {
-                                final res = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
-                                if (res != null && res.files.isNotEmpty) {
-                                  final file = res.files.single;
-                                  if (file.bytes != null) {
-                                    setDialogState(() => isUploadingImage = true);
-                                    final ext = file.extension ?? 'png';
-                                    final fileName = 'banners/${DateTime.now().millisecondsSinceEpoch}_banner.$ext';
-                                    final url = await _r2.uploadDocument(fileName, file.bytes!);
-                                    setDialogState(() {
-                                      uploadedImageUrl = url;
-                                      isUploadingImage = false;
-                                    });
-                                  }
+                                final file = await FilePicker.pickFile(type: FileType.image);
+                                if (file != null) {
+                                  setDialogState(() => isUploadingImage = true);
+                                  final bytes = await file.readAsBytes();
+                                  final ext = file.extension ?? 'png';
+                                  final fileName = 'banners/${DateTime.now().millisecondsSinceEpoch}_banner.$ext';
+                                  final url = await _r2.uploadDocument(fileName, bytes);
+                                  setDialogState(() {
+                                    uploadedImageUrl = url;
+                                    isUploadingImage = false;
+                                  });
                                 }
                               } catch (e) {
                                 setDialogState(() => isUploadingImage = false);
                               }
                             },
                       icon: isUploadingImage
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Icon(Icons.cloud_upload_outlined, color: Colors.white),
-                      label: Text(isUploadingImage ? 'Uploading Image to R2...' : 'Select Banner Image File', style: const TextStyle(color: Colors.white)),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white12),
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.cloud_upload_outlined, size: 18),
+                      label: Text(isUploadingImage ? 'Uploading Image...' : 'Upload Image from Computer'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.royalGold,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
-                  const SizedBox(height: 20),
-
-                  // Live Preview Box
-                  const Text('Live Mobile Preview', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 90,
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Color(int.parse(selectedColor)),
-                      borderRadius: BorderRadius.circular(16),
-                      image: (uploadedImageUrl != null && uploadedImageUrl!.isNotEmpty)
-                          ? DecorationImage(
-                              image: NetworkImage(uploadedImageUrl!.startsWith('http') ? uploadedImageUrl! : (ApiClient.baseUrl + (uploadedImageUrl!.startsWith('/') ? uploadedImageUrl! : '/$uploadedImageUrl'))),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: (uploadedImageUrl == null || uploadedImageUrl!.isEmpty)
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                titleController.text.isNotEmpty ? titleController.text : 'Sample Banner Heading',
-                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                subtitleController.text.isNotEmpty ? subtitleController.text : 'Sample offer description text goes here',
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                              ),
-                            ],
-                          )
-                        : null,
-                  ),
                 ],
               ),
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              onPressed: isSaving ? null : () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
             ),
             ElevatedButton(
               onPressed: isSaving
                   ? null
                   : () async {
-                      if (titleController.text.trim().isEmpty && (uploadedImageUrl == null || uploadedImageUrl!.isEmpty)) {
+                      if (titleController.text.trim().isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please enter banner title or select an image')),
+                          const SnackBar(content: Text('Please enter a banner title!')),
                         );
                         return;
                       }
+
                       setDialogState(() => isSaving = true);
                       try {
                         await _api.createBanner(
@@ -307,30 +286,31 @@ class _BannersPageState extends State<BannersPage> {
                           subtitle: subtitleController.text.trim(),
                           colorHex: selectedColor,
                           imageUrl: uploadedImageUrl,
-                          isActive: true,
                         );
-                        if (mounted) {
+                        if (context.mounted) {
                           Navigator.pop(context);
                           _loadBanners();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Banner created and published successfully!')),
+                            const SnackBar(content: Text('Banner published successfully!')),
                           );
                         }
                       } catch (e) {
                         setDialogState(() => isSaving = false);
-                        if (mounted) {
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed to save banner: $e')),
+                            SnackBar(content: Text('Failed to publish banner: $e')),
                           );
                         }
                       }
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.royalGold,
-                foregroundColor: Colors.black,
+                backgroundColor: AppTheme.emeraldGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: isSaving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Text('Publish Banner', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
@@ -350,24 +330,27 @@ class _BannersPageState extends State<BannersPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'App Promotional Banners',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                        ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
+                  const SizedBox(height: 4),
+                  const Text(
                     'Manage dynamic auto-sliding banners shown on the mobile app home screen (5-second intervals).',
-                    style: TextStyle(fontSize: 13, color: Colors.white60),
+                    style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                   ),
                 ],
               ),
               ElevatedButton.icon(
                 onPressed: _showAddBannerDialog,
-                icon: const Icon(Icons.add, color: Colors.black),
-                label: const Text('Add New Banner', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text('Add New Banner', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.royalGold,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -385,19 +368,19 @@ class _BannersPageState extends State<BannersPage> {
                 : _banners.isEmpty
                     ? Center(
                         child: GlassCard(
-                          padding: const EdgeInsets.all(32),
+                          padding: 32.0,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.view_carousel_outlined, size: 48, color: Colors.white30),
+                              const Icon(Icons.view_carousel_outlined, size: 48, color: AppTheme.textSecondary),
                               const SizedBox(height: 16),
-                              const Text('No Promotional Banners Found', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                              const Text('No Promotional Banners Found', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 8),
-                              const Text('Click "Add New Banner" above to publish your first mobile app offer banner.', style: TextStyle(color: Colors.white60, fontSize: 13)),
+                              const Text('Click "Add New Banner" above to publish your first mobile app offer banner.', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                               const SizedBox(height: 16),
                               ElevatedButton(
                                 onPressed: _showAddBannerDialog,
-                                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.royalGold, foregroundColor: Colors.black),
+                                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.royalGold, foregroundColor: Colors.white),
                                 child: const Text('Create Banner Now'),
                               ),
                             ],
@@ -426,7 +409,7 @@ class _BannersPageState extends State<BannersPage> {
                               : null;
 
                           return GlassCard(
-                            padding: const EdgeInsets.all(16),
+                            padding: 16.0,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -465,18 +448,18 @@ class _BannersPageState extends State<BannersPage> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: isActive ? Colors.green.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
+                                        color: isActive ? Colors.green.withOpacity(0.15) : Colors.grey.withOpacity(0.15),
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(color: isActive ? Colors.green : Colors.grey),
                                       ),
                                       child: Text(
                                         isActive ? 'Active on App' : 'Inactive',
-                                        style: TextStyle(color: isActive ? Colors.green : Colors.grey, fontSize: 11, fontWeight: FontWeight.bold),
+                                        style: TextStyle(color: isActive ? Colors.green.shade700 : Colors.grey.shade700, fontSize: 11, fontWeight: FontWeight.bold),
                                       ),
                                     ),
                                     const Spacer(),
                                     IconButton(
-                                      icon: Icon(isActive ? Icons.visibility : Icons.visibility_off, color: isActive ? Colors.white70 : Colors.grey, size: 20),
+                                      icon: Icon(isActive ? Icons.visibility : Icons.visibility_off, color: isActive ? AppTheme.royalGold : Colors.grey, size: 20),
                                       tooltip: isActive ? 'Deactivate' : 'Activate',
                                       onPressed: () => _toggleStatus(id, isActive),
                                     ),
