@@ -216,8 +216,19 @@ class _ReferralDashboardScreenState extends State<ReferralDashboardScreen> {
 
   Widget _buildReferralCard(Map<String, dynamic> r) {
     final status = (r['status'] ?? 'Invited').toString();
-    final leadId = (r['lead_id'] ?? '').toString();
+    String leadId = (r['lead_id'] ?? r['leadId'] ?? r['leadID'] ?? '').toString();
     final createdAt = r['created_at'];
+    if (leadId.isEmpty || leadId == 'null' || leadId == 'Pending ID') {
+      final rawId = (r['id'] ?? '').toString();
+      final dt = DateTime.tryParse(createdAt?.toString() ?? '') ?? DateTime.now();
+      final dd = dt.day.toString().padLeft(2, '0');
+      final mm = dt.month.toString().padLeft(2, '0');
+      final yy = dt.year.toString().substring(2);
+      final hh = dt.hour.toString().padLeft(2, '0');
+      final min = dt.minute.toString().padLeft(2, '0');
+      final hashSeq = (rawId.hashCode.abs() % 900000 + 100000).toString();
+      leadId = '$dd$mm$yy$hh$min$hashSeq';
+    }
     final docUrl = (r['document_url'] ?? '').toString();
     final tatText = _getTatStatus(createdAt);
     final isWithinSla = tatText.contains('Within SLA');
@@ -249,24 +260,24 @@ class _ReferralDashboardScreenState extends State<ReferralDashboardScreen> {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4A3AFF).withOpacity(0.08),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF4A3AFF).withOpacity(0.25)),
+                    border: Border.all(color: const Color(0xFF4A3AFF).withOpacity(0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.tag, size: 14, color: Color(0xFF4A3AFF)),
+                      const Icon(Icons.tag, size: 15, color: Color(0xFF4A3AFF)),
                       const SizedBox(width: 4),
                       Text(
-                        'Lead ID: ',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600),
+                        'LEAD ID: ',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade800, fontWeight: FontWeight.bold),
                       ),
                       Flexible(
                         child: Text(
-                          leadId.isNotEmpty ? leadId : 'Pending ID',
+                          leadId,
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -276,21 +287,19 @@ class _ReferralDashboardScreenState extends State<ReferralDashboardScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (leadId.isNotEmpty) ...[
-                        const SizedBox(width: 4),
-                        InkWell(
-                          onTap: () {
-                            Clipboard.setData(ClipboardData(text: leadId));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Lead ID $leadId copied!'),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          },
-                          child: const Icon(Icons.copy, size: 13, color: Color(0xFF4A3AFF)),
-                        ),
-                      ],
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: leadId));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Lead ID $leadId copied!'),
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        child: const Icon(Icons.copy, size: 14, color: Color(0xFF4A3AFF)),
+                      ),
                     ],
                   ),
                 ),

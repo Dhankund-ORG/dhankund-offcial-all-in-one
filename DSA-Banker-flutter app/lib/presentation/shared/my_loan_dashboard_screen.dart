@@ -7,6 +7,7 @@ import 'package:my_flutter_app/presentation/customer_app/business_loan_form_scre
 import 'package:my_flutter_app/presentation/customer_app/general_loan_form_screen.dart';
 import 'package:my_flutter_app/presentation/customer_app/financial_checkup_screen.dart';
 import 'package:my_flutter_app/presentation/customer_app/emi_calculator_screen.dart';
+import 'package:my_flutter_app/presentation/customer_app/insurance_application_screen.dart';
 import 'package:my_flutter_app/presentation/shared/help_support_screen.dart';
 
 class MyLoanDashboardScreen extends StatefulWidget {
@@ -51,10 +52,10 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   void _startAdTimer() {
     _adTimer?.cancel();
     if (_dynamicBanners.isEmpty) return;
-    _adTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+    _adTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (_adController.hasClients) {
         _currentAdIndex = (_currentAdIndex + 1) % _dynamicBanners.length;
-        _adController.animateToPage(_currentAdIndex, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+        _adController.animateToPage(_currentAdIndex, duration: const Duration(milliseconds: 600), curve: Curves.easeInOut);
       }
     });
   }
@@ -62,15 +63,37 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   Future<void> _fetchBanners() async {
     try {
       final banners = await _api.fetchBanners();
+      List<Map<String, dynamic>> finalBanners = banners.take(5).toList();
+      if (finalBanners.isEmpty) {
+        finalBanners = [
+          {'title': 'Special Personal Loan Offer', 'subtitle': 'Instant approval up to ₹15 Lakhs @ 10.49% ROI', 'color_hex': '0xFF093A7A'},
+          {'title': 'Instant Business Loan', 'subtitle': 'Unsecured working capital for retail & MSMEs', 'color_hex': '0xFF27AE60'},
+          {'title': 'Home Loan Balance Transfer', 'subtitle': 'Reduce EMI with rates starting @ 8.40% p.a.', 'color_hex': '0xFF0984E3'},
+          {'title': 'Fast-Track Vehicle Funding', 'subtitle': '100% on-road commercial & private vehicle loans', 'color_hex': '0xFF6C5CE7'},
+          {'title': 'Earn Unlimited with Referrals', 'subtitle': 'Highest payout commission on every disbursed loan', 'color_hex': '0xFFE17055'},
+        ];
+      }
       if (mounted) {
         setState(() {
-          _dynamicBanners = banners;
+          _dynamicBanners = finalBanners;
           _isBannersLoading = false;
         });
         _startAdTimer();
       }
     } catch (_) {
-      if (mounted) setState(() => _isBannersLoading = false);
+      if (mounted) {
+        setState(() {
+          _dynamicBanners = [
+            {'title': 'Special Personal Loan Offer', 'subtitle': 'Instant approval up to ₹15 Lakhs @ 10.49% ROI', 'color_hex': '0xFF093A7A'},
+            {'title': 'Instant Business Loan', 'subtitle': 'Unsecured working capital for retail & MSMEs', 'color_hex': '0xFF27AE60'},
+            {'title': 'Home Loan Balance Transfer', 'subtitle': 'Reduce EMI with rates starting @ 8.40% p.a.', 'color_hex': '0xFF0984E3'},
+            {'title': 'Fast-Track Vehicle Funding', 'subtitle': '100% on-road commercial & private vehicle loans', 'color_hex': '0xFF6C5CE7'},
+            {'title': 'Earn Unlimited with Referrals', 'subtitle': 'Highest payout commission on every disbursed loan', 'color_hex': '0xFFE17055'},
+          ];
+          _isBannersLoading = false;
+        });
+        _startAdTimer();
+      }
     }
   }
 
@@ -118,18 +141,21 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
         ]),
         const SizedBox(height: 24),
         if (_isBannersLoading)
-          SizedBox(height: 120, child: PageView.builder(itemCount: 1, itemBuilder: (context, index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(20)))))
+          SizedBox(height: 140, child: PageView.builder(itemCount: 1, itemBuilder: (context, index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(20)))))
         else if (_dynamicBanners.isNotEmpty) ...[
-          SizedBox(height: 120, child: PageView.builder(controller: _adController, itemCount: _dynamicBanners.length, onPageChanged: (index) => setState(() => _currentAdIndex = index), itemBuilder: (context, index) {
+          SizedBox(height: 140, child: PageView.builder(controller: _adController, itemCount: _dynamicBanners.length, onPageChanged: (index) => setState(() => _currentAdIndex = index), itemBuilder: (context, index) {
             final ad = _dynamicBanners[index];
             final colorHex = (ad['color_hex'] != null && ad['color_hex'].toString().isNotEmpty) ? ad['color_hex'] : '0xFF093A7A';
             final color = Color(int.tryParse(colorHex) ?? 0xFF093A7A);
-            final imageUrl = ad['image_url'];
+            final rawImg = ad['image_url'] ?? ad['imageUrl'];
+            final String? imageUrl = (rawImg != null && rawImg.toString().isNotEmpty)
+                ? (rawImg.toString().startsWith('http') ? rawImg.toString() : (ApiClient.baseUrl + (rawImg.toString().startsWith('/') ? rawImg.toString() : '/$rawImg')))
+                : null;
             
-            if (imageUrl != null && imageUrl.toString().isNotEmpty) {
-              return Container(margin: const EdgeInsets.symmetric(horizontal: 4), child: ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: double.infinity, errorBuilder: (context, error, stackTrace) => Container(color: color))));
+            if (imageUrl != null && imageUrl.isNotEmpty) {
+              return Container(margin: const EdgeInsets.symmetric(horizontal: 4), child: ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: double.infinity, errorBuilder: (context, error, stackTrace) => Container(color: color, padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text((ad['title'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 6), Text((ad['subtitle'] ?? '').toString(), style: const TextStyle(color: Colors.white70, fontSize: 13))])))));
             }
-            return Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text((ad['title'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text((ad['subtitle'] ?? '').toString(), style: const TextStyle(color: Colors.white70, fontSize: 14))]));
+            return Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text((ad['title'] ?? '').toString(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)), const SizedBox(height: 6), Text((ad['subtitle'] ?? '').toString(), style: const TextStyle(color: Colors.white70, fontSize: 13))]));
           })),
           const SizedBox(height: 12),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(_dynamicBanners.length, (index) => Container(margin: const EdgeInsets.symmetric(horizontal: 4), width: _currentAdIndex == index ? 24 : 8, height: 8, decoration: BoxDecoration(color: _currentAdIndex == index ? const Color(0xFF093A7A) : Colors.grey[300], borderRadius: BorderRadius.circular(4))))),
@@ -166,7 +192,21 @@ class _MyLoanDashboardScreenState extends State<MyLoanDashboardScreen> {
   Widget _buildInsuranceGrid() {
     return GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 16, mainAxisSpacing: 24, childAspectRatio: 0.6), itemCount: _insuranceCategories.length, itemBuilder: (context, index) {
       final category = _insuranceCategories[index];
-      return GestureDetector(onTap: () => _showComingSoon(category['title'] as String), child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: (category['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(category['icon'] as IconData, color: category['color'] as Color, size: 28)), const SizedBox(height: 8), Expanded(child: Text(category['title'] as String, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)))]));
+      return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => InsuranceApplicationScreen(insuranceType: category['title'] as String),
+            ),
+          );
+        },
+        child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [
+          Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: (category['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(category['icon'] as IconData, color: category['color'] as Color, size: 28)),
+          const SizedBox(height: 8),
+          Expanded(child: Text(category['title'] as String, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87))),
+        ]),
+      );
     });
   }
 

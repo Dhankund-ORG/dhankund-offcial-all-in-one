@@ -7,7 +7,9 @@ import 'screens/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: 'config.env');
+  try {
+    await dotenv.load(fileName: 'config.env');
+  } catch (_) {}
   ApiClient.init();
   await ApiClient.loadSession();
   runApp(const DhankundCrmApp());

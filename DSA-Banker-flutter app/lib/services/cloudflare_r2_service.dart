@@ -23,7 +23,8 @@ class CloudflareR2Service {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(response.body);
         if (data is Map && data['url'] != null) {
-          return baseUrl + data['url'].toString();
+          final relUrl = data['url'].toString();
+          return relUrl.startsWith('http') ? relUrl : (baseUrl + (relUrl.startsWith('/') ? relUrl : '/$relUrl'));
         }
         return null;
       }
