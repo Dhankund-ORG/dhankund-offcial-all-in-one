@@ -210,6 +210,7 @@ class _PostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPublished = post['status'] == 'published';
     final title = post['title']?.toString() ?? '';
+    final views = int.tryParse(post['views']?.toString() ?? '0') ?? 0;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -273,10 +274,40 @@ class _PostCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '${post['author_name'] ?? 'Dhankund'} • ${post['updated_at']?.toString().substring(0, 10) ?? ''}',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                const SizedBox(height: 4),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  runSpacing: 4,
+                  children: [
+                    Text(
+                      '${post['author_name'] ?? 'Dhankund'} • ${post['updated_at']?.toString().substring(0, 10) ?? ''}',
+                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.visibility_outlined, size: 12, color: Color(0xFF475569)),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$views ${views == 1 ? 'View' : 'Views'}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -518,7 +549,38 @@ class _BlogEditorPageState extends State<BlogEditorPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Text(isEdit ? 'लेख संपादित करें' : 'नया लेख'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(isEdit ? 'लेख संपादित करें' : 'नया लेख'),
+            if (isEdit) ...[
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.visibility_outlined, size: 13, color: Color(0xFF475569)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${int.tryParse(widget.post?['views']?.toString() ?? '0') ?? 0} Views',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF334155),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
@@ -586,11 +648,42 @@ class _BlogEditorPageState extends State<BlogEditorPage> {
   }
 
   Widget _buildEditor(bool isDesktop) {
+    final postViews = int.tryParse(widget.post?['views']?.toString() ?? '0') ?? 0;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.post != null) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.insights, size: 16, color: AppTheme.royalGold),
+                  const SizedBox(width: 8),
+                  Text(
+                    'कुल पाठकों की संख्या (Total Views): $postViews',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'स्थिति: ${widget.post?['status'] == 'published' ? 'प्रकाशित (Published)' : 'ड्राफ्ट (Draft)'}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: widget.post?['status'] == 'published' ? AppTheme.emeraldGreen : AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           TextField(
             controller: _titleController,
             onChanged: _onTitleChanged,

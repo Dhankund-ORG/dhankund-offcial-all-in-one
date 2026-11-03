@@ -849,6 +849,8 @@ app.get('/api/v1/blog/:slug', async function (c) {
   if (!row) return c.json({ error: 'Not found' }, 404);
   if (c.executionCtx && c.executionCtx.waitUntil) {
     c.executionCtx.waitUntil(run(c.env, 'UPDATE blog_posts SET views = views + 1 WHERE id = ?', [row.id]));
+  } else {
+    await run(c.env, 'UPDATE blog_posts SET views = views + 1 WHERE id = ?', [row.id]);
   }
   return c.json(blogPostOut(row));
 });
