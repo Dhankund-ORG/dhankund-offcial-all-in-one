@@ -15,6 +15,7 @@ import 'package:my_flutter_app/services/cloudflare_r2_service.dart';
 import 'package:my_flutter_app/presentation/auth/welcome_screen.dart';
 import 'package:my_flutter_app/presentation/shared/edit_profile_screen.dart';
 import 'package:my_flutter_app/presentation/shared/manage_banners_screen.dart' as manage_banners;
+import 'package:my_flutter_app/presentation/b2b_network/banker_policy_upload_screen.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -26,11 +27,18 @@ class MyProfileScreen extends StatefulWidget {
 class _MyProfileScreenState extends State<MyProfileScreen> {
   bool _isUploading = false;
   Map<String, dynamic> _profile = {};
+  Map<String, dynamic>? _myBankPolicy;
   bool _isLoading = true;
   final _api = ApiService();
 
   bool _isBiometricEnabled = false;
   String _selectedLanguage = 'English';
+
+  bool _isBankerProfile([Map<String, dynamic>? profileData]) {
+    final p = profileData ?? _profile;
+    final role = (p['role'] ?? p['partnerType'] ?? p['partner_type'] ?? ApiClient.currentUserRole ?? '').toString().toLowerCase();
+    return role.contains('bank');
+  }
 
   @override
   void initState() {
@@ -54,14 +62,33 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   Future<void> _loadProfile() async {
     try {
       final p = await _api.fetchMyProfile();
+      Map<String, dynamic>? bankPol;
+      if (_isBankerProfile(p)) {
+        try {
+          bankPol = await _api.fetchMyBankPolicy();
+        } catch (_) {}
+      }
       if (mounted) {
         setState(() {
           _profile = p;
+          _myBankPolicy = bankPol;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _openBankerPolicyForm() async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BankerPolicyUploadScreen(initialProfile: _profile),
+      ),
+    );
+    if (updated == true) {
+      _loadProfile();
     }
   }
 
@@ -435,6 +462,10 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                 child: Column(
                   children: [
                     _buildHeader(context),
+                    if (_isBankerProfile()) ...[
+                      const SizedBox(height: 20),
+                      _buildBankerPolicySection(),
+                    ],
                     const SizedBox(height: 20),
                     _buildFullDetailsSection(),
                     const SizedBox(height: 20),
@@ -827,7 +858,127 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     );
   }
 
+  Widget _buildBankerPolicySection() {
+    final hasPolicy = _myBankPolicy != null && _myBankPolicy!['id'] != null;
+    final status = (_myBankPolicy?['status'] ?? '').toString();
+    final bankName = (_myBankPolicy?['bank_name'] ?? _profile['companyName'] ?? _profile['company'] ?? 'Your Bank').toString();
+    final isApproved = status == 'approved';
+    final isRejected = status == 'rejected';
+
+    String statusLabel = 'One-Time Registration • Update Anytime';
+    Color statusColor = const Color(0xFF093A7A);
+    if (hasPolicy) {
+      if (isApproved) {
+        statusLabel = 'Approved & Active in CRM • Tap to Update';
+        statusColor = const Color(0xFF16A34A);
+      } else if (isRejected) {
+        statusLabel = 'Changes Requested • Tap to Update & Resubmit';
+        statusColor = const Color(0xFFDC2626);
+      } else {
+        statusLabel = 'Pending CRM Approval (App Uploaded Policy)';
+        statusColor = const Color(0xFFD97706);
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'BANKER POLICY MANAGEMENT',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF093A7A), letterSpacing: 1),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF093A7A), Color(0xFF1E40AF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF093A7A).withOpacity(0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: _openBankerPolicyForm,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          hasPolicy ? Icons.edit_document : Icons.policy_outlined,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              hasPolicy ? 'Update Bank Policy' : 'Add Bank Policy',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$bankName • Upload One Pager Policy & Approved Pincodes',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAccountStatsSection() {
+    final hasPolicy = _myBankPolicy != null && _myBankPolicy!['id'] != null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
@@ -854,6 +1005,31 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                   'Bank Account Details',
                   (_profile['bankDetailsCompleted'] == true) ? 'Linked' : 'Not Linked',
                 ),
+                if (_isBankerProfile()) ...[
+                  const Divider(height: 1, indent: 60),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF093A7A).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.policy_outlined, color: Color(0xFF093A7A), size: 20),
+                    ),
+                    title: Text(
+                      hasPolicy ? 'Update Bank Policy' : 'Add Bank Policy',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      hasPolicy
+                          ? 'Policy uploaded (${(_myBankPolicy?['status'] ?? 'pending_approval') == 'approved' ? 'Approved' : 'Pending CRM Review'}) • Tap to update'
+                          : 'Upload your bank policy & One Pager Policy (One-time)',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    onTap: _openBankerPolicyForm,
+                  ),
+                ],
                 if (ApiClient.currentUserRole?.toLowerCase() == 'admin' || _profile['role']?.toString().toLowerCase() == 'admin') ...[
                   const Divider(height: 1, indent: 60),
                   ListTile(

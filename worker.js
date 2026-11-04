@@ -243,7 +243,9 @@ async function ensureBankPolicySchema(env) {
         'plot_purchase', 'plot_mortgage',
         'is_salary_slip_required', 'residence_ownership_type',
         'business_ownership_type', 'is_gst_required', 'is_itr_required',
-        'is_udyam_required', 'is_current_account_required', 'bankings_considered'
+        'is_udyam_required', 'is_current_account_required', 'bankings_considered',
+        'approved_pincodes', 'one_pager_policy_url', 'status',
+        'uploaded_by_uid', 'uploaded_by_name', 'uploaded_by_mobile', 'rejection_reason'
       ];
       for (const col of newCols) {
         if (!colNames.has(col)) {
@@ -395,6 +397,13 @@ function policyColumns(b) {
     is_udyam_required: b.is_udyam_required || null,
     is_current_account_required: b.is_current_account_required || null,
     bankings_considered: b.bankings_considered || null,
+    approved_pincodes: b.approved_pincodes || null,
+    one_pager_policy_url: b.one_pager_policy_url || null,
+    status: b.status || 'approved',
+    uploaded_by_uid: b.uploaded_by_uid || null,
+    uploaded_by_name: b.uploaded_by_name || null,
+    uploaded_by_mobile: b.uploaded_by_mobile || null,
+    rejection_reason: b.rejection_reason || null,
     updated_at: nowIso()
   };
 }
@@ -1144,7 +1153,11 @@ app.get('/api/v1/directory', auth, async function (c) {
   const rows = await all(c.env, "SELECT * FROM registrations WHERE lower(role) = lower(?) AND lower(status) = 'approved' ORDER BY created_at DESC", [role]);
   return c.json(rows.map(rowToRegistration));
 });
-app.get('/api/v1/bank-policies', auth, async function (c) { await ensureBankPolicySchema(c.env); const rows = await all(c.env, 'SELECT * FROM bank_policies ORDER BY updated_at DESC'); return c.json(rows); });
+app.get('/api/v1/bank-policies', auth, async function (c) {
+  await ensureBankPolicySchema(c.env);
+  const rows = await all(c.env, "SELECT * FROM bank_policies WHERE status = 'approved' OR status IS NULL ORDER BY updated_at DESC");
+  return c.json(rows);
+});
 
 app.get('/api/v1/banners', async function (c) { const rows = await all(c.env, 'SELECT * FROM banners WHERE is_active = 1 ORDER BY created_at DESC LIMIT 5'); return c.json(rows); });
 app.get('/api/v1/admin/banners', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM banners ORDER BY created_at DESC'); return c.json(rows); });
@@ -1234,6 +1247,262 @@ app.get('/api/v1/referrals', requireAdmin, async function (c) {
 app.patch('/api/v1/referrals/:id/status', requireAdmin, async function (c) { const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'referrals', 'id', id, { status: (b.status || 'Invited').toString() }); return c.json({ success: true }); });
 app.post('/api/v1/bank-policies', requireAdmin, async function (c) { await ensureBankPolicySchema(c.env); const b = await readJson(c); const id = randomId(); await insertRow(c.env, 'bank_policies', Object.assign({ id: id }, policyColumns(b))); return c.json({ success: true, id: id }); });
 app.put('/api/v1/bank-policies/:id', requireAdmin, async function (c) { await ensureBankPolicySchema(c.env); const id = c.req.param('id'); const b = await readJson(c); await updateRow(c.env, 'bank_policies', 'id', id, policyColumns(b)); return c.json({ success: true }); });
+
+// ---------- Excel / CSV Pin Code Parser Helper ----------
+async function extractPincodesFromBuffer(uint8) {
+  const texts = [];
+  try {
+    texts.push(new TextDecoder('utf-8', { fatal: false }).decode(uint8));
+  } catch (_) {}
+
+  if (uint8 && uint8.length > 4 && uint8[0] === 0x50 && uint8[1] === 0x4b && uint8[2] === 0x03 && uint8[3] === 0x04) {
+    let offset = 0;
+    while (offset + 30 < uint8.length) {
+      if (uint8[offset] !== 0x50 || uint8[offset + 1] !== 0x4b || uint8[offset + 2] !== 0x03 || uint8[offset + 3] !== 0x04) {
+        offset++;
+        continue;
+      }
+      const method = uint8[offset + 8] | (uint8[offset + 9] << 8);
+      const compSize = (uint8[offset + 18] | (uint8[offset + 19] << 8) | (uint8[offset + 20] << 16) | (uint8[offset + 21] << 24)) >>> 0;
+      const nameLen = uint8[offset + 26] | (uint8[offset + 27] << 8);
+      const extraLen = uint8[offset + 28] | (uint8[offset + 29] << 8);
+      const dataStart = offset + 30 + nameLen + extraLen;
+      if (dataStart >= uint8.length) break;
+      const name = new TextDecoder().decode(uint8.subarray(offset + 30, Math.min(uint8.length, offset + 30 + nameLen)));
+
+      let dataEnd = compSize > 0 ? dataStart + compSize : dataStart;
+      if (compSize === 0) {
+        for (let k = dataStart; k + 3 < uint8.length; k++) {
+          if (uint8[k] === 0x50 && uint8[k + 1] === 0x4b && (uint8[k + 2] === 0x03 || uint8[k + 2] === 0x01 || uint8[k + 2] === 0x07)) {
+            dataEnd = k;
+            break;
+          }
+        }
+        if (dataEnd === dataStart) dataEnd = uint8.length;
+      }
+
+      if (name.endsWith('.xml') || name.endsWith('.csv') || name.endsWith('.txt')) {
+        const slice = uint8.subarray(dataStart, Math.min(dataEnd, uint8.length));
+        if (method === 0) {
+          texts.push(new TextDecoder('utf-8', { fatal: false }).decode(slice));
+        } else if (method === 8 && typeof DecompressionStream !== 'undefined') {
+          try {
+            const ds = new DecompressionStream('deflate-raw');
+            const writer = ds.writable.getWriter();
+            writer.write(slice).catch(function () {});
+            writer.close().catch(function () {});
+            const reader = ds.readable.getReader();
+            const chunks = [];
+            while (true) {
+              const r = await reader.read();
+              if (r.done) break;
+              if (r.value) chunks.push(r.value);
+            }
+            const total = chunks.reduce(function (acc, c) { return acc + c.length; }, 0);
+            const out = new Uint8Array(total);
+            let pos = 0;
+            for (const c of chunks) { out.set(c, pos); pos += c.length; }
+            texts.push(new TextDecoder('utf-8', { fatal: false }).decode(out));
+          } catch (_) {}
+        }
+      }
+      offset = Math.max(offset + 30, dataEnd);
+    }
+  }
+
+  const pinSet = new Set();
+  const pinRegex = /\b[1-9]\d{5}\b/g;
+  for (const t of texts) {
+    const clean = String(t || '').replace(/<[^>]+>/g, ' ');
+    let m;
+    while ((m = pinRegex.exec(clean)) !== null) {
+      pinSet.add(m[0]);
+    }
+  }
+  return Array.from(pinSet);
+}
+
+app.post('/api/v1/parse-pincodes', auth, async function (c) {
+  try {
+    const buf = await c.req.arrayBuffer();
+    const pincodes = await extractPincodesFromBuffer(new Uint8Array(buf));
+    return c.json({ pincodes: pincodes });
+  } catch (e) {
+    return c.json({ error: e.message || 'Failed to parse pincodes', pincodes: [] }, 400);
+  }
+});
+
+// ---------- App Uploaded Policies (Review & Approval by Admin) ----------
+app.get('/api/v1/admin/app-uploaded-policies', requireAdmin, async function (c) {
+  await ensureBankPolicySchema(c.env);
+  const rows = await all(c.env, "SELECT * FROM bank_policies WHERE status = 'pending_approval' ORDER BY updated_at DESC");
+  return c.json(rows);
+});
+
+app.patch('/api/v1/admin/bank-policies/:id/approve', requireAdmin, async function (c) {
+  await ensureBankPolicySchema(c.env);
+  const id = c.req.param('id');
+  const existing = await first(c.env, 'SELECT * FROM bank_policies WHERE id = ?', [id]);
+  if (!existing) return c.json({ error: 'Policy not found' }, 404);
+  let b = {};
+  try { b = await readJson(c); } catch (_) {}
+  const merged = Object.assign({}, existing, b || {});
+  const updates = Object.assign(policyColumns(merged), { status: 'approved', rejection_reason: null, updated_at: nowIso() });
+  await updateRow(c.env, 'bank_policies', 'id', id, updates);
+  return c.json({ success: true });
+});
+
+app.patch('/api/v1/admin/bank-policies/:id/reject', requireAdmin, async function (c) {
+  await ensureBankPolicySchema(c.env);
+  const id = c.req.param('id');
+  let b = {};
+  try { b = await readJson(c); } catch (_) {}
+  await updateRow(c.env, 'bank_policies', 'id', id, { status: 'rejected', rejection_reason: b.reason || 'Policy requires revision', updated_at: nowIso() });
+  return c.json({ success: true });
+});
+
+// ---------- Banker Self-Policy Management (App) ----------
+app.get('/api/v1/banker/my-policy', auth, async function (c) {
+  await ensureBankPolicySchema(c.env);
+  const me = c.get('user');
+  const userRow = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]);
+  const regRow = await first(c.env, 'SELECT * FROM registrations WHERE uid = ? ORDER BY created_at DESC LIMIT 1', [me.sub]);
+  const mobile = (userRow && userRow.mobile) || (regRow && regRow.mobile) || me.mobile || '';
+  const row = await first(
+    c.env,
+    'SELECT * FROM bank_policies WHERE uploaded_by_uid = ? OR (banker_mobile = ? AND banker_mobile IS NOT NULL AND banker_mobile != "") ORDER BY updated_at DESC LIMIT 1',
+    [me.sub, mobile]
+  );
+  const bankerInfo = {
+    bank_name: (userRow && (userRow.company || userRow.bank_name)) || (regRow && regRow.company) || (row && row.bank_name) || '',
+    banker_name: (userRow && userRow.name) || (regRow && regRow.name) || me.name || '',
+    banker_mobile: mobile,
+    office_address: (userRow && (userRow.office_address || userRow.company_address)) || (regRow && regRow.office_address) || '',
+    l1_manager_name: (userRow && userRow.manager_name) || (regRow && regRow.manager_name) || '',
+    l1_manager_mobile: (userRow && userRow.manager_mobile) || (regRow && regRow.manager_mobile) || '',
+    l2_manager_name: (userRow && userRow.area_manager_name) || (regRow && regRow.area_manager_name) || '',
+    l2_manager_mobile: (userRow && userRow.area_manager_mobile) || (regRow && regRow.area_manager_mobile) || '',
+    segment: (userRow && userRow.segment) || (regRow && regRow.segment) || 'DSA'
+  };
+  return c.json({ policy: row || null, banker_info: bankerInfo });
+});
+
+app.post('/api/v1/banker/policy', auth, async function (c) {
+  await ensureBankPolicySchema(c.env);
+  const me = c.get('user');
+  const b = await readJson(c);
+  const userRow = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]);
+  const regRow = await first(c.env, 'SELECT * FROM registrations WHERE uid = ? ORDER BY created_at DESC LIMIT 1', [me.sub]);
+  const lockedBankName = (userRow && (userRow.company || userRow.bank_name)) || (regRow && regRow.company) || b.bank_name || '';
+
+  const existing = await first(c.env, 'SELECT * FROM bank_policies WHERE uploaded_by_uid = ? OR (id = ? AND id IS NOT NULL AND id != "")', [me.sub, b.id || '']);
+  const merged = Object.assign({}, existing || {}, b || {});
+  if (lockedBankName) merged.bank_name = lockedBankName;
+  const cols = policyColumns(merged);
+  cols.status = 'pending_approval';
+  cols.uploaded_by_uid = me.sub;
+  cols.uploaded_by_name = b.banker_name || (userRow && userRow.name) || me.name || null;
+  cols.uploaded_by_mobile = b.banker_mobile || (userRow && userRow.mobile) || me.mobile || null;
+  cols.rejection_reason = null;
+
+  if (existing) {
+    await updateRow(c.env, 'bank_policies', 'id', existing.id, cols);
+    await notifyAdmins(c.env, 'Bank Policy Updated', `${cols.bank_name || 'Bank'} policy updated by ${cols.uploaded_by_name || 'Banker'} for CRM review.`);
+    return c.json({ success: true, id: existing.id, is_update: true });
+  } else {
+    const id = randomId();
+    await insertRow(c.env, 'bank_policies', Object.assign({ id: id }, cols));
+    await notifyAdmins(c.env, 'New App Bank Policy', `${cols.bank_name || 'Bank'} policy uploaded by ${cols.uploaded_by_name || 'Banker'} for CRM review.`);
+    return c.json({ success: true, id: id, is_update: false });
+  }
+});
+
+// ---------- Convert Lead to Loan Pipeline ----------
+app.post('/api/v1/referrals/:id/convert-to-loan', requireAdmin, async function (c) {
+  const id = c.req.param('id');
+  const ref = await first(c.env, 'SELECT * FROM referrals WHERE id = ?', [id]);
+  if (!ref) return c.json({ error: 'Referral lead not found' }, 404);
+
+  const b = await readJson(c);
+  const loanId = randomId();
+  const now = nowIso();
+
+  const initialDocs = b.applicant_documents || (ref.document_url ? { referral_document: ref.document_url } : null);
+  const loanPayload = Object.assign({}, b, {
+    loan_type: b.loan_type || (ref.loan_type && ref.loan_type !== 'Website Lead' ? ref.loan_type : 'Personal Loan'),
+    full_name: b.full_name || ref.friend_name || '',
+    mobile_number: b.mobile_number || ref.friend_mobile || '',
+    email: b.email || ref.friend_email || '',
+    personal_email: b.personal_email || b.email || ref.friend_email || null,
+    loan_amount: b.loan_amount || ref.estimated_amount || '',
+    applicant_documents: initialDocs,
+    status: b.status || 'Pending'
+  });
+
+  const rowToInsert = Object.assign({ id: loanId, submitted_at: now, updated_at: now }, loanColumns(loanPayload));
+  await insertRow(c.env, 'loan_applications', rowToInsert);
+
+  await updateRow(c.env, 'referrals', 'id', id, {
+    status: 'Converted to Pipeline'
+  });
+
+  return c.json({ success: true, loan_id: loanId, loan: rowToLoan(rowToInsert) });
+});
+
+// ---------- Public Website Contact Lead Entry ----------
+app.post('/api/v1/contact-lead', async function (c) {
+  await ensureReferralSchema(c.env);
+  const b = await readJson(c);
+  const firstName = (b.firstName || b.first_name || '').toString().trim();
+  const lastName = (b.lastName || b.last_name || '').toString().trim();
+  const fullName = [firstName, lastName].filter(Boolean).join(' ') || (b.name || 'Website Visitor').toString().trim();
+  const mobile = (b.mobile || b.mobile_number || '').toString().trim();
+  const email = (b.email || '').toString().trim();
+  const message = (b.message || '').toString().trim();
+
+  if (!fullName || !mobile) {
+    return c.json({ error: 'Name and Mobile Number are required.' }, 400);
+  }
+
+  const id = randomId();
+  const now = new Date();
+  const countRow = await first(c.env, 'SELECT COUNT(*) as count FROM referrals');
+  const seq = (countRow && countRow.count ? countRow.count : 0) + 1;
+  const leadId = formatLeadId(now, seq);
+
+  await insertRow(c.env, 'referrals', {
+    id: id,
+    lead_id: leadId,
+    referrer_id: 'website',
+    friend_name: fullName,
+    friend_mobile: mobile,
+    friend_email: email || null,
+    relationship: 'Website Contact Form',
+    loan_type: 'Website Lead',
+    estimated_amount: message ? 'Message: ' + message : 'Website Inquiry',
+    document_url: null,
+    consent_given: 1,
+    status: 'Invited',
+    created_at: nowIso()
+  });
+
+  if (c.env.SEB && typeof c.env.SEB.send === 'function') {
+    try {
+      await c.env.SEB.send({
+        to: 'info@dhankund.com',
+        from: 'noreply@dhankund.com',
+        replyTo: email || undefined,
+        subject: `New website enquiry from ${fullName}`,
+        text: `New contact enquiry received from the Dhankund website.\n\nName: ${fullName}\nMobile: ${mobile}\nEmail: ${email}\n\nMessage:\n${message}\n`,
+        html: `<h2>New website enquiry</h2><p>A visitor submitted the contact form on Dhankund website.</p><p><strong>Name:</strong> ${fullName}<br/><strong>Mobile:</strong> ${mobile}<br/><strong>Email:</strong> ${email}</p><p><strong>Message:</strong></p><blockquote>${message}</blockquote>`
+      });
+    } catch (e) {
+      console.error('Email send warning:', e.message);
+    }
+  }
+
+  return c.json({ success: true, lead_id: leadId, id: id });
+});
 app.get('/api/v1/broadcasts', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM broadcast_history ORDER BY timestamp DESC'); return c.json(parseJsonList(boolify(rows, ['send_whatsapp', 'send_email', 'send_push']), 'audiences')); });
 app.post('/api/v1/broadcasts', requireAdmin, async function (c) { const b = await readJson(c); const id = randomId(); const audiences = Array.isArray(b.audiences) ? b.audiences : []; const sendPush = !!b.send_push || !!b.sendPush; await insertRow(c.env, 'broadcast_history', { id: id, audiences: JSON.stringify(audiences), send_whatsapp: b.send_whatsapp ? 1 : 0, send_email: b.send_email ? 1 : 0, send_push: sendPush ? 1 : 0, subject: b.subject || null, message: b.message || null, recipient_count: (b.recipient_count != null) ? b.recipient_count : 0, timestamp: nowIso() }); let pushSent = 0; if (sendPush) { const tokens = await all(c.env, 'SELECT token FROM fcm_tokens'); for (const t of tokens) { try { await sendFcm(c.env, { token: t.token, title: b.subject || 'Dhankund', body: b.message || '', data: {} }); pushSent += 1; } catch (e) { console.error('push failed', e.message); } } } return c.json({ success: true, id: id, push_sent: pushSent }); });
 app.post('/api/v1/push', requireAdmin, async function (c) { const b = await readJson(c); if (!b.token) return c.json({ error: 'token is required' }, 400); await sendFcm(c.env, { token: String(b.token), title: b.title || '', body: b.body || '', data: b.data || {} }); return c.json({ success: true }); });

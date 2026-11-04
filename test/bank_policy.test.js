@@ -27,6 +27,13 @@ function policyColumns(b) {
     m_profile_allowed: b.m_profile_allowed || null,
     max_allowed_bounces: (b.max_allowed_bounces != null) ? b.max_allowed_bounces : null,
     geo_radius: b.geo_radius || null,
+    approved_pincodes: b.approved_pincodes || b.approvedPincodes || null,
+    one_pager_policy_url: b.one_pager_policy_url || b.onePagerPolicyUrl || null,
+    status: b.status || 'approved',
+    uploaded_by_uid: b.uploaded_by_uid || b.uploadedByUid || null,
+    uploaded_by_name: b.uploaded_by_name || b.uploadedByName || null,
+    uploaded_by_mobile: b.uploaded_by_mobile || b.uploadedByMobile || null,
+    rejection_reason: b.rejection_reason || b.rejectionReason || null,
     login_fee: b.login_fee || null,
     interest_rate: b.interest_rate || null,
     processing_fee: b.processing_fee || null,
@@ -61,6 +68,16 @@ function policyColumns(b) {
   };
 }
 
+function extractPincodesFromText(text) {
+  const pinSet = new Set();
+  const regex = /(?:^|[^\d])([1-9]\d{5})(?!\d)/g;
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    pinSet.add(m[1]);
+  }
+  return Array.from(pinSet);
+}
+
 test('policyColumns properly formats Home Loan & Mortgage Loan underwriting fields', () => {
   const input = {
     bank_name: 'HDFC Bank',
@@ -92,6 +109,9 @@ test('policyColumns properly formats Home Loan & Mortgage Loan underwriting fiel
     green_belt_property_funding: 'NO',
     plot_purchase: 'YES',
     plot_mortgage: 'YES',
+    geo_radius: '50 KM',
+    approved_pincodes: '452001, 452010, 452016',
+    one_pager_policy_url: 'https://api.dhankund.com/api/v1/storage/one_pager_policies/doc.pdf',
   };
 
   const output = policyColumns(input);
@@ -110,6 +130,9 @@ test('policyColumns properly formats Home Loan & Mortgage Loan underwriting fiel
   assert.equal(output.green_belt_property_funding, 'NO');
   assert.equal(output.plot_purchase, 'YES');
   assert.equal(output.plot_mortgage, 'YES');
+  assert.equal(output.approved_pincodes, '452001, 452010, 452016');
+  assert.equal(output.one_pager_policy_url, 'https://api.dhankund.com/api/v1/storage/one_pager_policies/doc.pdf');
+  assert.equal(output.status, 'approved');
 });
 
 test('policyColumns handles Personal Loan policies without LTV and with salary/residence norms', () => {
@@ -120,6 +143,7 @@ test('policyColumns handles Personal Loan policies without LTV and with salary/r
     max_allowed_bounces: 0,
     is_salary_slip_required: 'YES - Mandatory (अनिवार्य)',
     residence_ownership_type: 'Owned Only Required (केवल खुद का मकान)',
+    approvedPincodes: '462001, 462011',
   };
 
   const output = policyColumns(input);
@@ -130,6 +154,7 @@ test('policyColumns handles Personal Loan policies without LTV and with salary/r
   assert.equal(output.max_allowed_bounces, 0);
   assert.equal(output.is_salary_slip_required, 'YES - Mandatory (अनिवार्य)');
   assert.equal(output.residence_ownership_type, 'Owned Only Required (केवल खुद का मकान)');
+  assert.equal(output.approved_pincodes, '462001, 462011');
 });
 
 test('policyColumns handles Business Loan policies without LTV and with business/doc norms', () => {
@@ -158,6 +183,50 @@ test('policyColumns handles Business Loan policies without LTV and with business
   assert.equal(output.bankings_considered, '6+');
 });
 
+test('policyColumns supports App Uploaded Policy pending_approval workflow and admin modification merge', () => {
+  const bankerSubmission = policyColumns({
+    bank_name: 'State Bank of India (SBI)',
+    banker_name: 'Amit Verma',
+    banker_mobile: '9988776655',
+    loan_type: 'Home Loan',
+    geo_radius: '40 KM',
+    approved_pincodes: '452001, 452002',
+    one_pager_policy_url: 'https://api.dhankund.com/api/v1/storage/one_pager_policies/sbi.pdf',
+    status: 'pending_approval',
+    uploaded_by_uid: 'banker-uid-1',
+    uploaded_by_name: 'Amit Verma',
+    uploaded_by_mobile: '9988776655',
+  });
+
+  assert.equal(bankerSubmission.status, 'pending_approval');
+  assert.equal(bankerSubmission.uploaded_by_uid, 'banker-uid-1');
+  assert.equal(bankerSubmission.approved_pincodes, '452001, 452002');
+
+  // Admin modifies approved_pincodes and interest_rate before approving
+  const adminModifications = {
+    approved_pincodes: '452001, 452002, 452010',
+    interest_rate: '8.40% p.a.',
+  };
+  const approvedPolicy = policyColumns({
+    ...bankerSubmission,
+    ...adminModifications,
+    status: 'approved',
+    rejection_reason: null,
+  });
+
+  assert.equal(approvedPolicy.status, 'approved');
+  assert.equal(approvedPolicy.bank_name, 'State Bank of India (SBI)');
+  assert.equal(approvedPolicy.approved_pincodes, '452001, 452002, 452010');
+  assert.equal(approvedPolicy.interest_rate, '8.40% p.a.');
+  assert.equal(approvedPolicy.one_pager_policy_url, 'https://api.dhankund.com/api/v1/storage/one_pager_policies/sbi.pdf');
+});
+
+test('extractPincodesFromText extracts unique 6-digit Indian PIN codes and ignores non-pincodes', () => {
+  const sampleCsv = 'City,Pincode,Phone\nIndore,452001,9876543210\nIndore Vijay Nagar,452010,000123\nBhopal,462001,452001';
+  const pins = extractPincodesFromText(sampleCsv);
+  assert.deepEqual(pins, ['452001', '452010', '462001']);
+});
+
 test('policyColumns safely handles missing fields and defaults to null', () => {
   const output = policyColumns({});
   assert.equal(output.bank_name, null);
@@ -166,6 +235,9 @@ test('policyColumns safely handles missing fields and defaults to null', () => {
   assert.equal(output.foir_norms, null);
   assert.equal(output.ltv_on_plot, null);
   assert.equal(output.segment, null);
+  assert.equal(output.approved_pincodes, null);
+  assert.equal(output.one_pager_policy_url, null);
+  assert.equal(output.status, 'approved');
   assert.equal(output.road_winding_property_funding, null);
   assert.equal(output.is_salary_slip_required, null);
   assert.equal(output.residence_ownership_type, null);

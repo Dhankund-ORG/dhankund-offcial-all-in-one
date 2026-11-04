@@ -7,6 +7,7 @@ type Status = "idle" | "submitting" | "success" | "error";
 export default function Contact() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [mobile, setMobile] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<Status>("idle");
@@ -21,7 +22,7 @@ export default function Contact() {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, message }),
+        body: JSON.stringify({ firstName, lastName, mobile, email, message }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -30,6 +31,7 @@ export default function Contact() {
       setStatus("success");
       setFirstName("");
       setLastName("");
+      setMobile("");
       setEmail("");
       setMessage("");
     } catch (err) {
@@ -112,7 +114,7 @@ export default function Contact() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">First Name</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">First Name *</label>
                   <input
                     type="text"
                     required
@@ -135,7 +137,20 @@ export default function Contact() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Mobile Number *</label>
+                <input
+                  type="tel"
+                  required
+                  pattern="[0-9]{10}"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                  placeholder="9876543210"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Email Address *</label>
                 <input
                   type="email"
                   required

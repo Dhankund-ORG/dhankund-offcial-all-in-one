@@ -497,6 +497,9 @@ class ApiService {
     String? isUdyamRequired,
     String? isCurrentAccountRequired,
     String? bankingsConsidered,
+    String? approvedPincodes,
+    String? onePagerPolicyUrl,
+    String? status,
   }) async {
     final body = {
       'bank_name': bankName,
@@ -553,6 +556,9 @@ class ApiService {
       'is_udyam_required': isUdyamRequired,
       'is_current_account_required': isCurrentAccountRequired,
       'bankings_considered': bankingsConsidered,
+      'approved_pincodes': approvedPincodes,
+      'one_pager_policy_url': onePagerPolicyUrl,
+      'status': status ?? 'approved',
     };
     if (docId != null && docId.isNotEmpty) {
       await ApiClient.put('/api/v1/bank-policies/' + docId, body);
@@ -620,5 +626,60 @@ class ApiService {
   Future<List<Map<String, dynamic>>> fetchInsuranceApplications() async {
     final data = await ApiClient.get('/api/v1/insurance-applications');
     return _asList(data);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAppUploadedPolicies() async {
+    final data = await ApiClient.get('/api/v1/admin/app-uploaded-policies');
+    return _asList(data);
+  }
+
+  Future<void> approveBankPolicy(String id, [Map<String, dynamic>? updates]) async {
+    await ApiClient.patch('/api/v1/admin/bank-policies/' + id + '/approve', updates ?? {});
+  }
+
+  Future<void> rejectBankPolicy(String id, String reason) async {
+    await ApiClient.patch('/api/v1/admin/bank-policies/' + id + '/reject', {'reason': reason});
+  }
+
+  Future<Map<String, dynamic>> convertReferralToLoan(String referralId, Map<String, dynamic> loanData) async {
+    final res = await ApiClient.post('/api/v1/referrals/' + referralId + '/convert-to-loan', loanData);
+    if (res is Map) return res.cast<String, dynamic>();
+    return {'success': true};
+  }
+
+  Future<List<String>> parsePincodesFromFile(List<int> bytes) async {
+    final pins = <String>{};
+    try {
+      final uri = Uri.parse(ApiClient.baseUrl + '/api/v1/parse-pincodes');
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          if (ApiClient.token != null) 'Authorization': 'Bearer ' + ApiClient.token!,
+        },
+        body: bytes,
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (decoded is Map && decoded['pincodes'] is List) {
+          for (final p in decoded['pincodes']) {
+            if (p != null && p.toString().trim().isNotEmpty) {
+              pins.add(p.toString().trim());
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final rawText = String.fromCharCodes(bytes).replaceAll(RegExp(r'<[^>]+>'), ' ');
+      final regex = RegExp(r'\b[1-9]\d{5}\b');
+      for (final m in regex.allMatches(rawText)) {
+        final val = m.group(0);
+        if (val != null) pins.add(val);
+      }
+    } catch (_) {}
+
+    return pins.toList();
   }
 }

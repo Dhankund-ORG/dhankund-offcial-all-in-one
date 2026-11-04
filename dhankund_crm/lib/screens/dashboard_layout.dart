@@ -9,6 +9,7 @@ import 'pages/community_page.dart';
 import 'pages/broadcast_page.dart';
 import 'pages/leads_report_page.dart';
 import 'pages/banker_policies_page.dart';
+import 'pages/app_uploaded_policies_page.dart';
 import 'pages/cloudflare_migration_page.dart';
 import 'pages/blog_posts_page.dart';
 import 'pages/banners_page.dart';
@@ -33,6 +34,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     'Broadcast',
     'Leads Report',
     'Banker Policies',
+    'App Uploaded Policy',
     'Cloudflare Migration',
     'Blog Posts',
     'App Banners',
@@ -48,6 +50,7 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     Icons.campaign_outlined,
     Icons.analytics_outlined,
     Icons.policy_outlined,
+    Icons.approval_outlined,
     Icons.cloud_sync_outlined,
     Icons.article_outlined,
     Icons.view_carousel_outlined,
@@ -67,11 +70,16 @@ class _DashboardLayoutState extends State<DashboardLayout> {
       const RegistrationsPage(),
       const KycBankPage(),
       const LoansPage(),
-      const ReferralsPage(),
+      ReferralsPage(onNavigateToLoanPipeline: () {
+        setState(() {
+          _activeTabIndex = 3;
+        });
+      }),
       const CommunityPage(),
       const BroadcastPage(),
       const LeadsReportPage(),
       const BankerPoliciesPage(),
+      const AppUploadedPoliciesPage(),
       const CloudflareMigrationPage(),
       const BlogPostsPage(),
       const BannersPage(),
