@@ -106,14 +106,13 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
 
     Future<void> pickExcelPincodes() async {
       try {
-        final result = await FilePicker.platform.pickFiles(
+        final file = await FilePicker.pickFile(
           type: FileType.custom,
           allowedExtensions: ['xlsx', 'xls', 'csv', 'txt'],
-          withData: true,
         );
-        if (result != null && result.files.isNotEmpty) {
-          final bytes = result.files.first.bytes;
-          if (bytes != null) {
+        if (file != null) {
+          final bytes = await file.readAsBytes();
+          if (bytes.isNotEmpty) {
             final matches = await _firestoreService.parsePincodesFromFile(bytes);
             if (matches.isNotEmpty) {
               final currentText = approvedPincodesController.text.trim();
@@ -664,17 +663,16 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                                 onPressed: isUploadingOnePager
                                     ? null
                                     : () async {
-                                        final res = await FilePicker.platform.pickFiles(
+                                        final file = await FilePicker.pickFile(
                                           type: FileType.custom,
                                           allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
-                                          withData: true,
                                         );
-                                        if (res != null && res.files.isNotEmpty && res.files.first.bytes != null) {
+                                        if (file != null) {
                                           setDialogState(() => isUploadingOnePager = true);
-                                          final file = res.files.first;
+                                          final bytes = await file.readAsBytes();
                                           final url = await CloudflareR2Service().uploadDocument(
                                             'one_pager_${DateTime.now().millisecondsSinceEpoch}_${file.name}',
-                                            file.bytes!,
+                                            bytes,
                                           );
                                           setDialogState(() {
                                             isUploadingOnePager = false;

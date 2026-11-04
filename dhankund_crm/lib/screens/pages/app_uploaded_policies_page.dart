@@ -152,13 +152,13 @@ class _AppUploadedPoliciesPageState extends State<AppUploadedPoliciesPage> {
 
     Future<void> pickExcelPincodes() async {
       try {
-        final result = await FilePicker.platform.pickFiles(
+        final file = await FilePicker.pickFile(
           type: FileType.custom,
           allowedExtensions: ['xlsx', 'xls', 'csv', 'txt'],
-          withData: true,
         );
-        if (result != null && result.files.isNotEmpty && result.files.first.bytes != null) {
-          final matches = await _api.parsePincodesFromFile(result.files.first.bytes!);
+        if (file != null) {
+          final bytes = await file.readAsBytes();
+          final matches = await _api.parsePincodesFromFile(bytes);
           if (matches.isNotEmpty) {
             final current = pincodesController.text.trim();
             final existingPins = current.isNotEmpty
