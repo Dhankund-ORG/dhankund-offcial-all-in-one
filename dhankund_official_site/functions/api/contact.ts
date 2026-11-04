@@ -25,6 +25,7 @@ export async function onRequestOptions() {
 interface ContactBody {
   firstName?: string;
   lastName?: string;
+  mobile?: string;
   email?: string;
   message?: string;
 }
@@ -41,11 +42,12 @@ export async function onRequestPost(context: { request: Request; env: Record<str
 
   const firstName = (body.firstName ?? "").toString().trim();
   const lastName = (body.lastName ?? "").toString().trim();
+  const mobile = (body.mobile ?? "").toString().trim();
   const email = (body.email ?? "").toString().trim();
   const message = (body.message ?? "").toString().trim();
 
-  if (!firstName || !email || !message) {
-    return json({ error: "Please fill in your name, email, and message." }, 400);
+  if (!firstName || !mobile || !email || !message) {
+    return json({ error: "Please fill in your name, mobile number, email, and message." }, 400);
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -56,16 +58,12 @@ export async function onRequestPost(context: { request: Request; env: Record<str
     | { send: (msg: Record<string, unknown>) => Promise<unknown> }
     | undefined;
 
-  if (!sendEmail || typeof sendEmail.send !== "function") {
-    console.error("SEB send_email binding is not configured");
-    return json({ error: "Email service is not configured on the server." }, 500);
-  }
-
   const fullName = [firstName, lastName].filter(Boolean).join(" ");
   const subject = `New contact enquiry from ${fullName}`;
   const textBody =
     `New contact enquiry received from the Dhankund website.\n\n` +
     `Name: ${fullName}\n` +
+    `Mobile: ${mobile}\n` +
     `Email: ${email}\n\n` +
     `Message:\n${message}\n`;
 
@@ -73,23 +71,52 @@ export async function onRequestPost(context: { request: Request; env: Record<str
     `<h2>New contact enquiry</h2>` +
     `<p>A visitor submitted the contact form on the Dhankund website.</p>` +
     `<p><strong>Name:</strong> ${escapeHtml(fullName)}<br/>` +
+    `<strong>Mobile:</strong> ${escapeHtml(mobile)}<br/>` +
     `<strong>Email:</strong> ${escapeHtml(email)}</p>` +
     `<p><strong>Message:</strong></p>` +
     `<blockquote>${escapeHtml(message).replace(/\n/g, "<br/>")}</blockquote>`;
 
+  const reqHost = new URL(request.url).hostname;
+  const apiBase =
+    reqHost.includes("dev.") || reqHost.includes("preview")
+      ? "https://dev.api.dhankund.com"
+      : "https://api.dhankund.com";
+
+  // Directly push lead to Dhankund CRM Payouts & Referrals ecosystem as a Website Lead
+  let crmSynced = false;
   try {
-    await sendEmail.send({
-      to: DESTINATION_EMAIL,
-      from: SENDER_EMAIL,
-      replyTo: email,
-      subject,
-      text: textBody,
-      html: htmlBody,
+    const crmRes = await fetch(`${apiBase}/api/v1/contact-lead`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName, lastName, mobile, email, message }),
     });
-    return json({ success: true });
+    crmSynced = crmRes.ok;
+  } catch (crmErr) {
+    console.warn("CRM lead sync warning:", crmErr);
+  }
+
+  try {
+    if (sendEmail && typeof sendEmail.send === "function") {
+      await sendEmail.send({
+        to: DESTINATION_EMAIL,
+        from: SENDER_EMAIL,
+        replyTo: email,
+        subject,
+        text: textBody,
+        html: htmlBody,
+      });
+    } else if (!crmSynced) {
+      console.error("SEB send_email binding is not configured and CRM sync did not complete");
+      return json({ error: "Email service is not configured on the server." }, 500);
+    }
+
+    return json({ success: true, crm_synced: crmSynced });
   } catch (e: unknown) {
     const err = e as { code?: string; message?: string };
     console.error("Email send failed:", err.code, err.message);
+    if (crmSynced) {
+      return json({ success: true, crm_synced: true });
+    }
     return json({ error: "Could not send your message. Please try again later." }, 500);
   }
 }

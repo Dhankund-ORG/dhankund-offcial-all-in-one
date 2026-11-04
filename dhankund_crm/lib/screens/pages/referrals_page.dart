@@ -4,7 +4,8 @@ import '../../theme/app_theme.dart';
 import '../../widgets/glass_card.dart';
 
 class ReferralsPage extends StatefulWidget {
-  const ReferralsPage({super.key});
+  final VoidCallback? onNavigateToLoanPipeline;
+  const ReferralsPage({super.key, this.onNavigateToLoanPipeline});
 
   @override
   State<ReferralsPage> createState() => _ReferralsPageState();
@@ -66,6 +67,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
 
   String _getReferrerName(String? referrerId) {
     if (referrerId == null || referrerId.isEmpty) return 'Guest Referrer';
+    if (referrerId.toLowerCase() == 'website') return 'Website Lead (Contact Us)';
     final user = _users.firstWhere((u) => u['uid'] == referrerId, orElse: () => {});
     if (user.isNotEmpty) {
       return '${user['name']} (${user['role'] ?? 'DSA'})';
@@ -88,6 +90,440 @@ class _ReferralsPageState extends State<ReferralsPage> {
       debugPrint("Error updating referral status: $e");
       setState(() => _isLoading = false);
     }
+  }
+
+  void _showConvertToLoanDialog(Map<String, dynamic> ref) {
+    final nameController = TextEditingController(text: ref['friend_name'] ?? '');
+    final mobileController = TextEditingController(text: ref['friend_mobile'] ?? '');
+    final emailController = TextEditingController(text: ref['friend_email'] ?? '');
+    final officialEmailController = TextEditingController();
+    final panController = TextEditingController();
+    final aadhaarController = TextEditingController();
+    final fatherNameController = TextEditingController();
+    final motherNameController = TextEditingController();
+    final spouseNameController = TextEditingController();
+    final currentAddressController = TextEditingController();
+    final officeAddressController = TextEditingController();
+    final ref1NameController = TextEditingController();
+    final ref1MobileController = TextEditingController();
+    final ref1AddressController = TextEditingController();
+    final ref2NameController = TextEditingController();
+    final ref2MobileController = TextEditingController();
+    final ref2AddressController = TextEditingController();
+    final loginCompanyController = TextEditingController();
+    final bankExecutiveController = TextEditingController();
+
+    const loanTypesList = [
+      'Personal Loan',
+      'Business Loan',
+      'Home Loan',
+      'Mortgage Loan',
+      'Car Loan',
+      'Commercial Vehicle Loan',
+      'Credit Card',
+      'CC/OD Limit',
+    ];
+    String selectedLoanType = loanTypesList.contains(ref['loan_type'])
+        ? ref['loan_type']
+        : 'Personal Loan';
+    String occupation = 'Salaried';
+    String gender = 'Male';
+    String maritalStatus = 'Single';
+
+    final amountController = TextEditingController(
+      text: (ref['estimated_amount'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '').isNotEmpty
+          ? (ref['estimated_amount'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '')
+          : '500000',
+    );
+    final salaryController = TextEditingController(text: '50000');
+    final turnoverController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.obsidianMedium,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.transform, color: AppTheme.royalGold),
+                  SizedBox(width: 10),
+                  Text(
+                    'Convert Lead to Loan Pipeline (Complete Details)',
+                    style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.close, color: AppTheme.textSecondary),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 650,
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '1. LOAN REQUIREMENT & INCOME DETAILS',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.royalGold, letterSpacing: 0.5),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            value: selectedLoanType,
+                            dropdownColor: AppTheme.obsidianMedium,
+                            decoration: const InputDecoration(labelText: 'Loan Type *'),
+                            items: loanTypesList.map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+                            onChanged: (val) => setDialogState(() => selectedLoanType = val ?? 'Personal Loan'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: amountController,
+                            decoration: const InputDecoration(labelText: 'Requested Loan Amount (₹) *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            value: occupation,
+                            dropdownColor: AppTheme.obsidianMedium,
+                            decoration: const InputDecoration(labelText: 'Occupation *'),
+                            items: const [
+                              DropdownMenuItem(value: 'Salaried', child: Text('Salaried')),
+                              DropdownMenuItem(value: 'SENP', child: Text('Self Employed Non-Professional (SENP)')),
+                              DropdownMenuItem(value: 'SEP', child: Text('Self Employed Professional (SEP)')),
+                            ],
+                            onChanged: (val) => setDialogState(() => occupation = val ?? 'Salaried'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: selectedLoanType == 'Business Loan'
+                              ? TextFormField(
+                                  controller: turnoverController,
+                                  decoration: const InputDecoration(labelText: 'Annual Turnover (₹)'),
+                                )
+                              : TextFormField(
+                                  controller: salaryController,
+                                  decoration: const InputDecoration(labelText: 'Monthly Income / Salary (₹)'),
+                                ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '2. APPLICANT PERSONAL & KYC INFORMATION',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.royalGold, letterSpacing: 0.5),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: nameController,
+                            decoration: const InputDecoration(labelText: 'Applicant Full Name *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: mobileController,
+                            decoration: const InputDecoration(labelText: 'Mobile Number *'),
+                            validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: panController,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(labelText: 'PAN Card Number', hintText: 'ABCDE1234F'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: aadhaarController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Aadhaar Card Number', hintText: '12-digit Aadhaar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: fatherNameController,
+                            decoration: const InputDecoration(labelText: "Father's Name"),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: motherNameController,
+                            decoration: const InputDecoration(labelText: "Mother's Name"),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            value: gender,
+                            dropdownColor: AppTheme.obsidianMedium,
+                            decoration: const InputDecoration(labelText: 'Gender'),
+                            items: const [
+                              DropdownMenuItem(value: 'Male', child: Text('Male')),
+                              DropdownMenuItem(value: 'Female', child: Text('Female')),
+                            ],
+                            onChanged: (val) => setDialogState(() => gender = val ?? 'Male'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            value: maritalStatus,
+                            dropdownColor: AppTheme.obsidianMedium,
+                            decoration: const InputDecoration(labelText: 'Marital Status'),
+                            items: const [
+                              DropdownMenuItem(value: 'Single', child: Text('Single')),
+                              DropdownMenuItem(value: 'Married', child: Text('Married')),
+                            ],
+                            onChanged: (val) => setDialogState(() => maritalStatus = val ?? 'Single'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (maritalStatus == 'Married') ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: spouseNameController,
+                        decoration: const InputDecoration(labelText: 'Spouse Name'),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: emailController,
+                            decoration: const InputDecoration(labelText: 'Personal Email Address'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: officialEmailController,
+                            decoration: const InputDecoration(labelText: 'Official Email Address'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '3. ADDRESS, REFERENCES & BANK LOGIN DETAILS',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.royalGold, letterSpacing: 0.5),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: currentAddressController,
+                            maxLines: 2,
+                            decoration: const InputDecoration(labelText: 'Current Residence Address'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: officeAddressController,
+                            maxLines: 2,
+                            decoration: const InputDecoration(labelText: 'Office / Business Address'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: ref1NameController,
+                            decoration: const InputDecoration(labelText: 'Reference 1 Name'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: ref1MobileController,
+                            decoration: const InputDecoration(labelText: 'Reference 1 Mobile'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: ref1AddressController,
+                            decoration: const InputDecoration(labelText: 'Reference 1 Address'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: ref2NameController,
+                            decoration: const InputDecoration(labelText: 'Reference 2 Name'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: ref2MobileController,
+                            decoration: const InputDecoration(labelText: 'Reference 2 Mobile'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: ref2AddressController,
+                            decoration: const InputDecoration(labelText: 'Reference 2 Address'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: loginCompanyController,
+                            decoration: const InputDecoration(labelText: 'Login Bank / NBFC Name'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: bankExecutiveController,
+                            decoration: const InputDecoration(labelText: 'Bank Executive Name'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(ctx);
+                setState(() => _isLoading = true);
+                try {
+                  await _firestoreService.convertReferralToLoan(ref['id'].toString(), {
+                    'full_name': nameController.text.trim(),
+                    'mobile_number': mobileController.text.trim(),
+                    'email': emailController.text.trim(),
+                    'personal_email': emailController.text.trim(),
+                    'official_email': officialEmailController.text.trim(),
+                    'loan_type': selectedLoanType,
+                    'loan_amount': amountController.text.trim(),
+                    'salary': salaryController.text.trim(),
+                    'turnover': turnoverController.text.trim(),
+                    'occupation': occupation,
+                    'gender': gender,
+                    'marital_status': maritalStatus,
+                    'spouse_name': spouseNameController.text.trim(),
+                    'pan_number': panController.text.trim(),
+                    'aadhaar_number': aadhaarController.text.trim(),
+                    'father_name': fatherNameController.text.trim(),
+                    'mother_name': motherNameController.text.trim(),
+                    'current_address': currentAddressController.text.trim(),
+                    'office_address': officeAddressController.text.trim(),
+                    'ref1_name': ref1NameController.text.trim(),
+                    'ref1_mobile': ref1MobileController.text.trim(),
+                    'ref1_address': ref1AddressController.text.trim(),
+                    'ref2_name': ref2NameController.text.trim(),
+                    'ref2_mobile': ref2MobileController.text.trim(),
+                    'ref2_address': ref2AddressController.text.trim(),
+                    'login_company_name': loginCompanyController.text.trim(),
+                    'bank_executive_name': bankExecutiveController.text.trim(),
+                  });
+                  await _loadReferralData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Lead converted to Loan Pipeline with complete details!'),
+                        backgroundColor: AppTheme.emeraldGreen,
+                        action: widget.onNavigateToLoanPipeline != null
+                            ? SnackBarAction(
+                                label: 'Open Loan Pipeline',
+                                textColor: Colors.white,
+                                onPressed: () => widget.onNavigateToLoanPipeline!(),
+                              )
+                            : null,
+                      ),
+                    );
+                    if (widget.onNavigateToLoanPipeline != null) {
+                      widget.onNavigateToLoanPipeline!();
+                    }
+                  }
+                } catch (e) {
+                  setState(() => _isLoading = false);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Conversion error: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.check_circle_outline, size: 16),
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.emeraldGreen, foregroundColor: Colors.white),
+              label: const Text('Save & Move to Loan Pipeline'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Color _getStatusColor(String? status) {
@@ -525,6 +961,25 @@ class _ReferralsPageState extends State<ReferralsPage> {
                                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                             ),
                                             const SizedBox(width: 8),
+                                            if (ref['relationship'] == 'Website Contact Form' || ref['loan_type'] == 'Website Lead' || ref['referrer_id'] == 'website') ...[
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.emeraldGreen.withOpacity(0.15),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: AppTheme.emeraldGreen.withOpacity(0.5)),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.language, size: 12, color: AppTheme.emeraldGreen),
+                                                    SizedBox(width: 4),
+                                                    Text('Website Lead', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.emeraldGreen)),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                            ],
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                               decoration: BoxDecoration(
@@ -592,9 +1047,20 @@ class _ReferralsPageState extends State<ReferralsPage> {
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(width: 24),
+                                  const SizedBox(width: 12),
+                                  ElevatedButton.icon(
+                                    onPressed: status.toLowerCase() == 'converted to pipeline' ? null : () => _showConvertToLoanDialog(ref),
+                                    icon: const Icon(Icons.trending_up, size: 14),
+                                    label: Text(status.toLowerCase() == 'converted to pipeline' ? 'In Pipeline' : 'Convert Lead to Loan Pipeline', style: const TextStyle(fontSize: 11)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: status.toLowerCase() == 'converted to pipeline' ? Colors.grey.shade700 : AppTheme.royalGold,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
                                   DropdownButton<String>(
-                                    value: ['invited', 'approved', 'earned'].contains(status.toLowerCase()) ? status : 'Invited',
+                                    value: ['invited', 'approved', 'earned', 'converted to pipeline'].contains(status.toLowerCase()) ? status : 'Invited',
                                     dropdownColor: AppTheme.obsidianMedium,
                                     style: TextStyle(color: statusColor, fontWeight: FontWeight.bold),
                                     underline: Container(),
@@ -602,6 +1068,7 @@ class _ReferralsPageState extends State<ReferralsPage> {
                                       DropdownMenuItem(value: 'Invited', child: Text('Invited')),
                                       DropdownMenuItem(value: 'Approved', child: Text('Approved')),
                                       DropdownMenuItem(value: 'Earned', child: Text('Earned')),
+                                      DropdownMenuItem(value: 'Converted to Pipeline', child: Text('Converted to Pipeline')),
                                     ],
                                     onChanged: (val) {
                                       if (val != null && val != status) {

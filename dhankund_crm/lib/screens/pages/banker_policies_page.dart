@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../theme/app_theme.dart';
 import '../../api_service.dart';
+import '../../cloudflare_r2_service.dart';
 
 class BankerPoliciesPage extends StatefulWidget {
   const BankerPoliciesPage({super.key});
@@ -68,6 +70,7 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
           (p['office_address']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
           (p['l1_manager_name']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
           (p['l2_manager_name']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
+          (p['approved_pincodes']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
           (p['special_features']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
       return matchesType && matchesProduct && matchesVertical && matchesSearch;
     }).toList();
@@ -96,7 +99,57 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
     final ltvRatioController = TextEditingController(text: existingPolicy?['ltv_ratio'] ?? 'Up to 90% LTV');
     final maxBouncesController = TextEditingController(text: (existingPolicy?['max_allowed_bounces'] ?? 0).toString());
     final geoRadiusController = TextEditingController(text: existingPolicy?['geo_radius'] ?? '50 km radius');
+    final approvedPincodesController = TextEditingController(text: existingPolicy?['approved_pincodes'] ?? '');
     final loginFeeController = TextEditingController(text: existingPolicy?['login_fee'] ?? 'Nil');
+    String? onePagerPolicyUrl = existingPolicy?['one_pager_policy_url']?.toString();
+    bool isUploadingOnePager = false;
+
+    Future<void> pickExcelPincodes() async {
+      try {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['xlsx', 'xls', 'csv', 'txt'],
+          withData: true,
+        );
+        if (result != null && result.files.isNotEmpty) {
+          final bytes = result.files.first.bytes;
+          if (bytes != null) {
+            final matches = await _firestoreService.parsePincodesFromFile(bytes);
+            if (matches.isNotEmpty) {
+              final currentText = approvedPincodesController.text.trim();
+              final existingPins = currentText.isNotEmpty
+                  ? currentText.split(RegExp(r'[\s,]+')).where((p) => p.isNotEmpty).toSet()
+                  : <String>{};
+              existingPins.addAll(matches);
+              approvedPincodesController.text = existingPins.join(', ');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Extracted and added ${matches.length} approved pincodes from file!'),
+                    backgroundColor: AppTheme.emeraldGreen,
+                  ),
+                );
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No 6-digit pin codes found in the selected file.'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            }
+          }
+        }
+      } catch (err) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('File reading error: $err'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
     final interestRateController = TextEditingController(text: existingPolicy?['interest_rate'] ?? '10.50% - 13.50%');
     final processingFeeController = TextEditingController(text: existingPolicy?['processing_fee'] ?? '1.00%');
     final tatController = TextEditingController(text: existingPolicy?['tat_days'] ?? '3 Days');
@@ -484,8 +537,10 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                         ),
                         const SizedBox(height: 16),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
+                              flex: 2,
                               child: TextFormField(
                                 controller: geoRadiusController,
                                 decoration: const InputDecoration(labelText: 'Geo Location (Surrounding Coverage) *', hintText: 'e.g. Up to 50 km from city'),
@@ -494,10 +549,61 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                             ),
                             const SizedBox(width: 16),
                             Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: approvedPincodesController,
+                                          maxLines: 1,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Approved Locations Pin code',
+                                            hintText: 'e.g. 452001, 452010 (Manual or Excel)',
+                                            prefixIcon: Icon(Icons.pin_drop_outlined, color: AppTheme.royalGold, size: 18),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton.icon(
+                                        onPressed: pickExcelPincodes,
+                                        icon: const Icon(Icons.upload_file, size: 16),
+                                        label: const Text('Excel / CSV'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppTheme.royalGold,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    '💡 Enter 6-digit pin codes manually or upload Excel (.xlsx, .xls) / CSV file.',
+                                    style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
                               child: TextFormField(
                                 controller: loginFeeController,
                                 decoration: const InputDecoration(labelText: 'Bank Login Fee *', hintText: 'e.g. ₹2,500 + GST or Nil'),
                                 validator: (val) => val == null || val.trim().isEmpty ? 'Required' : null,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                controller: processingFeeController,
+                                decoration: const InputDecoration(labelText: 'Processing Fee Policy', hintText: 'e.g. 0.99% flat or ₹3,000 promo'),
                               ),
                             ),
                           ],
@@ -521,9 +627,78 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: processingFeeController,
-                          decoration: const InputDecoration(labelText: 'Processing Fee Policy', hintText: 'e.g. 0.99% flat or ₹3,000 promo'),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.royalGold.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppTheme.royalGold.withOpacity(0.25)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.description_outlined, color: AppTheme.royalGold, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Upload One Pager Policy',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
+                                    ),
+                                    Text(
+                                      (onePagerPolicyUrl != null && onePagerPolicyUrl!.isNotEmpty)
+                                          ? 'Attached: ${onePagerPolicyUrl!.split('/').last}'
+                                          : 'Attach official 1-pager policy circular / matrix (PDF, Image, Doc)',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: (onePagerPolicyUrl != null && onePagerPolicyUrl!.isNotEmpty)
+                                            ? AppTheme.emeraldGreen
+                                            : AppTheme.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: isUploadingOnePager
+                                    ? null
+                                    : () async {
+                                        final res = await FilePicker.platform.pickFiles(
+                                          type: FileType.custom,
+                                          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
+                                          withData: true,
+                                        );
+                                        if (res != null && res.files.isNotEmpty && res.files.first.bytes != null) {
+                                          setDialogState(() => isUploadingOnePager = true);
+                                          final file = res.files.first;
+                                          final url = await CloudflareR2Service().uploadDocument(
+                                            'one_pager_${DateTime.now().millisecondsSinceEpoch}_${file.name}',
+                                            file.bytes!,
+                                          );
+                                          setDialogState(() {
+                                            isUploadingOnePager = false;
+                                            if (url != null) onePagerPolicyUrl = url;
+                                          });
+                                        }
+                                      },
+                                icon: isUploadingOnePager
+                                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : const Icon(Icons.cloud_upload_outlined, size: 16),
+                                label: Text(
+                                  isUploadingOnePager
+                                      ? 'Uploading...'
+                                      : ((onePagerPolicyUrl != null && onePagerPolicyUrl!.isNotEmpty)
+                                          ? 'Replace One Pager Policy'
+                                          : 'Upload One Pager Policy'),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.royalGold,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -1074,6 +1249,8 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
                       mProfileAllowed: mProfileAllowed,
                       maxAllowedBounces: int.tryParse(maxBouncesController.text.trim()) ?? 0,
                       geoRadius: geoRadiusController.text.trim(),
+                      approvedPincodes: approvedPincodesController.text.trim(),
+                      onePagerPolicyUrl: onePagerPolicyUrl,
                       loginFee: loginFeeController.text.trim(),
                       interestRate: interestRateController.text.trim(),
                       processingFee: processingFeeController.text.trim(),
@@ -1605,6 +1782,10 @@ class _BankerPoliciesPageState extends State<BankerPoliciesPage> {
               _buildCriterionBadge('Income: ${policy['min_income']}', AppTheme.royalGold),
               _buildCriterionBadge('Bounces: $maxBounces Max', maxBounces == 0 ? Colors.redAccent : Colors.teal),
               _buildCriterionBadge('Geo: ${policy['geo_radius'] ?? 'City limits'}', Colors.blueAccent),
+              if (policy['approved_pincodes'] != null && policy['approved_pincodes'].toString().isNotEmpty)
+                _buildCriterionBadge('📍 Pincodes Approved', Colors.indigoAccent),
+              if (policy['one_pager_policy_url'] != null && policy['one_pager_policy_url'].toString().isNotEmpty)
+                _buildCriterionBadge('📄 One Pager Attached', AppTheme.emeraldGreen),
               _buildCriterionBadge('Login Fee: ${policy['login_fee'] ?? 'Nil'}', Colors.purpleAccent),
               _buildCriterionBadge('ROI: ${policy['interest_rate']}', Colors.amber),
               _buildCriterionBadge('TAT: ${policy['tat_days']}', Colors.lightGreenAccent),
