@@ -1621,6 +1621,75 @@ export default {
       }
     }
 
+    // 4.5 Contact Us API (/api/contact) -> Syncs Website Lead to CRM Payouts & Referrals + Email
+    if (pathname === "/api/contact") {
+      const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      };
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders });
+      }
+      if (request.method === "POST") {
+        let body = {};
+        try {
+          body = await request.json();
+        } catch (_) {
+          return new Response(JSON.stringify({ error: "Invalid request body." }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          });
+        }
+        const firstName = String(body.firstName ?? "").trim();
+        const lastName = String(body.lastName ?? "").trim();
+        const mobile = String(body.mobile ?? "").trim();
+        const email = String(body.email ?? "").trim();
+        const message = String(body.message ?? "").trim();
+
+        if (!firstName || !mobile || !email || !message) {
+          return new Response(
+            JSON.stringify({ error: "Please fill in your name, mobile number, email, and message." }),
+            { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+
+        const apiBase = getApiBase(request.url);
+        let crmSynced = false;
+        try {
+          const crmRes = await fetch(`${apiBase}/api/v1/contact-lead`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ firstName, lastName, mobile, email, message }),
+          });
+          crmSynced = crmRes.ok;
+        } catch (crmErr) {
+          console.error("CRM contact-lead sync error:", crmErr);
+        }
+
+        if (env && env.SEB && typeof env.SEB.send === "function") {
+          const fullName = [firstName, lastName].filter(Boolean).join(" ");
+          try {
+            await env.SEB.send({
+              to: "info@dhankund.com",
+              from: "noreply@dhankund.com",
+              replyTo: email,
+              subject: `New contact enquiry from ${fullName}`,
+              text: `New contact enquiry received from the Dhankund website.\n\nName: ${fullName}\nMobile: ${mobile}\nEmail: ${email}\n\nMessage:\n${message}\n`,
+              html: `<h2>New contact enquiry</h2><p>A visitor submitted the contact form on the Dhankund website.</p><p><strong>Name:</strong> ${escapeHtml(fullName)}<br/><strong>Mobile:</strong> ${escapeHtml(mobile)}<br/><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Message:</strong></p><blockquote>${escapeHtml(message).replace(/\n/g, "<br/>")}</blockquote>`,
+            });
+          } catch (mailErr) {
+            console.warn("SEB email warning:", mailErr);
+          }
+        }
+
+        return new Response(JSON.stringify({ success: true, crm_synced: crmSynced }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+    }
+
     // 5. Fallback to next-on-pages Next.js worker
     return nextWorker.fetch(request, env, ctx);
   },

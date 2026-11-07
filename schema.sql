@@ -259,6 +259,13 @@ CREATE TABLE IF NOT EXISTS bank_policies (
   is_udyam_required TEXT,
   is_current_account_required TEXT,
   bankings_considered TEXT,
+  approved_pincodes TEXT,
+  one_pager_policy_url TEXT,
+  status TEXT NOT NULL DEFAULT 'approved',
+  uploaded_by_uid TEXT,
+  uploaded_by_name TEXT,
+  uploaded_by_mobile TEXT,
+  rejection_reason TEXT,
   updated_at TEXT
 );
 

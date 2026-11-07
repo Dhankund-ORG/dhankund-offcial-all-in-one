@@ -186,4 +186,66 @@ class ApiService {
   Future<Map<String, dynamic>> resetPassword(String resetToken, String newPassword) async {
     return (await ApiClient.post('/api/v1/auth/reset-password', {'reset_token': resetToken, 'new_password': newPassword}) as Map<String, dynamic>).cast<String, dynamic>();
   }
+
+  Future<Map<String, dynamic>?> fetchMyBankPolicy() async {
+    try {
+      final res = await ApiClient.get('/api/v1/banker/my-policy');
+      if (res is Map && res['policy'] != null) {
+        return (res['policy'] as Map).cast<String, dynamic>();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<Map<String, dynamic>> fetchMyBankPolicyBundle() async {
+    try {
+      final res = await ApiClient.get('/api/v1/banker/my-policy');
+      if (res is Map) {
+        return res.cast<String, dynamic>();
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  Future<Map<String, dynamic>> submitBankerPolicy(Map<String, dynamic> body) async {
+    final res = await ApiClient.post('/api/v1/banker/policy', body);
+    if (res is Map) return res.cast<String, dynamic>();
+    return {'success': true};
+  }
+
+  Future<List<String>> parsePincodesFromFile(List<int> bytes) async {
+    final pins = <String>{};
+    try {
+      final uri = Uri.parse(ApiClient.baseUrl + '/api/v1/parse-pincodes');
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          if (ApiClient.token != null) 'Authorization': 'Bearer ' + ApiClient.token!,
+        },
+        body: bytes,
+      );
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (decoded is Map && decoded['pincodes'] is List) {
+          for (final p in decoded['pincodes']) {
+            if (p != null && p.toString().trim().isNotEmpty) {
+              pins.add(p.toString().trim());
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final rawText = String.fromCharCodes(bytes).replaceAll(RegExp(r'<[^>]+>'), ' ');
+      final regex = RegExp(r'\b[1-9]\d{5}\b');
+      for (final m in regex.allMatches(rawText)) {
+        final val = m.group(0);
+        if (val != null) pins.add(val);
+      }
+    } catch (_) {}
+
+    return pins.toList();
+  }
 }
