@@ -289,6 +289,7 @@ async function ensureReferralSchema(env) {
       if (!colNames.has('document_url')) {
         await run(env, 'ALTER TABLE referrals ADD COLUMN document_url TEXT');
       }
+      await run(env, 'CREATE INDEX IF NOT EXISTS idx_referrals_lead_id ON referrals (lead_id)');
     }
     referralSchemaEnsured = true;
   } catch (err) {
