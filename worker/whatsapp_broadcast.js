@@ -51,25 +51,19 @@ export async function createBroadcast(env, input, context) {
     last_error: null,
   });
 
-  // Chunked insert keeps a 5,000-recipient campaign inside D1 limits.
+  // One D1 batch per 50 rows. A 5,000-recipient campaign is 100 statements,
+  // which keeps the request well inside the Worker CPU budget.
+  const insertSql = 'INSERT INTO wa_broadcast_recipients (id, broadcast_id, phone_e164, name, source, status, wa_message_id, error_code, error_message, attempts, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)';
   const chunk = 50;
   for (let i = 0; i < resolved.recipients.length; i += chunk) {
     const slice = resolved.recipients.slice(i, i + chunk);
-    for (const r of slice) {
-      await insertRow(env, 'wa_broadcast_recipients', {
-        id: randomId(),
-        broadcast_id: id,
-        phone_e164: r.phone,
-        name: r.name || null,
-        source: r.source || null,
-        status: 'queued',
-        wa_message_id: null,
-        error_code: null,
-        error_message: null,
-        attempts: 0,
-        updated_at: now,
-      });
-    }
+    const statements = slice.map(function (r) {
+      return env.DB.prepare(insertSql).bind(
+        randomId(), id, r.phone, r.name || null, r.source || null,
+        'queued', null, null, null, 0, now
+      );
+    });
+    await env.DB.batch(statements);
   }
 
   return { id: id, total: resolved.recipients.length, summary: summary, status: 'queued' };

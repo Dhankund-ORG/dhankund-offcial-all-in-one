@@ -207,41 +207,43 @@ export const WHATSAPP_CONTACT_COLUMNS = [
 
 let schemaReady = false;
 
+// Reads the real column list from SQLite and adds only what is missing. This is
+// what makes the migration safe to run on a database that already has some of
+// these tables from an earlier deploy.
+async function addMissingColumns(env, table, columns, added) {
+  const info = await env.DB.prepare('PRAGMA table_info(' + table + ')').all();
+  const existing = new Set((info.results || []).map(function (r) { return r.name; }));
+  for (const [column, type] of columns) {
+    if (existing.has(column)) continue;
+    await env.DB.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type);
+    added.push(table + '.' + column);
+  }
+}
+
+export async function runWhatsappMigrations(env) {
+  const added = [];
+  await env.DB.exec(WHATSAPP_SCHEMA_SQL);
+  await addMissingColumns(env, 'wa_messages', WHATSAPP_MESSAGE_COLUMNS, added);
+  await addMissingColumns(env, 'wa_contacts', WHATSAPP_CONTACT_COLUMNS, added);
+
+  const tables = await env.DB
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'wa_%' ORDER BY name")
+    .all();
+  return {
+    ok: true,
+    tables: (tables.results || []).map(function (r) { return r.name; }),
+    added_columns: added,
+    ran_at: new Date().toISOString(),
+  };
+}
+
 // Idempotent, cheap after the first call in an isolate.
 export async function ensureWhatsappSchema(env) {
   if (schemaReady) return;
-  await env.DB.exec(WHATSAPP_SCHEMA_SQL);
-  for (const [column, type] of WHATSAPP_MESSAGE_COLUMNS) {
-    try {
-      await env.DB.exec('ALTER TABLE wa_messages ADD COLUMN ' + column + ' ' + type);
-    } catch (_) {
-      // already there
-    }
-  }
-  for (const [column, type] of WHATSAPP_CONTACT_COLUMNS) {
-    try {
-      await env.DB.exec('ALTER TABLE wa_contacts ADD COLUMN ' + column + ' ' + type);
-    } catch (_) {
-      // already there
-    }
-  }
+  await runWhatsappMigrations(env);
   schemaReady = true;
 }
 
 export async function ensureWhatsappSchemaForced(env) {
-  await env.DB.exec(WHATSAPP_SCHEMA_SQL);
-  for (const [column, type] of WHATSAPP_MESSAGE_COLUMNS) {
-    try {
-      await env.DB.exec('ALTER TABLE wa_messages ADD COLUMN ' + column + ' ' + type);
-    } catch (_) {
-      // already there
-    }
-  }
-  for (const [column, type] of WHATSAPP_CONTACT_COLUMNS) {
-    try {
-      await env.DB.exec('ALTER TABLE wa_contacts ADD COLUMN ' + column + ' ' + type);
-    } catch (_) {
-      // already there
-    }
-  }
+  return await runWhatsappMigrations(env);
 }
