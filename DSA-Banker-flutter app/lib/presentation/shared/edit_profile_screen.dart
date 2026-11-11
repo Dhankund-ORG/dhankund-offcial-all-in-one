@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:my_flutter_app/services/api_service.dart';
+import 'package:my_flutter_app/presentation/b2b_network/banker_policy_upload_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final Map<String, dynamic> fullData;
@@ -266,7 +267,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           const SizedBox(height: 18),
 
-                          // Company Address
+                    // Company Address
                           _buildTextField(
                             controller: _companyAddressController,
                             label: 'Company Address',
@@ -277,6 +278,75 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ],
                       ),
                     ),
+
+                    if ((widget.fullData['role'] ?? widget.fullData['partnerType'] ?? widget.fullData['partner_type'] ?? ApiClient.currentUserRole ?? '')
+                        .toString()
+                        .toLowerCase()
+                        .contains('bank')) ...[
+                      const SizedBox(height: 24),
+                      const Text(
+                        'BANK POLICY CONFIGURATION',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF093A7A), letterSpacing: 1),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF093A7A), Color(0xFF1E40AF)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF093A7A).withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          leading: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.policy_outlined, color: Colors.white, size: 26),
+                          ),
+                          title: const Text(
+                            'Update Bank Policy',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                          subtitle: const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Fill or update your bank credit policies, LTV, ROI, Property Norms, Pincodes & One Pager for CRM approval',
+                              style: TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                          ),
+                          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+                          onTap: () {
+                            final currentProfile = Map<String, dynamic>.from(widget.fullData);
+                            if (_companyNameController.text.trim().isNotEmpty) {
+                              currentProfile['company'] = _companyNameController.text.trim();
+                              currentProfile['companyName'] = _companyNameController.text.trim();
+                            }
+                            if (_companyAddressController.text.trim().isNotEmpty) {
+                              currentProfile['companyAddress'] = _companyAddressController.text.trim();
+                              currentProfile['officeAddress'] = _companyAddressController.text.trim();
+                            }
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => BankerPolicyUploadScreen(initialProfile: currentProfile),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
 
                     const SizedBox(height: 32),
 

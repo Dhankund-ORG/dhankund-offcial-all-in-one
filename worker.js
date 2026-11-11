@@ -1351,8 +1351,42 @@ app.patch('/api/v1/admin/bank-policies/:id/approve', requireAdmin, async functio
   try { b = await readJson(c); } catch (_) {}
   const merged = Object.assign({}, existing, b || {});
   const updates = Object.assign(policyColumns(merged), { status: 'approved', rejection_reason: null, updated_at: nowIso() });
+
+  // Check if there is an existing approved CRM policy for the same bank + loan_type + vertical to merge into
+  const bankName = (updates.bank_name || '').toString().trim();
+  const loanType = (updates.loan_type || '').toString().trim();
+  const vertical = (updates.vertical || updates.product_type || '').toString().trim();
+  let crmTarget = null;
+  if (bankName && loanType) {
+    crmTarget = await first(
+      c.env,
+      "SELECT * FROM bank_policies WHERE id != ? AND lower(trim(bank_name)) = lower(?) AND lower(trim(loan_type)) = lower(?) AND lower(trim(coalesce(vertical, product_type, ''))) = lower(?) AND (status = 'approved' OR status IS NULL) ORDER BY updated_at DESC LIMIT 1",
+      [id, bankName, loanType, vertical]
+    );
+  }
+
+  if (crmTarget && crmTarget.id) {
+    const combined = Object.assign({}, crmTarget);
+    for (const k of Object.keys(updates)) {
+      if (updates[k] !== null && updates[k] !== undefined && updates[k] !== '') {
+        combined[k] = updates[k];
+      }
+    }
+    const finalCols = Object.assign(policyColumns(combined), {
+      status: 'approved',
+      rejection_reason: null,
+      uploaded_by_uid: updates.uploaded_by_uid || crmTarget.uploaded_by_uid || null,
+      uploaded_by_name: updates.uploaded_by_name || crmTarget.uploaded_by_name || null,
+      uploaded_by_mobile: updates.uploaded_by_mobile || crmTarget.uploaded_by_mobile || null,
+      updated_at: nowIso()
+    });
+    await updateRow(c.env, 'bank_policies', 'id', crmTarget.id, finalCols);
+    await run(c.env, 'DELETE FROM bank_policies WHERE id = ?', [id]);
+    return c.json({ success: true, id: crmTarget.id, merged_into_existing: true });
+  }
+
   await updateRow(c.env, 'bank_policies', 'id', id, updates);
-  return c.json({ success: true });
+  return c.json({ success: true, id: id, merged_into_existing: false });
 });
 
 app.patch('/api/v1/admin/bank-policies/:id/reject', requireAdmin, async function (c) {
@@ -1371,13 +1405,16 @@ app.get('/api/v1/banker/my-policy', auth, async function (c) {
   const userRow = await first(c.env, 'SELECT * FROM users WHERE id = ?', [me.sub]);
   const regRow = await first(c.env, 'SELECT * FROM registrations WHERE uid = ? ORDER BY created_at DESC LIMIT 1', [me.sub]);
   const mobile = (userRow && userRow.mobile) || (regRow && regRow.mobile) || me.mobile || '';
-  const row = await first(
+  const bankName = (userRow && (userRow.company || userRow.bank_name)) || (regRow && regRow.company) || '';
+
+  const rows = await all(
     c.env,
-    'SELECT * FROM bank_policies WHERE uploaded_by_uid = ? OR (banker_mobile = ? AND banker_mobile IS NOT NULL AND banker_mobile != "") ORDER BY updated_at DESC LIMIT 1',
-    [me.sub, mobile]
+    'SELECT * FROM bank_policies WHERE uploaded_by_uid = ? OR (banker_mobile = ? AND banker_mobile IS NOT NULL AND banker_mobile != "") OR (lower(trim(bank_name)) = lower(trim(?)) AND ? != "") ORDER BY updated_at DESC',
+    [me.sub, mobile, bankName, bankName]
   );
+  const row = (rows && rows.length > 0) ? rows[0] : null;
   const bankerInfo = {
-    bank_name: (userRow && (userRow.company || userRow.bank_name)) || (regRow && regRow.company) || (row && row.bank_name) || '',
+    bank_name: bankName || (row && row.bank_name) || '',
     banker_name: (userRow && userRow.name) || (regRow && regRow.name) || me.name || '',
     banker_mobile: mobile,
     office_address: (userRow && (userRow.office_address || userRow.company_address)) || (regRow && regRow.office_address) || '',
@@ -1387,7 +1424,7 @@ app.get('/api/v1/banker/my-policy', auth, async function (c) {
     l2_manager_mobile: (userRow && userRow.area_manager_mobile) || (regRow && regRow.area_manager_mobile) || '',
     segment: (userRow && userRow.segment) || (regRow && regRow.segment) || 'DSA'
   };
-  return c.json({ policy: row || null, banker_info: bankerInfo });
+  return c.json({ policy: row || null, policies: rows || [], banker_info: bankerInfo });
 });
 
 app.post('/api/v1/banker/policy', auth, async function (c) {
@@ -1398,8 +1435,36 @@ app.post('/api/v1/banker/policy', auth, async function (c) {
   const regRow = await first(c.env, 'SELECT * FROM registrations WHERE uid = ? ORDER BY created_at DESC LIMIT 1', [me.sub]);
   const lockedBankName = (userRow && (userRow.company || userRow.bank_name)) || (regRow && regRow.company) || b.bank_name || '';
 
-  const existing = await first(c.env, 'SELECT * FROM bank_policies WHERE uploaded_by_uid = ? OR (id = ? AND id IS NOT NULL AND id != "")', [me.sub, b.id || '']);
-  const merged = Object.assign({}, existing || {}, b || {});
+  const loanType = (b.loan_type || 'Home Loan').toString().trim();
+  const vertical = (b.vertical || b.product_type || 'Prime').toString().trim();
+
+  // Find if this banker already has a pending/rejected policy for the same loan_type + vertical (or explicit id if it belongs to this banker and is not yet approved, or if updating their own record)
+  let existing = null;
+  if (b.id) {
+    const byId = await first(c.env, 'SELECT * FROM bank_policies WHERE id = ?', [String(b.id)]);
+    if (byId && (byId.status === 'pending_approval' || byId.status === 'rejected')) {
+      existing = byId;
+    }
+  }
+  if (!existing) {
+    existing = await first(
+      c.env,
+      "SELECT * FROM bank_policies WHERE uploaded_by_uid = ? AND lower(trim(loan_type)) = lower(?) AND lower(trim(coalesce(vertical, product_type, ''))) = lower(?) AND status IN ('pending_approval', 'rejected') ORDER BY updated_at DESC LIMIT 1",
+      [me.sub, loanType, vertical]
+    );
+  }
+
+  // Also check if there is an approved baseline policy for this bank + loan_type + vertical so we preserve any unset fields
+  let baseline = null;
+  if (!existing && lockedBankName) {
+    baseline = await first(
+      c.env,
+      "SELECT * FROM bank_policies WHERE lower(trim(bank_name)) = lower(trim(?)) AND lower(trim(loan_type)) = lower(?) AND lower(trim(coalesce(vertical, product_type, ''))) = lower(?) ORDER BY updated_at DESC LIMIT 1",
+      [lockedBankName, loanType, vertical]
+    );
+  }
+
+  const merged = Object.assign({}, baseline || {}, existing || {}, b || {});
   if (lockedBankName) merged.bank_name = lockedBankName;
   const cols = policyColumns(merged);
   cols.status = 'pending_approval';
@@ -1408,14 +1473,21 @@ app.post('/api/v1/banker/policy', auth, async function (c) {
   cols.uploaded_by_mobile = b.banker_mobile || (userRow && userRow.mobile) || me.mobile || null;
   cols.rejection_reason = null;
 
+  // If the banker's profile didn't have company/bank_name set yet, save it to their profile too
+  if (b.bank_name && (!userRow || (!userRow.company && !userRow.bank_name))) {
+    try {
+      await mergeUserData(c.env, me.sub, { company: String(b.bank_name).trim(), companyName: String(b.bank_name).trim() });
+    } catch (_) {}
+  }
+
   if (existing) {
     await updateRow(c.env, 'bank_policies', 'id', existing.id, cols);
-    await notifyAdmins(c.env, 'Bank Policy Updated', `${cols.bank_name || 'Bank'} policy updated by ${cols.uploaded_by_name || 'Banker'} for CRM review.`);
+    await notifyAdmins(c.env, 'Bank Policy Updated', `${cols.bank_name || 'Bank'} (${cols.loan_type || 'Loan'}) policy updated by ${cols.uploaded_by_name || 'Banker'} for CRM review.`);
     return c.json({ success: true, id: existing.id, is_update: true });
   } else {
     const id = randomId();
     await insertRow(c.env, 'bank_policies', Object.assign({ id: id }, cols));
-    await notifyAdmins(c.env, 'New App Bank Policy', `${cols.bank_name || 'Bank'} policy uploaded by ${cols.uploaded_by_name || 'Banker'} for CRM review.`);
+    await notifyAdmins(c.env, 'New App Bank Policy', `${cols.bank_name || 'Bank'} (${cols.loan_type || 'Loan'}) policy uploaded by ${cols.uploaded_by_name || 'Banker'} for CRM review.`);
     return c.json({ success: true, id: id, is_update: false });
   }
 });

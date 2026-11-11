@@ -22,11 +22,13 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
   bool _isSaving = false;
   bool _isUploadingDoc = false;
   bool _isExistingPolicy = false;
+  bool _isBankNameLocked = false;
   String? _existingPolicyId;
   String? _policyStatus;
   String? _rejectionReason;
   String? _onePagerDocUrl;
   String? _onePagerDocName;
+  List<Map<String, dynamic>> _allMyPolicies = [];
 
   late final TextEditingController _bankNameController;
   late final TextEditingController _bankerNameController;
@@ -117,12 +119,13 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
   void initState() {
     super.initState();
     final profile = widget.initialProfile ?? {};
-    final bankName = (profile['company'] ?? profile['companyName'] ?? profile['bank_name'] ?? 'Partner Bank').toString();
+    final bankName = (profile['company'] ?? profile['companyName'] ?? profile['bank_name'] ?? '').toString().trim();
     final bankerName = (profile['name'] ?? ApiClient.currentUserName ?? '').toString();
     final bankerMobile = (profile['mobile'] ?? ApiClient.currentUserMobile ?? '').toString();
     final officeAddr = (profile['officeAddress'] ?? profile['office_address'] ?? profile['companyAddress'] ?? '').toString();
 
-    _bankNameController = TextEditingController(text: bankName);
+    _isBankNameLocked = bankName.isNotEmpty && bankName != 'Partner Bank' && bankName != 'Not provided';
+    _bankNameController = TextEditingController(text: _isBankNameLocked ? bankName : '');
     _bankerNameController = TextEditingController(text: bankerName);
     _bankerMobileController = TextEditingController(text: bankerMobile);
     _officeAddressController = TextEditingController(text: officeAddr);
@@ -155,6 +158,113 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
     _loadExistingPolicy();
   }
 
+  void _populateFromPolicyMap(Map<String, dynamic> existing) {
+    _isExistingPolicy = true;
+    _existingPolicyId = (existing['status'] == 'pending_approval' || existing['status'] == 'rejected')
+        ? existing['id']?.toString()
+        : null;
+    _policyStatus = existing['status']?.toString();
+    _rejectionReason = existing['rejection_reason']?.toString();
+
+    if ((existing['bank_name'] ?? '').toString().trim().isNotEmpty &&
+        existing['bank_name'].toString().trim() != 'Partner Bank') {
+      _bankNameController.text = existing['bank_name'].toString().trim();
+      _isBankNameLocked = true;
+    }
+    _bankerNameController.text = existing['banker_name'] ?? _bankerNameController.text;
+    _bankerMobileController.text = existing['banker_mobile'] ?? _bankerMobileController.text;
+    _officeAddressController.text = existing['office_address'] ?? _officeAddressController.text;
+    _l1NameController.text = existing['l1_manager_name'] ?? _l1NameController.text;
+    _l1MobileController.text = existing['l1_manager_mobile'] ?? _l1MobileController.text;
+    _l2NameController.text = existing['l2_manager_name'] ?? _l2NameController.text;
+    _l2MobileController.text = existing['l2_manager_mobile'] ?? _l2MobileController.text;
+
+    if (_loanTypes.contains(existing['loan_type'])) _loanType = existing['loan_type'];
+    if (_verticals.contains(existing['vertical'])) {
+      _vertical = existing['vertical'];
+    } else if (_verticals.contains(existing['product_type'])) {
+      _vertical = existing['product_type'];
+    }
+    if (_segments.contains(existing['segment'])) _segment = existing['segment'];
+    _mProfileAllowed = (existing['m_profile_allowed'] ?? 'YES').toString().toUpperCase() == 'NO' ? 'NO' : 'YES';
+
+    _minTicketController.text = existing['min_ticket_size'] ?? '₹1,00,000';
+    _maxTicketController.text = existing['max_ticket_size'] ?? (existing['max_loan_amount'] ?? '₹50,00,000');
+    _ltvRatioController.text = existing['ltv_ratio'] ?? 'Up to 90% LTV';
+    _minCibilController.text = (existing['min_cibil'] ?? '700').toString();
+    _minIncomeController.text = existing['min_income'] ?? '₹25,000 / mo';
+    _maxBouncesController.text = (existing['max_allowed_bounces'] ?? '0').toString();
+    _geoRadiusController.text = existing['geo_radius'] ?? '50 km radius';
+    _approvedPincodesController.text = existing['approved_pincodes'] ?? '';
+    _loginFeeController.text = existing['login_fee'] ?? 'Nil';
+    _processingFeeController.text = existing['processing_fee'] ?? '1.00%';
+    _interestRateController.text = existing['interest_rate'] ?? '10.50% - 13.50%';
+    _tatDaysController.text = existing['tat_days'] ?? '3 Days';
+    _specialFeaturesController.text = existing['special_features'] ?? '';
+
+    _ageLimitController.text = existing['age_limit'] ?? '21 - 65 Years';
+    _repaymentTenureController.text = existing['repayment_tenure'] ?? 'Up to 30 Years (HL) / 20 Years (LAP)';
+    _foirNormsController.text = existing['foir_norms'] ?? '1L-7L: 60% | 7L-10L: 65% | 10L-12L: 70% | >=12L: 75%';
+    _existingObligationsController.text = existing['existing_obligations'] ?? 'Deducted from net income (>6 months EMI balance counted)';
+    _employmentStabilityController.text = existing['employment_stability'] ?? 'Min 2 yrs total experience / 1 yr current company';
+    _ltvOnPlotController.text = existing['ltv_on_plot'] ?? '1L-30L: 90% | 30L-75L: 80% | >=75L: 70%';
+
+    _roadWindingProperty = existing['road_winding_property_funding'] ?? 'YES';
+    _gramPanchayatProperty = existing['gram_panchayat_property_funding'] ?? 'YES';
+    _notaryToRegistry = existing['notary_to_registry_funding'] ?? 'YES';
+    _gramPanchayatPatta = existing['gram_panchayat_patta_funding'] ?? 'YES';
+    _dronPatta = existing['dron_patta_funding'] ?? 'YES';
+    _highestTicketSizeNotary = existing['highest_ticket_size_notary'] ?? 'YES';
+    _highTensionLine = existing['high_tension_line_funding'] ?? 'NO';
+    _withoutDiversion = existing['without_diversion_property_funding'] ?? 'NO';
+    _onlyDiversion = existing['only_diversion_property_funding'] ?? 'YES';
+    _akvnProperty = existing['akvn_property_funding'] ?? 'YES';
+    _greenBeltProperty = existing['green_belt_property_funding'] ?? 'NO';
+    _plotPurchase = existing['plot_purchase'] ?? 'YES';
+    _plotMortgage = existing['plot_mortgage'] ?? 'YES';
+
+    _isSalarySlipRequired = existing['is_salary_slip_required'] ?? 'YES';
+    _residenceOwnershipType = existing['residence_ownership_type'] ?? 'Owned Only';
+
+    _businessOwnershipType = existing['business_ownership_type'] ?? 'At least One Owned Required';
+    _isGstRequired = existing['is_gst_required'] ?? 'YES';
+    _isItrRequired = existing['is_itr_required'] ?? 'YES';
+    _isUdyamRequired = existing['is_udyam_required'] ?? 'YES';
+    _isCurrentAccountRequired = existing['is_current_account_required'] ?? 'YES';
+    _bankingsConsidered = existing['bankings_considered'] ?? '6';
+
+    _onePagerDocUrl = existing['one_pager_policy_url']?.toString();
+    if (_onePagerDocUrl != null && _onePagerDocUrl!.isNotEmpty) {
+      _onePagerDocName = _onePagerDocUrl!.split('/').last;
+    } else {
+      _onePagerDocName = null;
+    }
+  }
+
+  void _onLoanTypeOrVerticalChanged(String newLoanType, String newVertical) {
+    setState(() {
+      _loanType = newLoanType;
+      _vertical = newVertical;
+      Map<String, dynamic>? match;
+      for (final p in _allMyPolicies) {
+        final lt = (p['loan_type'] ?? '').toString();
+        final vt = (p['vertical'] ?? p['product_type'] ?? 'Prime').toString();
+        if (lt.toLowerCase() == newLoanType.toLowerCase() && vt.toLowerCase() == newVertical.toLowerCase()) {
+          match = p;
+          break;
+        }
+      }
+      if (match != null) {
+        _populateFromPolicyMap(match);
+      } else {
+        _isExistingPolicy = false;
+        _existingPolicyId = null;
+        _policyStatus = null;
+        _rejectionReason = null;
+      }
+    });
+  }
+
   Future<void> _loadExistingPolicy() async {
     setState(() => _isLoading = true);
     try {
@@ -165,10 +275,18 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
       final existing = (bundle['policy'] is Map)
           ? (bundle['policy'] as Map).cast<String, dynamic>()
           : null;
+      if (bundle['policies'] is List) {
+        _allMyPolicies = (bundle['policies'] as List)
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+      }
 
       if (bankerInfo.isNotEmpty) {
-        if ((bankerInfo['bank_name'] ?? '').toString().isNotEmpty) {
-          _bankNameController.text = bankerInfo['bank_name'].toString();
+        final bName = (bankerInfo['bank_name'] ?? '').toString().trim();
+        if (bName.isNotEmpty && bName != 'Partner Bank' && bName != 'Not provided') {
+          _bankNameController.text = bName;
+          _isBankNameLocked = true;
         }
         if (_bankerNameController.text.isEmpty && (bankerInfo['banker_name'] ?? '').toString().isNotEmpty) {
           _bankerNameController.text = bankerInfo['banker_name'].toString();
@@ -194,81 +312,7 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
       }
 
       if (existing != null && mounted) {
-        _isExistingPolicy = true;
-        _existingPolicyId = existing['id']?.toString();
-        _policyStatus = existing['status']?.toString();
-        _rejectionReason = existing['rejection_reason']?.toString();
-
-        if ((existing['bank_name'] ?? '').toString().isNotEmpty &&
-            (_bankNameController.text.isEmpty || _bankNameController.text == 'Partner Bank')) {
-          _bankNameController.text = existing['bank_name'].toString();
-        }
-        _bankerNameController.text = existing['banker_name'] ?? _bankerNameController.text;
-        _bankerMobileController.text = existing['banker_mobile'] ?? _bankerMobileController.text;
-        _officeAddressController.text = existing['office_address'] ?? _officeAddressController.text;
-        _l1NameController.text = existing['l1_manager_name'] ?? _l1NameController.text;
-        _l1MobileController.text = existing['l1_manager_mobile'] ?? _l1MobileController.text;
-        _l2NameController.text = existing['l2_manager_name'] ?? _l2NameController.text;
-        _l2MobileController.text = existing['l2_manager_mobile'] ?? _l2MobileController.text;
-
-        if (_loanTypes.contains(existing['loan_type'])) _loanType = existing['loan_type'];
-        if (_verticals.contains(existing['vertical'])) {
-          _vertical = existing['vertical'];
-        } else if (_verticals.contains(existing['product_type'])) {
-          _vertical = existing['product_type'];
-        }
-        if (_segments.contains(existing['segment'])) _segment = existing['segment'];
-        _mProfileAllowed = (existing['m_profile_allowed'] ?? 'YES').toString().toUpperCase() == 'NO' ? 'NO' : 'YES';
-
-        _minTicketController.text = existing['min_ticket_size'] ?? _minTicketController.text;
-        _maxTicketController.text = existing['max_ticket_size'] ?? _maxTicketController.text;
-        _ltvRatioController.text = existing['ltv_ratio'] ?? _ltvRatioController.text;
-        _minCibilController.text = (existing['min_cibil'] ?? '700').toString();
-        _minIncomeController.text = existing['min_income'] ?? _minIncomeController.text;
-        _maxBouncesController.text = (existing['max_allowed_bounces'] ?? '0').toString();
-        _geoRadiusController.text = existing['geo_radius'] ?? _geoRadiusController.text;
-        _approvedPincodesController.text = existing['approved_pincodes'] ?? '';
-        _loginFeeController.text = existing['login_fee'] ?? _loginFeeController.text;
-        _processingFeeController.text = existing['processing_fee'] ?? _processingFeeController.text;
-        _interestRateController.text = existing['interest_rate'] ?? _interestRateController.text;
-        _tatDaysController.text = existing['tat_days'] ?? _tatDaysController.text;
-        _specialFeaturesController.text = existing['special_features'] ?? '';
-
-        _ageLimitController.text = existing['age_limit'] ?? _ageLimitController.text;
-        _repaymentTenureController.text = existing['repayment_tenure'] ?? _repaymentTenureController.text;
-        _foirNormsController.text = existing['foir_norms'] ?? _foirNormsController.text;
-        _existingObligationsController.text = existing['existing_obligations'] ?? _existingObligationsController.text;
-        _employmentStabilityController.text = existing['employment_stability'] ?? _employmentStabilityController.text;
-        _ltvOnPlotController.text = existing['ltv_on_plot'] ?? _ltvOnPlotController.text;
-
-        _roadWindingProperty = existing['road_winding_property_funding'] ?? _roadWindingProperty;
-        _gramPanchayatProperty = existing['gram_panchayat_property_funding'] ?? _gramPanchayatProperty;
-        _notaryToRegistry = existing['notary_to_registry_funding'] ?? _notaryToRegistry;
-        _gramPanchayatPatta = existing['gram_panchayat_patta_funding'] ?? _gramPanchayatPatta;
-        _dronPatta = existing['dron_patta_funding'] ?? _dronPatta;
-        _highestTicketSizeNotary = existing['highest_ticket_size_notary'] ?? _highestTicketSizeNotary;
-        _highTensionLine = existing['high_tension_line_funding'] ?? _highTensionLine;
-        _withoutDiversion = existing['without_diversion_property_funding'] ?? _withoutDiversion;
-        _onlyDiversion = existing['only_diversion_property_funding'] ?? _onlyDiversion;
-        _akvnProperty = existing['akvn_property_funding'] ?? _akvnProperty;
-        _greenBeltProperty = existing['green_belt_property_funding'] ?? _greenBeltProperty;
-        _plotPurchase = existing['plot_purchase'] ?? _plotPurchase;
-        _plotMortgage = existing['plot_mortgage'] ?? _plotMortgage;
-
-        _isSalarySlipRequired = existing['is_salary_slip_required'] ?? _isSalarySlipRequired;
-        _residenceOwnershipType = existing['residence_ownership_type'] ?? _residenceOwnershipType;
-
-        _businessOwnershipType = existing['business_ownership_type'] ?? _businessOwnershipType;
-        _isGstRequired = existing['is_gst_required'] ?? _isGstRequired;
-        _isItrRequired = existing['is_itr_required'] ?? _isItrRequired;
-        _isUdyamRequired = existing['is_udyam_required'] ?? _isUdyamRequired;
-        _isCurrentAccountRequired = existing['is_current_account_required'] ?? _isCurrentAccountRequired;
-        _bankingsConsidered = existing['bankings_considered'] ?? _bankingsConsidered;
-
-        _onePagerDocUrl = existing['one_pager_policy_url']?.toString();
-        if (_onePagerDocUrl != null && _onePagerDocUrl!.isNotEmpty) {
-          _onePagerDocName = _onePagerDocUrl!.split('/').last;
-        }
+        _populateFromPolicyMap(existing);
       }
     } catch (e) {
       debugPrint('Error loading existing policy: $e');
@@ -516,7 +560,7 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: Text(_isExistingPolicy ? 'Update Bank Policy' : 'Add Bank Policy'),
+        title: const Text('Update Bank Policy'),
         backgroundColor: const Color(0xFF093A7A),
         foregroundColor: Colors.white,
       ),
@@ -572,6 +616,57 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
                     ),
                     const SizedBox(height: 18),
 
+                    // Quick selector for Banker's existing loan category policies
+                    if (_allMyPolicies.isNotEmpty) ...[
+                      const Text(
+                        'YOUR BANK POLICIES BY LOAN CATEGORY (TAP TO EDIT / SWITCH)',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF093A7A), letterSpacing: 0.4),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 38,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _allMyPolicies.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (context, idx) {
+                            final pol = _allMyPolicies[idx];
+                            final lt = (pol['loan_type'] ?? 'Home Loan').toString();
+                            final vt = (pol['vertical'] ?? pol['product_type'] ?? 'Prime').toString();
+                            final st = (pol['status'] ?? 'approved').toString();
+                            final isSelected = _loanType.toLowerCase() == lt.toLowerCase() && _vertical.toLowerCase() == vt.toLowerCase();
+                            return ActionChip(
+                              backgroundColor: isSelected ? const Color(0xFF093A7A) : Colors.white,
+                              side: BorderSide(
+                                color: isSelected
+                                    ? const Color(0xFF093A7A)
+                                    : (st == 'approved' ? const Color(0xFF27AE60) : Colors.orange),
+                              ),
+                              avatar: Icon(
+                                st == 'approved' ? Icons.check_circle : Icons.pending_actions,
+                                size: 15,
+                                color: isSelected ? Colors.white : (st == 'approved' ? const Color(0xFF27AE60) : Colors.orange),
+                              ),
+                              label: Text(
+                                '$lt ($vt)',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected ? Colors.white : const Color(0xFF093A7A),
+                                ),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _populateFromPolicyMap(pol);
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     // SECTION 1: BANK, PRODUCT & SOURCING VERTICAL
                     const Text(
                       '1. BANK, PRODUCT & SOURCING VERTICAL',
@@ -580,13 +675,18 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _bankNameController,
-                      readOnly: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Bank / NBFC Name (Locked to Your Bank) *',
-                        prefixIcon: Icon(Icons.lock_outline, color: Color(0xFF093A7A), size: 18),
-                        filled: true,
-                        fillColor: Color(0xFFEFF3F8),
-                        helperText: 'Bankers can only upload & update policy for their own bank',
+                      readOnly: _isBankNameLocked,
+                      decoration: InputDecoration(
+                        labelText: _isBankNameLocked ? 'Bank / NBFC Name (Locked to Your Bank) *' : 'Bank / NBFC Name *',
+                        hintText: 'e.g. HDFC Bank, ICICI Bank, SBI, Axis Bank',
+                        prefixIcon: Icon(
+                          _isBankNameLocked ? Icons.lock_outline : Icons.account_balance_outlined,
+                          color: const Color(0xFF093A7A),
+                          size: 18,
+                        ),
+                        filled: _isBankNameLocked,
+                        fillColor: _isBankNameLocked ? const Color(0xFFEFF3F8) : null,
+                        helperText: 'Bankers can upload & update policies for their own bank (Reviewed & Merged in CRM)',
                       ),
                       validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
@@ -596,7 +696,7 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Loan Category *'),
                       items: _loanTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: (val) => setState(() => _loanType = val ?? 'Home Loan'),
+                      onChanged: (val) => _onLoanTypeOrVerticalChanged(val ?? 'Home Loan', _vertical),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -607,7 +707,7 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
                             isExpanded: true,
                             decoration: const InputDecoration(labelText: 'Vertical *'),
                             items: _verticals.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                            onChanged: (val) => setState(() => _vertical = val ?? 'Prime'),
+                            onChanged: (val) => _onLoanTypeOrVerticalChanged(_loanType, val ?? 'Prime'),
                           ),
                         ),
                         const SizedBox(width: 12),
