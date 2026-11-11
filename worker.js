@@ -4,6 +4,8 @@ import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebas
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
 import { slugify, uniqueBlogSlug, blogPostOut, ensureBlogSchema } from './worker/blog.js';
+import { registerWhatsappRoutes } from './worker/whatsapp_routes.js';
+import { WhatsappBroadcastSender, resumePendingBroadcasts } from './worker/whatsapp_broadcast.js';
 import {
   CloudflareError,
   accountFrom,
@@ -1722,5 +1724,17 @@ app.post('/api/v1/admin/cloudflare/r2/verify', requireAdmin, cfMigrationRoute(as
   return c.json(result);
 }));
 
+
+// ---------- WhatsApp Cloud API ----------
+// Routes live in worker/whatsapp_routes.js so this file stays readable.
+registerWhatsappRoutes(app, { auth, requireAdmin, readJson, formatLeadId, notifyAdmins });
+
+export { WhatsappBroadcastSender };
+
+// Cron Trigger (every 5 minutes in wrangler.toml) restarts any campaign that
+// stopped half way, for example because the isolate was recycled mid-batch.
+export async function scheduled(event, env, ctx) {
+  ctx.waitUntil(resumePendingBroadcasts(env, { limit: 20 }));
+}
 
 export default app;
