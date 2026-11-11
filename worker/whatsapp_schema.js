@@ -207,41 +207,92 @@ export const WHATSAPP_CONTACT_COLUMNS = [
 
 let schemaReady = false;
 
-// Reads the real column list from SQLite and adds only what is missing. This is
-// what makes the migration safe to run on a database that already has some of
-// these tables from an earlier deploy.
-async function addMissingColumns(env, table, columns, added) {
-  const info = await env.DB.prepare('PRAGMA table_info(' + table + ')').all();
-  const existing = new Set((info.results || []).map(function (r) { return r.name; }));
+// SQLite exposes table_info both as a PRAGMA and as a table-valued function.
+// D1 accepts the function form everywhere; the PRAGMA form is tried next, and
+// if neither answers we simply attempt the ALTER and ignore "duplicate column".
+async function listColumns(env, table) {
+  try {
+    const r = await env.DB.prepare('SELECT name FROM pragma_table_info(?)').bind(table).all();
+    if (r && Array.isArray(r.results)) return new Set(r.results.map(function (x) { return x.name; }));
+  } catch (_) { /* fall through */ }
+  try {
+    const r = await env.DB.prepare('PRAGMA table_info(' + table + ')').all();
+    if (r && Array.isArray(r.results)) return new Set(r.results.map(function (x) { return x.name; }));
+  } catch (_) { /* fall through */ }
+  return null;
+}
+
+async function addMissingColumns(env, table, columns, added, steps) {
+  const existing = await listColumns(env, table);
+  if (existing) {
+    for (const [column, type] of columns) {
+      if (existing.has(column)) continue;
+      await env.DB.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type);
+      added.push(table + '.' + column);
+    }
+    return;
+  }
+  // Column list unknown: try each ALTER, keep going when the column is already there.
+  steps.push({ step: 'list_columns:' + table, ok: false, error: 'could not read column list, tried ALTER directly' });
   for (const [column, type] of columns) {
-    if (existing.has(column)) continue;
-    await env.DB.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type);
-    added.push(table + '.' + column);
+    try {
+      await env.DB.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type);
+      added.push(table + '.' + column);
+    } catch (_) { /* already exists */ }
   }
 }
 
+// Every step is reported, so a failure says exactly which statement broke
+// instead of surfacing as a blank 500.
 export async function runWhatsappMigrations(env) {
+  const steps = [];
   const added = [];
-  await env.DB.exec(WHATSAPP_SCHEMA_SQL);
-  await addMissingColumns(env, 'wa_messages', WHATSAPP_MESSAGE_COLUMNS, added);
-  await addMissingColumns(env, 'wa_contacts', WHATSAPP_CONTACT_COLUMNS, added);
 
-  const tables = await env.DB
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'wa_%' ORDER BY name")
-    .all();
+  try {
+    await env.DB.exec(WHATSAPP_SCHEMA_SQL);
+    steps.push({ step: 'create_tables_and_indexes', ok: true });
+  } catch (err) {
+    steps.push({ step: 'create_tables_and_indexes', ok: false, error: err && err.message ? err.message : String(err) });
+    return { ok: false, steps: steps, tables: [], added_columns: added };
+  }
+
+  try {
+    await addMissingColumns(env, 'wa_messages', WHATSAPP_MESSAGE_COLUMNS, added, steps);
+    await addMissingColumns(env, 'wa_contacts', WHATSAPP_CONTACT_COLUMNS, added, steps);
+    steps.push({ step: 'add_missing_columns', ok: true });
+  } catch (err) {
+    steps.push({ step: 'add_missing_columns', ok: false, error: err && err.message ? err.message : String(err) });
+  }
+
+  let tables = [];
+  try {
+    const r = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'wa_%' ORDER BY name").all();
+    tables = (r.results || []).map(function (x) { return x.name; });
+    steps.push({ step: 'list_tables', ok: true });
+  } catch (err) {
+    steps.push({ step: 'list_tables', ok: false, error: err && err.message ? err.message : String(err) });
+  }
+
   return {
-    ok: true,
-    tables: (tables.results || []).map(function (r) { return r.name; }),
+    ok: steps.every(function (s) { return s.ok; }),
+    tables: tables,
     added_columns: added,
+    steps: steps,
     ran_at: new Date().toISOString(),
   };
 }
 
-// Idempotent, cheap after the first call in an isolate.
+// A schema problem must never turn a working route into a 500: log it and carry
+// on, because the tables are usually already there.
 export async function ensureWhatsappSchema(env) {
   if (schemaReady) return;
-  await runWhatsappMigrations(env);
-  schemaReady = true;
+  try {
+    const report = await runWhatsappMigrations(env);
+    if (report.ok) schemaReady = true;
+    else console.error('whatsapp schema not fully applied', JSON.stringify(report.steps));
+  } catch (err) {
+    console.error('whatsapp schema check failed', err && err.message ? err.message : err);
+  }
 }
 
 export async function ensureWhatsappSchemaForced(env) {
