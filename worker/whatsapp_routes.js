@@ -404,6 +404,49 @@ export function registerWhatsappRoutes(app, ctx) {
   app.post('/api/v1/whatsapp/webhook', webhookPost);
   app.post('/api/v1/whatsapp/webhook/:secret', webhookPost);
 
+  // --- diagnostics: says exactly what is broken, in plain words ---
+  app.get('/api/v1/whatsapp/diag', requireAdmin, async function (c) {
+    const checks = [];
+    async function check(name, fn) {
+      try {
+        const value = await fn();
+        checks.push({ check: name, ok: true, value: value });
+      } catch (err) {
+        checks.push({ check: name, ok: false, error: err && err.message ? err.message : String(err) });
+      }
+    }
+
+    await check('env.DB bound', async () => !!c.env.DB);
+    await check('db.exec works', async () => {
+      await c.env.DB.exec('SELECT 1');
+      return true;
+    });
+    await check('wa tables', async () => {
+      const r = await c.env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'wa_%' ORDER BY name").all();
+      return (r.results || []).map(function (x) { return x.name; });
+    });
+    await check('wa_messages columns', async () => {
+      const r = await c.env.DB.prepare("SELECT name FROM pragma_table_info('wa_messages')").all();
+      return (r.results || []).length;
+    });
+    await check('wa_contacts columns', async () => {
+      const r = await c.env.DB.prepare("SELECT name FROM pragma_table_info('wa_contacts')").all();
+      return (r.results || []).length;
+    });
+    await check('migration', async () => await ensureWhatsappSchemaForced(c.env));
+    await check('config', async () => whatsappConfig(c.env));
+    await check('r2 bound', async () => !!c.env.R2_BUCKET);
+    await check('durable object bound', async () => !!(c.env.WHATSAPP_SENDER && c.env.WHATSAPP_SENDER.idFromName));
+    await check('graph api reachable', async () => {
+      if (!isWhatsappConfigured(c.env)) return 'skipped: not configured';
+      const r = await graphFetch(c.env, c.env.WHATSAPP_PHONE_NUMBER_ID, { query: { fields: 'display_phone_number,verified_name' } });
+      return { verified_name: r && r.verified_name, display_phone_number: r && r.display_phone_number };
+    });
+
+    const failed = checks.filter(function (x) { return !x.ok; });
+    return c.json({ ok: failed.length === 0, failed: failed.length, checks: checks }, failed.length ? 200 : 200);
+  });
+
   // --- database migration (safe to run any number of times) ---
   app.post('/api/v1/whatsapp/admin/migrate', requireAdmin, async function (c) {
     try {
