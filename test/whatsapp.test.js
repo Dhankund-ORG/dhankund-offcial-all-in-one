@@ -17,6 +17,18 @@ import {
   normalizeInboundMessage,
   payloadHash,
   INBOUND_KINDS,
+  serviceWindow,
+  describeWindow,
+  buildTextPayload,
+  buildMediaPayload,
+  buildLocationPayload,
+  buildContactsPayload,
+  buildInteractivePayload,
+  buildReactionPayload,
+  buildTemplatePayload,
+  OUTBOUND_TYPES,
+  WINDOW_BOUND_TYPES,
+  SERVICE_WINDOW_MS,
   WhatsappError,
 } from '../worker/whatsapp.js';
 import {
@@ -411,4 +423,126 @@ test('every INBOUND_KINDS entry maps to a known kind', () => {
   for (const type of Object.keys(INBOUND_KINDS)) {
     assert.ok(allowed.indexOf(INBOUND_KINDS[type]) >= 0, type + ' -> ' + INBOUND_KINDS[type]);
   }
+});
+
+// ---------- service window and outbound payloads ----------
+
+test('service window is open for 24 hours after the last inbound message', () => {
+  const now = new Date('2026-11-11T10:00:00.000Z');
+  const open = serviceWindow('2026-11-11T02:00:00.000Z', now);
+  assert.equal(open.open, true);
+  assert.equal(open.reason, 'open');
+  assert.equal(open.expiresAt, '2026-11-12T02:00:00.000Z');
+  assert.equal(open.remainingSeconds, 16 * 3600);
+
+  const closed = serviceWindow('2026-11-09T02:00:00.000Z', now);
+  assert.equal(closed.open, false);
+  assert.equal(closed.reason, 'window_expired');
+  assert.equal(closed.remainingSeconds, 0);
+});
+
+test('service window handles contacts who never wrote in', () => {
+  const w = serviceWindow(null);
+  assert.equal(w.open, false);
+  assert.equal(w.reason, 'no_inbound_message');
+  assert.match(describeWindow(w), /never messaged/);
+});
+
+test('window expires exactly 24 hours later', () => {
+  const last = new Date('2026-11-10T12:00:00.000Z');
+  const justBefore = new Date(last.getTime() + SERVICE_WINDOW_MS - 1000);
+  const justAfter = new Date(last.getTime() + SERVICE_WINDOW_MS + 1000);
+  assert.equal(serviceWindow(last.toISOString(), justBefore).open, true);
+  assert.equal(serviceWindow(last.toISOString(), justAfter).open, false);
+});
+
+test('describeWindow explains what to do next', () => {
+  const open = describeWindow(serviceWindow(new Date().toISOString()));
+  assert.match(open, /Service window open/);
+  const closed = describeWindow(serviceWindow('2020-01-01T00:00:00.000Z'));
+  assert.match(closed, /24-hour service window is closed/);
+  assert.match(closed, /template/);
+});
+
+test('text payload validates length and keeps the recipient clean', () => {
+  const payload = buildTextPayload('+919876543210', ' Namaste ', { previewUrl: true });
+  assert.equal(payload.to, '919876543210');
+  assert.equal(payload.text.body, 'Namaste');
+  assert.equal(payload.text.preview_url, true);
+  assert.throws(function () { buildTextPayload('+919876543210', ''); }, WhatsappError);
+  assert.throws(function () { buildTextPayload('+919876543210', 'x'.repeat(4097)); }, WhatsappError);
+});
+
+test('media payload covers image, video, audio, document and sticker', () => {
+  for (const type of ['image', 'video', 'audio', 'document', 'sticker']) {
+    const payload = buildMediaPayload('+919876543210', { type: type, mediaId: 'mid', caption: 'cap', filename: 'a.pdf' });
+    assert.equal(payload.type, type);
+    assert.equal(payload[type].id, 'mid');
+  }
+  const doc = buildMediaPayload('+919876543210', { type: 'document', mediaId: 'mid', filename: 'kyc.pdf' });
+  assert.equal(doc.document.filename, 'kyc.pdf');
+  const audio = buildMediaPayload('+919876543210', { type: 'audio', mediaId: 'mid', caption: 'ignored' });
+  assert.equal(audio.audio.caption, undefined);
+  assert.throws(function () { buildMediaPayload('+919876543210', { type: 'image' }); }, WhatsappError);
+  assert.throws(function () { buildMediaPayload('+919876543210', { type: 'hologram', mediaId: 'x' }); }, WhatsappError);
+});
+
+test('location and contact payloads are built correctly', () => {
+  const loc = buildLocationPayload('+919876543210', { latitude: 26.85, longitude: 80.95, name: 'Office', address: 'Lucknow' });
+  assert.equal(loc.location.latitude, 26.85);
+  assert.equal(loc.location.name, 'Office');
+  assert.throws(function () { buildLocationPayload('+919876543210', {}); }, WhatsappError);
+
+  const card = buildContactsPayload('+919876543210', { name: 'Sita Devi', phone: '+919812345678', organization: 'Dhankund', emails: ['sita@example.com'] });
+  assert.equal(card.contacts[0].name.formatted_name, 'Sita Devi');
+  assert.equal(card.contacts[0].phones[0].phone, '+919812345678');
+  assert.equal(card.contacts[0].org.company, 'Dhankund');
+  assert.throws(function () { buildContactsPayload('+919876543210', [{ name: 'A' }, { name: 'B' }]); }, WhatsappError);
+});
+
+test('interactive payloads cover buttons, lists and flows', () => {
+  const buttons = buildInteractivePayload('+919876543210', {
+    body: 'Kya karna hai?',
+    buttons: [{ id: 'track', title: 'Track loan' }, { id: 'call', title: 'Call me' }],
+  });
+  assert.equal(buttons.interactive.type, 'button');
+  assert.equal(buttons.interactive.action.buttons.length, 2);
+  assert.equal(buttons.interactive.action.buttons[0].reply.id, 'track');
+
+  const list = buildInteractivePayload('+919876543210', {
+    kind: 'list',
+    body: 'Loan chunein',
+    buttonText: 'Choose',
+    sections: [{ title: 'Loans', rows: [{ id: 'home', title: 'Home loan', description: '9.1%' }] }],
+  });
+  assert.equal(list.interactive.type, 'list');
+  assert.equal(list.interactive.action.sections[0].rows[0].id, 'home');
+
+  const flow = buildInteractivePayload('+919876543210', { kind: 'flow', body: 'Apply', flowId: '123', cta: 'Start' });
+  assert.equal(flow.interactive.type, 'flow');
+  assert.equal(flow.interactive.action.parameters.flow_id, '123');
+
+  assert.throws(function () { buildInteractivePayload('+919876543210', { body: 'x', buttons: [] }); }, WhatsappError);
+  assert.throws(function () { buildInteractivePayload('+919876543210', { body: 'x', buttons: [{ title: 'a' }, { title: 'b' }, { title: 'c' }, { title: 'd' }] }); }, WhatsappError);
+});
+
+test('reaction and template payloads are built correctly', () => {
+  const reaction = buildReactionPayload('+919876543210', { messageId: 'wamid.1', emoji: '👍' });
+  assert.equal(reaction.type, 'reaction');
+  assert.equal(reaction.reaction.message_id, 'wamid.1');
+  assert.throws(function () { buildReactionPayload('+919876543210', {}); }, WhatsappError);
+
+  const template = buildTemplatePayload('+919876543210', { name: 'loan_status', language: 'hi', bodyParams: ['Ramesh'] });
+  assert.equal(template.type, 'template');
+  assert.equal(template.template.language.code, 'hi');
+  assert.equal(template.template.components[0].parameters[0].text, 'Ramesh');
+});
+
+test('every outbound type is either window-bound or a template', () => {
+  assert.ok(OUTBOUND_TYPES.indexOf('template') >= 0);
+  for (const type of OUTBOUND_TYPES) {
+    if (type === 'template') continue;
+    assert.ok(WINDOW_BOUND_TYPES.indexOf(type) >= 0, type + ' must need an open window');
+  }
+  assert.equal(WINDOW_BOUND_TYPES.indexOf('template'), -1);
 });

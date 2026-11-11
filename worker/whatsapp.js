@@ -707,6 +707,229 @@ export function extractMessageId(response) {
   return response && response.messages && response.messages[0] ? response.messages[0].id : null;
 }
 
+
+// ---------- service window (24-hour conversation) ----------
+
+export const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// WhatsApp only allows free-form messages for 24 hours after the customer's
+// last message. After that only an approved template can be sent.
+export function serviceWindow(lastInboundAt, now) {
+  const current = now instanceof Date ? now.getTime() : (typeof now === 'number' ? now : Date.now());
+  if (!lastInboundAt) {
+    return { open: false, expiresAt: null, remainingSeconds: 0, reason: 'no_inbound_message' };
+  }
+  const last = new Date(lastInboundAt).getTime();
+  if (isNaN(last)) {
+    return { open: false, expiresAt: null, remainingSeconds: 0, reason: 'invalid_timestamp' };
+  }
+  const expires = last + SERVICE_WINDOW_MS;
+  const remainingSeconds = Math.max(0, Math.floor((expires - current) / 1000));
+  return {
+    open: remainingSeconds > 0,
+    expiresAt: new Date(expires).toISOString(),
+    remainingSeconds: remainingSeconds,
+    reason: remainingSeconds > 0 ? 'open' : 'window_expired',
+  };
+}
+
+export function describeWindow(window) {
+  const w = window || {};
+  if (!w.open) {
+    if (w.reason === 'no_inbound_message') return 'The customer has never messaged you. Only an approved template can be sent.';
+    return 'The 24-hour service window is closed. Only an approved template can be sent.';
+  }
+  const hours = Math.floor(w.remainingSeconds / 3600);
+  const minutes = Math.floor((w.remainingSeconds % 3600) / 60);
+  return 'Service window open for another ' + hours + 'h ' + minutes + 'm.';
+}
+
+// ---------- outbound payload builders ----------
+
+export function buildTextPayload(to, body, options) {
+  const opts = options || {};
+  const text = String(body || '').trim();
+  if (!text) throw new WhatsappError('Message text is empty', 400);
+  if (text.length > 4096) throw new WhatsappError('WhatsApp text limit is 4096 characters', 400);
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: toRecipient(to),
+    type: 'text',
+    text: { preview_url: !!opts.previewUrl, body: text },
+  };
+  if (opts.replyTo) payload.context = { message_id: opts.replyTo };
+  return payload;
+}
+
+export function buildMediaPayload(to, media) {
+  const m = media || {};
+  const type = m.type || 'image';
+  if (MEDIA_TYPES.indexOf(type) < 0) throw new WhatsappError('Unsupported media type: ' + type, 400);
+  if (!m.mediaId && !m.link) throw new WhatsappError('Media needs either mediaId or a public link', 400);
+  const mediaObject = {};
+  if (m.mediaId) mediaObject.id = m.mediaId;
+  else mediaObject.link = m.link;
+  if (m.caption && type !== 'audio' && type !== 'sticker') mediaObject.caption = String(m.caption);
+  if (m.filename && type === 'document') mediaObject.filename = String(m.filename);
+  const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: toRecipient(to), type: type };
+  payload[type] = mediaObject;
+  if (m.replyTo) payload.context = { message_id: m.replyTo };
+  return payload;
+}
+
+export function buildLocationPayload(to, location) {
+  const l = location || {};
+  if (l.latitude == null || l.longitude == null) throw new WhatsappError('latitude and longitude are required', 400);
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: toRecipient(to),
+    type: 'location',
+    location: { latitude: Number(l.latitude), longitude: Number(l.longitude) },
+  };
+  if (l.name) payload.location.name = String(l.name);
+  if (l.address) payload.location.address = String(l.address);
+  if (l.replyTo) payload.context = { message_id: l.replyTo };
+  return payload;
+}
+
+export function buildContactsPayload(to, contacts) {
+  const list = Array.isArray(contacts) ? contacts : [contacts];
+  const clean = list.filter(Boolean).map(function (c) {
+    const name = c.name || c.formattedName || c.formatted_name;
+    if (!name) throw new WhatsappError('Every contact needs a name', 400);
+    const out = { name: { formatted_name: String(name) } };
+    if (c.firstName) out.name.first_name = String(c.firstName);
+    if (c.lastName) out.name.last_name = String(c.lastName);
+    const phones = Array.isArray(c.phones) ? c.phones : (c.phone ? [c.phone] : []);
+    if (phones.length) out.phones = phones.map(function (p) {
+      return { phone: String(p.phone || p), type: p.type || 'CELL' };
+    });
+    if (Array.isArray(c.emails) && c.emails.length) out.emails = c.emails.map(function (e) { return { email: String(e.email || e) }; });
+    if (c.organization) out.org = { company: String(c.organization), title: c.title ? String(c.title) : undefined };
+    if (Array.isArray(c.urls) && c.urls.length) out.urls = c.urls.map(function (u) { return { url: String(u.url || u) }; });
+    if (Array.isArray(c.addresses) && c.addresses.length) out.addresses = c.addresses.map(function (a) { return { full_address: String(a.full_address || a) }; });
+    return out;
+  });
+  if (!clean.length) throw new WhatsappError('At least one contact is required', 400);
+  if (clean.length > 1) {
+    // Meta accepts a single contact per request on the Cloud API.
+    throw new WhatsappError('WhatsApp accepts one contact card per message. Send them one by one.', 400);
+  }
+  return { messaging_product: 'whatsapp', recipient_type: 'individual', to: toRecipient(to), type: 'contacts', contacts: clean };
+}
+
+export function buildInteractivePayload(to, interactive) {
+  const i = interactive || {};
+  const kind = String(i.kind || i.type || 'buttons').toLowerCase();
+  const bodyText = String(i.body || i.text || '').trim();
+  if (!bodyText) throw new WhatsappError('Interactive message needs body text', 400);
+
+  const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: toRecipient(to), type: 'interactive' };
+
+  if (kind === 'buttons' || kind === 'button') {
+    const buttons = Array.isArray(i.buttons) ? i.buttons : [];
+    if (!buttons.length) throw new WhatsappError('At least one button is required', 400);
+    if (buttons.length > 3) throw new WhatsappError('WhatsApp allows at most 3 reply buttons', 400);
+    payload.interactive = {
+      type: 'button',
+      body: { text: bodyText },
+      action: {
+        buttons: buttons.map(function (b, index) {
+          const title = String(b.title || b.text || '').trim();
+          if (!title) throw new WhatsappError('Button ' + (index + 1) + ' needs a title', 400);
+          if (title.length > 20) throw new WhatsappError('Button titles are limited to 20 characters', 400);
+          return { type: 'reply', reply: { id: String(b.id || 'btn_' + (index + 1)), title: title } };
+        }),
+      },
+    };
+  } else if (kind === 'list') {
+    const sections = Array.isArray(i.sections) ? i.sections : [];
+    if (!sections.length) throw new WhatsappError('A list needs at least one section', 400);
+    const rows = sections.reduce(function (n, s) { return n + (s.rows || []).length; }, 0);
+    if (rows > 10) throw new WhatsappError('A list allows at most 10 rows in total', 400);
+    payload.interactive = {
+      type: 'list',
+      body: { text: bodyText },
+      action: {
+        button: String(i.buttonText || 'Choose').slice(0, 20),
+        sections: sections.map(function (s) {
+          return {
+            title: s.title ? String(s.title).slice(0, 24) : undefined,
+            rows: (s.rows || []).map(function (r, index) {
+              const title = String(r.title || '').trim();
+              if (!title) throw new WhatsappError('List row ' + (index + 1) + ' needs a title', 400);
+              const row = { id: String(r.id || 'row_' + (index + 1)), title: title.slice(0, 24) };
+              if (r.description) row.description = String(r.description).slice(0, 72);
+              return row;
+            }),
+          };
+        }),
+      },
+    };
+  } else if (kind === 'flow') {
+    if (!i.flowId && !i.flowToken) throw new WhatsappError('A flow message needs flowId or flowToken', 400);
+    payload.interactive = {
+      type: 'flow',
+      body: { text: bodyText },
+      action: {
+        name: 'flow',
+        parameters: {
+          flow_message_version: '3',
+          flow_token: String(i.flowToken || ('flow_' + Date.now())),
+          flow_id: i.flowId ? String(i.flowId) : undefined,
+          flow_cta: String(i.cta || 'Open').slice(0, 20),
+          flow_action: i.flowAction || 'navigate',
+        },
+      },
+    };
+  } else {
+    throw new WhatsappError('Unsupported interactive kind: ' + kind, 400);
+  }
+
+  if (i.header) payload.interactive.header = { type: 'text', text: String(i.header).slice(0, 60) };
+  if (i.footer) payload.interactive.footer = { text: String(i.footer).slice(0, 60) };
+  if (i.replyTo) payload.context = { message_id: i.replyTo };
+  return payload;
+}
+
+export function buildReactionPayload(to, reaction) {
+  const r = reaction || {};
+  if (!r.messageId) throw new WhatsappError('messageId is required to react', 400);
+  return {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: toRecipient(to),
+    type: 'reaction',
+    reaction: { message_id: String(r.messageId), emoji: String(r.emoji || '') },
+  };
+}
+
+export function buildTemplatePayload(to, template) {
+  const t = template || {};
+  if (!t.name) throw new WhatsappError('Template name is required', 400);
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: toRecipient(to),
+    type: 'template',
+    template: { name: String(t.name), language: { code: String(t.language || 'en') } },
+  };
+  const components = t.components || buildTemplateComponents(t);
+  if (components && components.length) payload.template.components = components;
+  return payload;
+}
+
+export const OUTBOUND_TYPES = ['text', 'template', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'contacts', 'interactive', 'reaction'];
+
+// Types that need an open 24-hour window. Only templates work outside it.
+export const WINDOW_BOUND_TYPES = ['text', 'image', 'video', 'audio', 'document', 'sticker', 'location', 'contacts', 'interactive', 'reaction'];
+
+export async function sendPayload(env, payload) {
+  return graphFetch(env, env.WHATSAPP_PHONE_NUMBER_ID + '/messages', { method: 'POST', body: payload });
+}
+
 // ---------- media ----------
 
 export async function uploadMediaToMeta(env, bytes, mimeType, filename) {

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS wa_contacts (
   notes TEXT,
   last_inbound_at TEXT,
   last_outbound_at TEXT,
+  window_expires_at TEXT,
   created_at TEXT,
   updated_at TEXT
 );
@@ -200,6 +201,10 @@ export const WHATSAPP_MESSAGE_COLUMNS = [
   ['edited_at', 'TEXT'],
 ];
 
+export const WHATSAPP_CONTACT_COLUMNS = [
+  ['window_expires_at', 'TEXT'],
+];
+
 let schemaReady = false;
 
 // Idempotent, cheap after the first call in an isolate.
@@ -213,6 +218,13 @@ export async function ensureWhatsappSchema(env) {
       // already there
     }
   }
+  for (const [column, type] of WHATSAPP_CONTACT_COLUMNS) {
+    try {
+      await env.DB.exec('ALTER TABLE wa_contacts ADD COLUMN ' + column + ' ' + type);
+    } catch (_) {
+      // already there
+    }
+  }
   schemaReady = true;
 }
 
@@ -221,6 +233,13 @@ export async function ensureWhatsappSchemaForced(env) {
   for (const [column, type] of WHATSAPP_MESSAGE_COLUMNS) {
     try {
       await env.DB.exec('ALTER TABLE wa_messages ADD COLUMN ' + column + ' ' + type);
+    } catch (_) {
+      // already there
+    }
+  }
+  for (const [column, type] of WHATSAPP_CONTACT_COLUMNS) {
+    try {
+      await env.DB.exec('ALTER TABLE wa_contacts ADD COLUMN ' + column + ' ' + type);
     } catch (_) {
       // already there
     }

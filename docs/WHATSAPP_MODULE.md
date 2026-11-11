@@ -156,6 +156,50 @@ curl -X POST .../api/v1/whatsapp/audience/preview \
   -d '{"sources":["loans","referrals"],"filters":{"status":"Pending"},"requireOptIn":true}'
 ```
 
+## Outgoing message types
+
+`POST /api/v1/whatsapp/send` handles every type the Cloud API can send, each one
+validated before it leaves the Worker:
+
+| `type` | Body fields |
+| --- | --- |
+| `text` | `text`, optional `previewUrl`, `replyTo` |
+| `template` | `templateName`, `templateLang`, `bodyParams` / `headerParams` / `buttonParams` |
+| `image` `video` `audio` `document` `sticker` | `mediaId` or `link`, optional `caption`, `filename` |
+| `location` | `latitude`, `longitude`, optional `name`, `address` |
+| `contacts` | `contacts: [{ name, phone, organization, emails }]` (one card per message) |
+| `interactive` | `kind: "buttons" \| "list" \| "flow"` with `body`, `buttons` / `sections` / `flowId` |
+| `reaction` | `messageId`, `emoji` |
+
+Limits are enforced locally so Meta never has to reject them: text 4096
+characters, at most 3 reply buttons of 20 characters, at most 10 list rows,
+header and footer 60 characters, one contact card per request.
+
+## The 24-hour service window
+
+WhatsApp lets a business send free-form messages only for 24 hours after the
+customer's last message. After that, only an approved template is allowed.
+
+The module tracks this per contact: `wa_contacts.window_expires_at` is refreshed
+on every inbound message, and every inbox response carries
+
+```json
+{
+  "window": { "open": true, "expiresAt": "2026-11-12T09:14:00.000Z", "remainingSeconds": 41234, "reason": "open" },
+  "window_open": true,
+  "window_text": "Service window open for another 11h 27m."
+}
+```
+
+`GET /api/v1/whatsapp/conversation?phone=` returns the contact, the window, the
+unread count and the whole thread in one call, so the CRM can draw the chat and
+the "window open / closed" banner without extra requests.
+
+A send outside the window is refused with **409** and `code: "WINDOW_CLOSED"`,
+plus a hint to use a template; `force: true` overrides it when the operator
+knows better. Only `template` is exempt, because that is exactly what Meta
+allows.
+
 ## Broadcast engine
 
 `POST /broadcasts` writes one `wa_broadcast_recipients` row per person and kicks
@@ -207,8 +251,9 @@ the website contact form) and links it back.
 node --test test/
 ```
 
-34 WhatsApp tests cover phone normalisation, signature verification, webhook
-parsing, template building and validation, audience dedupe and consent, opt-out
+44 WhatsApp tests cover phone normalisation, signature verification, webhook
+parsing for every inbound type, outbound payload building, the 24-hour service
+window, template building and validation, audience dedupe and consent, opt-out
 keywords and media extensions. Graph API calls are never made in tests.
 
 ## Not covered yet

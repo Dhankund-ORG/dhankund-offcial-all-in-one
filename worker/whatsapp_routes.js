@@ -9,6 +9,9 @@ import {
   verifyWebhookSignature, checkWebhookPathSecret, checkVerifyChallenge,
   parseWebhook, isOptOutMessage, downloadMedia, uploadMediaToMeta, payloadHash, describeMessage,
   mediaExtension, buildTemplateComponents, extractMessageId,
+  serviceWindow, describeWindow, buildTextPayload, buildMediaPayload, buildLocationPayload,
+  buildContactsPayload, buildInteractivePayload, buildReactionPayload, buildTemplatePayload,
+  sendPayload, OUTBOUND_TYPES, WINDOW_BOUND_TYPES, SERVICE_WINDOW_MS,
 } from './whatsapp.js';
 import {
   buildComponents, createTemplate, createTemplatePair, updateTemplate,
@@ -29,6 +32,16 @@ function fail(c, err) {
   }
   console.error('whatsapp route error', err && err.message);
   return c.json({ error: 'WhatsApp operation failed. Please try again.' }, 500);
+}
+
+
+// Adds the bits the CRM renders: a readable line, a direction flag and whether
+// the message can still be answered freely.
+function decorateMessage(row) {
+  const out = Object.assign({}, row);
+  out.display = row.body || row.caption || (row.media_filename ? '[' + row.type + '] ' + row.media_filename : '[' + row.type + ']');
+  out.is_inbound = row.direction === 'inbound';
+  return out;
 }
 
 function nowMonth() {
@@ -59,7 +72,11 @@ export async function upsertContact(env, input) {
     const patch = { updated_at: now };
     if (input.profileName && !existing.profile_name) patch.profile_name = input.profileName;
     if (input.name && !existing.name) patch.name = input.name;
-    if (input.direction === 'inbound') patch.last_inbound_at = input.at || now;
+    if (input.direction === 'inbound') {
+      patch.last_inbound_at = input.at || now;
+      // Every customer message re-opens the 24-hour service window.
+      patch.window_expires_at = new Date(new Date(input.at || now).getTime() + SERVICE_WINDOW_MS).toISOString();
+    }
     if (input.direction === 'outbound') patch.last_outbound_at = input.at || now;
     await updateRow(env, 'wa_contacts', 'id', existing.id, patch);
     return Object.assign({}, existing, patch);
@@ -83,6 +100,9 @@ export async function upsertContact(env, input) {
     notes: null,
     last_inbound_at: input.direction === 'inbound' ? (input.at || now) : null,
     last_outbound_at: input.direction === 'outbound' ? (input.at || now) : null,
+    window_expires_at: input.direction === 'inbound'
+      ? new Date(new Date(input.at || now).getTime() + SERVICE_WINDOW_MS).toISOString()
+      : null,
     created_at: now,
     updated_at: now,
   };
@@ -407,7 +427,7 @@ export function registerWhatsappRoutes(app, ctx) {
     });
   });
 
-  // --- inbox ---
+  // --- inbox and conversation ---
   app.get('/api/v1/whatsapp/threads', requireAdmin, async function (c) {
     await ensureWhatsappSchema(c.env);
     const search = (c.req.query('search') || '').trim();
@@ -420,15 +440,49 @@ export function registerWhatsappRoutes(app, ctx) {
     }
     const rows = await all(
       c.env,
-      'SELECT c.phone_e164 AS phone, c.name, c.profile_name, c.opt_in_status, c.source, c.last_inbound_at, c.last_outbound_at, ' +
+      'SELECT c.phone_e164 AS phone, c.name, c.profile_name, c.opt_in_status, c.source, c.last_inbound_at, c.last_outbound_at, c.window_expires_at, ' +
       '(SELECT body FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_body, ' +
       '(SELECT type FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_type, ' +
+      '(SELECT direction FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_direction, ' +
       '(SELECT created_at FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_at, ' +
       "(SELECT COUNT(*) FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 AND m.direction = 'inbound' AND m.read_at IS NULL) AS unread " +
       'FROM wa_contacts c' + where + ' ORDER BY COALESCE(last_at, c.updated_at) DESC LIMIT ' + limit,
       params
     );
-    return c.json(rows);
+    return c.json(rows.map(function (r) {
+      const window = serviceWindow(r.last_inbound_at);
+      return Object.assign({}, r, {
+        window: window,
+        window_open: window.open,
+        window_text: describeWindow(window),
+      });
+    }));
+  });
+
+  app.get('/api/v1/whatsapp/conversation', requireAdmin, async function (c) {
+    await ensureWhatsappSchema(c.env);
+    const phone = normalizePhone(c.req.query('phone'));
+    if (!phone) return c.json({ error: 'Valid phone query parameter is required' }, 400);
+    const limit = Math.max(1, Math.min(Number(c.req.query('limit')) || 200, 500));
+
+    const contact = await first(c.env, 'SELECT * FROM wa_contacts WHERE phone_e164 = ?', [phone]);
+    const rows = await all(c.env, 'SELECT * FROM wa_messages WHERE phone_e164 = ? ORDER BY created_at ASC LIMIT ' + limit, [phone]);
+    const window = serviceWindow(contact ? contact.last_inbound_at : null);
+    const unreadRow = await first(c.env, "SELECT COUNT(*) AS n FROM wa_messages WHERE phone_e164 = ? AND direction = 'inbound' AND read_at IS NULL", [phone]);
+
+    if (c.req.query('mark_read') === '1') {
+      await run(c.env, "UPDATE wa_messages SET read_at = COALESCE(read_at, ?) WHERE phone_e164 = ? AND direction = 'inbound'", [nowIso(), phone]);
+    }
+
+    return c.json({
+      phone: phone,
+      contact: contact || null,
+      window: window,
+      window_open: window.open,
+      window_text: describeWindow(window),
+      unread: unreadRow ? Number(unreadRow.n) || 0 : 0,
+      messages: rows.map(decorateMessage),
+    });
   });
 
   app.get('/api/v1/whatsapp/messages', requireAdmin, async function (c) {
@@ -437,10 +491,18 @@ export function registerWhatsappRoutes(app, ctx) {
     if (!phone) return c.json({ error: 'Valid phone query parameter is required' }, 400);
     const limit = Math.max(1, Math.min(Number(c.req.query('limit')) || 100, 300));
     const rows = await all(c.env, 'SELECT * FROM wa_messages WHERE phone_e164 = ? ORDER BY created_at ASC LIMIT ' + limit, [phone]);
+    const contact = await first(c.env, 'SELECT last_inbound_at FROM wa_contacts WHERE phone_e164 = ?', [phone]);
+    const window = serviceWindow(contact ? contact.last_inbound_at : null);
     if (c.req.query('mark_read') === '1') {
       await run(c.env, "UPDATE wa_messages SET read_at = COALESCE(read_at, ?) WHERE phone_e164 = ? AND direction = 'inbound'", [nowIso(), phone]);
     }
-    return c.json({ phone: phone, messages: rows });
+    return c.json({
+      phone: phone,
+      window: window,
+      window_open: window.open,
+      window_text: describeWindow(window),
+      messages: rows.map(decorateMessage),
+    });
   });
 
   app.post('/api/v1/whatsapp/mark-read', requireAdmin, async function (c) {
@@ -462,54 +524,80 @@ export function registerWhatsappRoutes(app, ctx) {
     } catch (err) { return fail(c, err); }
   });
 
-  // --- sending ---
+  // --- sending: every outbound type ---
   app.post('/api/v1/whatsapp/send', requireAdmin, async function (c) {
     const b = await readJson(c);
     try {
       await ensureWhatsappSchema(c.env);
       const phone = normalizePhone(b.to || b.phone);
       if (!phone) return c.json({ error: 'Valid recipient number is required' }, 400);
+
       const type = String(b.type || 'text').toLowerCase();
-      const user = c.get('user') || {};
-
-      let response;
-      let bodyText = b.text || b.body || null;
-      let templateName = null;
-      let templateLang = null;
-
-      if (type === 'text') {
-        response = await sendText(c.env, phone, bodyText, { previewUrl: b.previewUrl, replyTo: b.replyTo });
-      } else if (type === 'template') {
-        const t = b.template || {};
-        templateName = t.name || b.templateName;
-        templateLang = t.language || b.templateLang || 'en';
-        response = await sendTemplate(c.env, phone, {
-          name: templateName,
-          language: templateLang,
-          components: t.components || buildTemplateComponents({ headerParams: t.headerParams, bodyParams: t.bodyParams, buttonParams: t.buttonParams, buttonIndex: t.buttonIndex, buttonSubType: t.buttonSubType }),
-        });
-        bodyText = null;
-      } else if (MEDIA_TYPES.indexOf(type) >= 0) {
-        response = await sendMedia(c.env, phone, { type: type, mediaId: b.mediaId, link: b.link, caption: b.caption, filename: b.filename, replyTo: b.replyTo });
-      } else {
-        return c.json({ error: 'Unsupported message type: ' + type }, 400);
+      if (OUTBOUND_TYPES.indexOf(type) < 0) {
+        return c.json({ error: 'Unsupported message type "' + type + '". Allowed: ' + OUTBOUND_TYPES.join(', ') }, 400);
       }
 
+      const contact = await first(c.env, 'SELECT * FROM wa_contacts WHERE phone_e164 = ?', [phone]);
+      const window = serviceWindow(contact ? contact.last_inbound_at : null);
+
+      // Outside the 24-hour window only an approved template is allowed.
+      if (WINDOW_BOUND_TYPES.indexOf(type) >= 0 && !window.open && !b.force) {
+        return c.json({
+          error: describeWindow(window) + ' Send template "' + (b.templateName || 'an approved template') + '" instead, or pass force=true to try anyway.',
+          code: 'WINDOW_CLOSED',
+          window: window,
+          window_open: false,
+          suggested: 'template',
+        }, 409);
+      }
+
+      const user = c.get('user') || {};
+      let payload;
+      if (type === 'text') payload = buildTextPayload(phone, b.text || b.body, { previewUrl: b.previewUrl, replyTo: b.replyTo });
+      else if (type === 'template') payload = buildTemplatePayload(phone, {
+        name: (b.template && b.template.name) || b.templateName,
+        language: (b.template && b.template.language) || b.templateLang || 'en',
+        components: (b.template && b.template.components) || buildTemplateComponents({
+          headerParams: b.template ? b.template.headerParams : b.headerParams,
+          bodyParams: b.template ? b.template.bodyParams : b.bodyParams,
+          buttonParams: b.template ? b.template.buttonParams : b.buttonParams,
+          buttonIndex: b.template ? b.template.buttonIndex : b.buttonIndex,
+          buttonSubType: b.template ? b.template.buttonSubType : b.buttonSubType,
+        }),
+      });
+      else if (MEDIA_TYPES.indexOf(type) >= 0) payload = buildMediaPayload(phone, { type: type, mediaId: b.mediaId, link: b.link, caption: b.caption, filename: b.filename, replyTo: b.replyTo });
+      else if (type === 'location') payload = buildLocationPayload(phone, { latitude: b.latitude, longitude: b.longitude, name: b.name, address: b.address, replyTo: b.replyTo });
+      else if (type === 'contacts') payload = buildContactsPayload(phone, b.contacts || b.contact);
+      else if (type === 'interactive') payload = buildInteractivePayload(phone, b.interactive || b);
+      else if (type === 'reaction') payload = buildReactionPayload(phone, { messageId: b.messageId, emoji: b.emoji });
+
+      const response = await sendPayload(c.env, payload);
       const waMessageId = extractMessageId(response);
+
       await insertRow(c.env, 'wa_messages', {
         id: randomId(),
         wa_message_id: waMessageId,
         phone_e164: phone,
         direction: 'outbound',
         type: type,
-        template_name: templateName,
-        template_lang: templateLang,
-        body: bodyText,
+        kind: type === 'template' ? 'template' : (MEDIA_TYPES.indexOf(type) >= 0 ? 'media' : type),
+        template_name: type === 'template' ? payload.template.name : null,
+        template_lang: type === 'template' ? payload.template.language.code : null,
+        body: type === 'text' ? payload.text.body : (b.caption || (type === 'interactive' ? (b.interactive && b.interactive.body) || b.body : null)),
         caption: b.caption || null,
         media_id: b.mediaId || null,
         media_mime: null,
         media_r2_key: b.r2Key || null,
         media_size: null,
+        media_filename: b.filename || null,
+        latitude: type === 'location' ? Number(b.latitude) : null,
+        longitude: type === 'location' ? Number(b.longitude) : null,
+        location_name: type === 'location' ? (b.name || null) : null,
+        location_address: type === 'location' ? (b.address || null) : null,
+        interactive_id: type === 'interactive' ? JSON.stringify(payload.interactive.action) : null,
+        reaction_emoji: type === 'reaction' ? String(b.emoji || '') : null,
+        reaction_to: type === 'reaction' ? String(b.messageId || '') : null,
+        contacts_json: type === 'contacts' ? JSON.stringify(payload.contacts) : null,
         status: 'sent',
         error_code: null,
         error_title: null,
@@ -524,7 +612,15 @@ export function registerWhatsappRoutes(app, ctx) {
         raw_json: JSON.stringify(response || {}),
       });
       await upsertContact(c.env, { phone: phone, direction: 'outbound' });
-      return c.json({ success: true, wa_message_id: waMessageId, to: phone });
+
+      return c.json({
+        success: true,
+        wa_message_id: waMessageId,
+        to: phone,
+        type: type,
+        window: window,
+        window_open: window.open,
+      });
     } catch (err) { return fail(c, err); }
   });
 
