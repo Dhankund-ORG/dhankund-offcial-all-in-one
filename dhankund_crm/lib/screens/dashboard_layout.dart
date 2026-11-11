@@ -13,6 +13,9 @@ import 'pages/app_uploaded_policies_page.dart';
 import 'pages/cloudflare_migration_page.dart';
 import 'pages/blog_posts_page.dart';
 import 'pages/banners_page.dart';
+import 'pages/whatsapp_inbox_page.dart';
+import 'pages/whatsapp_templates_page.dart';
+import 'pages/whatsapp_broadcast_page.dart';
 
 class DashboardLayout extends StatefulWidget {
   const DashboardLayout({super.key});
@@ -38,6 +41,9 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     'Cloudflare Migration',
     'Blog Posts',
     'App Banners',
+    'WhatsApp Inbox',
+    'WhatsApp Templates',
+    'WhatsApp Broadcast',
   ];
 
   final List<IconData> _tabsIcons = [
@@ -54,6 +60,9 @@ class _DashboardLayoutState extends State<DashboardLayout> {
     Icons.cloud_sync_outlined,
     Icons.article_outlined,
     Icons.view_carousel_outlined,
+    Icons.chat_outlined,
+    Icons.description_outlined,
+    Icons.send_outlined,
   ];
 
   late List<Widget> _pages;
@@ -83,6 +92,9 @@ class _DashboardLayoutState extends State<DashboardLayout> {
       const CloudflareMigrationPage(),
       const BlogPostsPage(),
       const BannersPage(),
+      const WhatsappInboxPage(),
+      const WhatsappTemplatesPage(),
+      const WhatsappBroadcastPage(),
     ];
   }
 
