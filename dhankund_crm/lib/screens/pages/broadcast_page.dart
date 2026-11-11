@@ -12,7 +12,8 @@ class BroadcastPage extends StatefulWidget {
 class _BroadcastPageState extends State<BroadcastPage> {
   final ApiService _firestoreService = ApiService();
   
-  bool _sendWhatsapp = true;
+  // WhatsApp now has its own section; this page only sends email and push.
+  static const bool _sendWhatsapp = false;
   bool _sendEmail = true;
   
   final Map<String, bool> _audiences = {
@@ -193,7 +194,6 @@ class _BroadcastPageState extends State<BroadcastPage> {
                       spacing: 16,
                       runSpacing: 16,
                       children: [
-                        _buildChannelToggle('WhatsApp', Icons.chat, _sendWhatsapp, (val) => setState(() => _sendWhatsapp = val)),
                         _buildChannelToggle('Email Blast', Icons.email, _sendEmail, (val) => setState(() => _sendEmail = val)),
                       ],
                     ),

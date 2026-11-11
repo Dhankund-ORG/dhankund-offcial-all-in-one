@@ -546,3 +546,43 @@ test('every outbound type is either window-bound or a template', () => {
   }
   assert.equal(WINDOW_BOUND_TYPES.indexOf('template'), -1);
 });
+
+// ---------- database migration ----------
+
+import { WHATSAPP_SCHEMA_SQL, WHATSAPP_MESSAGE_COLUMNS, WHATSAPP_CONTACT_COLUMNS } from '../worker/whatsapp_schema.js';
+
+function tableBlock(sql, table) {
+  const start = sql.indexOf('CREATE TABLE IF NOT EXISTS ' + table);
+  if (start < 0) return '';
+  const end = sql.indexOf(');', start);
+  return sql.slice(start, end);
+}
+
+test('schema creates every WhatsApp table', () => {
+  for (const table of ['wa_contacts', 'wa_messages', 'wa_templates', 'wa_broadcasts', 'wa_broadcast_recipients', 'wa_webhook_events', 'wa_settings', 'wa_alerts']) {
+    assert.ok(WHATSAPP_SCHEMA_SQL.includes('CREATE TABLE IF NOT EXISTS ' + table), table + ' must be created');
+  }
+});
+
+test('every migration column already exists in the create-table statement', () => {
+  const messages = tableBlock(WHATSAPP_SCHEMA_SQL, 'wa_messages');
+  for (const [column] of WHATSAPP_MESSAGE_COLUMNS) {
+    assert.ok(new RegExp('\\b' + column + '\\b').test(messages), 'wa_messages.' + column + ' missing from the create statement');
+  }
+  const contacts = tableBlock(WHATSAPP_SCHEMA_SQL, 'wa_contacts');
+  for (const [column] of WHATSAPP_CONTACT_COLUMNS) {
+    assert.ok(new RegExp('\\b' + column + '\\b').test(contacts), 'wa_contacts.' + column + ' missing from the create statement');
+  }
+});
+
+test('schema is additive: it never drops or alters an existing table', () => {
+  assert.equal(/DROP\s+TABLE/i.test(WHATSAPP_SCHEMA_SQL), false);
+  assert.equal(/ALTER\s+TABLE/i.test(WHATSAPP_SCHEMA_SQL), false);
+  assert.equal(/DELETE\s+FROM/i.test(WHATSAPP_SCHEMA_SQL), false);
+});
+
+test('indexes are declared for the queries the inbox runs', () => {
+  for (const index of ['idx_wa_messages_phone', 'idx_wa_recipients_broadcast', 'idx_wa_contacts_optin', 'idx_wa_templates_name']) {
+    assert.ok(WHATSAPP_SCHEMA_SQL.includes(index), index + ' must exist');
+  }
+});

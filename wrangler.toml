@@ -18,3 +18,17 @@ name = "SEB"
 binding = "DB"
 database_name = "dhankund-crm"
 database_id = "FILL_ME_D1_DATABASE_ID"
+
+# WhatsApp Cloud API
+# Durable Object keeps a broadcast sending batches without holding one request
+# open; the cron restarts a campaign that stopped half way.
+[[env.production.durable_objects.bindings]]
+name = "WHATSAPP_SENDER"
+class_name = "WhatsappBroadcastSender"
+
+[[env.production.migrations]]
+tag = "v1-whatsapp-sender"
+new_classes = ["WhatsappBroadcastSender"]
+
+[env.production.triggers]
+crons = ["*/5 * * * *"]

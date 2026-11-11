@@ -2,7 +2,7 @@
 // so worker.js keeps its own auth helpers and this file stays testable on its own.
 
 import { all, first, run, insertRow, updateRow, nowIso, randomId, safeJson } from './db.js';
-import { ensureWhatsappSchema } from './whatsapp_schema.js';
+import { ensureWhatsappSchema, ensureWhatsappSchemaForced } from './whatsapp_schema.js';
 import {
   WhatsappError, whatsappConfig, isWhatsappConfigured, normalizePhone, maskPhone,
   graphFetch, sendText, sendTemplate, sendMedia, markMessageRead,
@@ -403,6 +403,17 @@ export function registerWhatsappRoutes(app, ctx) {
   app.get('/api/v1/whatsapp/webhook/:secret', webhookGet);
   app.post('/api/v1/whatsapp/webhook', webhookPost);
   app.post('/api/v1/whatsapp/webhook/:secret', webhookPost);
+
+  // --- database migration (safe to run any number of times) ---
+  app.post('/api/v1/whatsapp/admin/migrate', requireAdmin, async function (c) {
+    try {
+      const report = await ensureWhatsappSchemaForced(c.env);
+      return c.json(report);
+    } catch (err) {
+      console.error('whatsapp migration failed', err && err.message);
+      return c.json({ ok: false, error: err && err.message ? err.message : 'Migration failed' }, 500);
+    }
+  });
 
   // --- diagnostics ---
   app.get('/api/v1/whatsapp/status', requireAdmin, async function (c) {
