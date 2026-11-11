@@ -932,9 +932,9 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              hasPolicy ? 'Update Bank Policy' : 'Add Bank Policy',
-                              style: const TextStyle(
+                            const Text(
+                              'Update Bank Policy',
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
@@ -1016,14 +1016,14 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       ),
                       child: const Icon(Icons.policy_outlined, color: Color(0xFF093A7A), size: 20),
                     ),
-                    title: Text(
-                      hasPolicy ? 'Update Bank Policy' : 'Add Bank Policy',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    title: const Text(
+                      'Update Bank Policy',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     subtitle: Text(
                       hasPolicy
                           ? 'Policy uploaded (${(_myBankPolicy?['status'] ?? 'pending_approval') == 'approved' ? 'Approved' : 'Pending CRM Review'}) • Tap to update'
-                          : 'Upload your bank policy & One Pager Policy (One-time)',
+                          : 'Fill & update your bank policies, One Pager & Approved Pincodes',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),

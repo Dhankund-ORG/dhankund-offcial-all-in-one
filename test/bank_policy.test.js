@@ -227,6 +227,69 @@ test('extractPincodesFromText extracts unique 6-digit Indian PIN codes and ignor
   assert.deepEqual(pins, ['452001', '452010', '462001']);
 });
 
+test('CRM approval merge logic merges banker updated fields into existing approved CRM banker policy', () => {
+  const existingApprovedCrmPolicy = policyColumns({
+    bank_name: 'HDFC Bank',
+    loan_type: 'Home Loan',
+    vertical: 'Prime',
+    segment: 'DSA',
+    min_cibil: 750,
+    interest_rate: '8.50%',
+    approved_pincodes: '452001, 452010',
+    road_winding_property_funding: 'YES',
+    status: 'approved',
+  });
+
+  const pendingBankerPolicy = policyColumns({
+    bank_name: 'HDFC Bank',
+    loan_type: 'Home Loan',
+    vertical: 'Prime',
+    banker_name: 'Vikram Singh',
+    banker_mobile: '9123456780',
+    interest_rate: '8.35%',
+    approved_pincodes: '452001, 452010, 452016',
+    plot_purchase: 'YES',
+    status: 'pending_approval',
+    uploaded_by_uid: 'banker-uid-99',
+  });
+
+  const adminModifications = {
+    tat_days: '4 Working Days',
+  };
+
+  // Merge non-empty updated fields on top of existingApprovedCrmPolicy
+  const mergedInput = { ...existingApprovedCrmPolicy };
+  for (const [k, v] of Object.entries(pendingBankerPolicy)) {
+    if (v !== null && v !== undefined && String(v).trim() !== '') {
+      mergedInput[k] = v;
+    }
+  }
+  for (const [k, v] of Object.entries(adminModifications)) {
+    if (v !== undefined) {
+      mergedInput[k] = v;
+    }
+  }
+  const finalMergedPolicy = policyColumns({
+    ...mergedInput,
+    status: 'approved',
+    rejection_reason: null,
+  });
+
+  assert.equal(finalMergedPolicy.status, 'approved');
+  assert.equal(finalMergedPolicy.bank_name, 'HDFC Bank');
+  assert.equal(finalMergedPolicy.loan_type, 'Home Loan');
+  assert.equal(finalMergedPolicy.vertical, 'Prime');
+  assert.equal(finalMergedPolicy.segment, 'DSA'); // Preserved from existing CRM policy
+  assert.equal(finalMergedPolicy.min_cibil, 750); // Preserved from existing CRM policy
+  assert.equal(finalMergedPolicy.road_winding_property_funding, 'YES'); // Preserved
+  assert.equal(finalMergedPolicy.banker_name, 'Vikram Singh'); // Updated from banker
+  assert.equal(finalMergedPolicy.interest_rate, '8.35%'); // Updated from banker
+  assert.equal(finalMergedPolicy.approved_pincodes, '452001, 452010, 452016'); // Updated from banker
+  assert.equal(finalMergedPolicy.plot_purchase, 'YES'); // Updated from banker
+  assert.equal(finalMergedPolicy.tat_days, '4 Working Days'); // Updated by admin during review
+  assert.equal(finalMergedPolicy.uploaded_by_uid, 'banker-uid-99');
+});
+
 test('policyColumns safely handles missing fields and defaults to null', () => {
   const output = policyColumns({});
   assert.equal(output.bank_name, null);
