@@ -7,7 +7,7 @@ import {
   WhatsappError, whatsappConfig, isWhatsappConfigured, normalizePhone, maskPhone,
   graphFetch, sendText, sendTemplate, sendMedia, markMessageRead,
   verifyWebhookSignature, checkWebhookPathSecret, checkVerifyChallenge,
-  parseWebhook, isOptOutMessage, downloadMedia, uploadMediaToMeta,
+  parseWebhook, isOptOutMessage, downloadMedia, uploadMediaToMeta, payloadHash, describeMessage,
   mediaExtension, buildTemplateComponents, extractMessageId,
 } from './whatsapp.js';
 import {
@@ -108,13 +108,29 @@ async function setOptIn(env, phone, status, source) {
 
 export async function handleWebhookEvents(env, parsed, ctx) {
   await ensureWhatsappSchema(env);
-  const summary = { messages: 0, statuses: 0, media: 0, optOuts: 0, duplicates: 0, errors: 0 };
+  const summary = {
+    messages: 0, updated: 0, statuses: 0, media: 0, optOuts: 0,
+    duplicates: 0, errors: 0, templates: 0, alerts: 0, unknownTypes: [],
+  };
+
+  async function seen(eventId) {
+    const row = await first(env, 'SELECT id FROM wa_webhook_events WHERE event_id = ?', [eventId]);
+    return !!row;
+  }
+
+  async function record(eventId, kind, payload) {
+    try {
+      await insertRow(env, 'wa_webhook_events', {
+        id: randomId(), event_id: eventId, kind: kind, payload_json: JSON.stringify(payload || {}), processed_at: nowIso(),
+      });
+    } catch (_) { /* duplicate key on a racing retry: fine */ }
+  }
 
   for (const message of parsed.messages || []) {
     if (!message.waMessageId) continue;
-    const eventKey = 'msg:' + message.waMessageId;
-    const seen = await first(env, 'SELECT id FROM wa_webhook_events WHERE event_id = ?', [eventKey]);
-    if (seen) { summary.duplicates += 1; continue; }
+    const hash = await payloadHash(message.raw || message);
+    const eventKey = 'msg:' + message.waMessageId + ':' + hash;
+    if (await seen(eventKey)) { summary.duplicates += 1; continue; }
 
     const contact = await upsertContact(env, {
       phone: message.from,
@@ -122,37 +138,34 @@ export async function handleWebhookEvents(env, parsed, ctx) {
       direction: 'inbound',
       at: message.timestamp,
     });
-    if (!contact) continue;
+    if (!contact) { summary.errors += 1; await record(eventKey, 'message', message); continue; }
 
-    const inserted = await first(env, 'SELECT id FROM wa_messages WHERE wa_message_id = ?', [message.waMessageId]);
-    if (!inserted) {
-      await insertRow(env, 'wa_messages', {
-        id: randomId(),
-        wa_message_id: message.waMessageId,
-        phone_e164: contact.phone_e164,
-        direction: 'inbound',
-        type: message.type,
-        template_name: message.templateName,
-        template_lang: message.templateLanguage,
-        body: message.text,
-        caption: message.caption,
-        media_id: message.mediaId,
-        media_mime: message.mimeType,
-        media_r2_key: null,
-        media_size: null,
-        status: 'received',
-        error_code: null,
-        error_title: null,
-        error_message: null,
-        reply_to: message.replyTo,
-        broadcast_id: null,
-        sent_by: null,
-        sent_at: message.timestamp,
-        delivered_at: message.timestamp,
-        read_at: null,
-        created_at: nowIso(),
-        raw_json: JSON.stringify(message),
-      });
+    const existing = await first(env, 'SELECT id, payload_hash FROM wa_messages WHERE wa_message_id = ?', [message.waMessageId]);
+
+    if (existing) {
+      // Same id, different content = the customer edited the message. Keep it.
+      if (existing.payload_hash && existing.payload_hash !== hash) {
+        await run(
+          env,
+          'UPDATE wa_messages SET body = ?, caption = ?, kind = ?, raw_json = ?, payload_hash = ?, edited_at = ? WHERE id = ?',
+          [message.text, message.caption, message.kind, JSON.stringify(message.raw || {}), hash, nowIso(), existing.id]
+        );
+        summary.updated += 1;
+      } else {
+        summary.duplicates += 1;
+      }
+    } else {
+      await insertRow(env, 'wa_messages', inboundRow(env, message, contact, hash));
+      summary.messages += 1;
+    }
+
+    if (message.kind === 'unknown' && summary.unknownTypes.indexOf(message.type) < 0) {
+      summary.unknownTypes.push(message.type);
+    }
+
+    // A reaction points at another message: keep the emoji on both sides.
+    if (message.reactionTo) {
+      await run(env, 'UPDATE wa_messages SET reaction_emoji = ? WHERE wa_message_id = ?', [message.reactionEmoji, message.reactionTo]);
     }
 
     if (message.mediaId) {
@@ -165,28 +178,24 @@ export async function handleWebhookEvents(env, parsed, ctx) {
       }
     }
 
-    if (isOptOutMessage(message.text)) {
+    if ((message.kind === 'text' || message.kind === 'button' || message.kind === 'interactive') && isOptOutMessage(message.text)) {
       await setOptIn(env, contact.phone_e164, 'opted_out', 'whatsapp_reply');
       summary.optOuts += 1;
     }
 
-    await insertRow(env, 'wa_webhook_events', {
-      id: randomId(), event_id: eventKey, kind: 'message', payload_json: JSON.stringify(message), processed_at: nowIso(),
-    });
-    summary.messages += 1;
+    await record(eventKey, 'message', message);
 
     if (ctx && typeof ctx.notifyAdmins === 'function') {
       try {
-        await ctx.notifyAdmins(env, 'New WhatsApp message', (contact.name || maskPhone(contact.phone_e164)) + ': ' + String(message.text || message.type).slice(0, 120));
+        await ctx.notifyAdmins(env, 'New WhatsApp message', (contact.name || maskPhone(contact.phone_e164)) + ': ' + describeMessage(message));
       } catch (_) { /* notification is best effort */ }
     }
   }
 
   for (const status of parsed.statuses || []) {
     if (!status.waMessageId) continue;
-    const eventKey = 'status:' + status.waMessageId + ':' + status.status;
-    const seen = await first(env, 'SELECT id FROM wa_webhook_events WHERE event_id = ?', [eventKey]);
-    if (seen) { summary.duplicates += 1; continue; }
+    const eventKey = 'status:' + status.waMessageId + ':' + status.status + ':' + (status.timestamp || '');
+    if (await seen(eventKey)) { summary.duplicates += 1; continue; }
 
     const patch = { status: status.status };
     if (status.status === 'delivered') patch.delivered_at = status.timestamp || nowIso();
@@ -196,31 +205,139 @@ export async function handleWebhookEvents(env, parsed, ctx) {
       patch.error_title = status.errorTitle;
       patch.error_message = status.errorMessage;
     }
-    await run(env, 'UPDATE wa_messages SET status = ?, delivered_at = COALESCE(?, delivered_at), read_at = COALESCE(?, read_at), error_code = COALESCE(?, error_code), error_title = COALESCE(?, error_title), error_message = COALESCE(?, error_message) WHERE wa_message_id = ?', [
-      patch.status, patch.delivered_at || null, patch.read_at || null,
-      patch.error_code || null, patch.error_title || null, patch.error_message || null,
-      status.waMessageId,
-    ]);
+    await run(
+      env,
+      'UPDATE wa_messages SET status = ?, delivered_at = COALESCE(?, delivered_at), read_at = COALESCE(?, read_at), ' +
+      'error_code = COALESCE(?, error_code), error_title = COALESCE(?, error_title), error_message = COALESCE(?, error_message), ' +
+      'conversation_category = COALESCE(?, conversation_category), pricing_category = COALESCE(?, pricing_category) WHERE wa_message_id = ?',
+      [
+        patch.status, patch.delivered_at || null, patch.read_at || null,
+        patch.error_code || null, patch.error_title || null, patch.error_message || null,
+        status.conversationCategory || null, status.pricingCategory || null,
+        status.waMessageId,
+      ]
+    );
     await applyStatusToRecipient(env, status.waMessageId, status.status);
-
-    await insertRow(env, 'wa_webhook_events', {
-      id: randomId(), event_id: eventKey, kind: 'status', payload_json: JSON.stringify(status), processed_at: nowIso(),
-    });
+    await record(eventKey, 'status', status);
     summary.statuses += 1;
+  }
+
+  // Template approved / rejected / paused by Meta — keep the local cache honest.
+  for (const update of parsed.templateUpdates || []) {
+    if (!update.name) continue;
+    const row = await first(env, 'SELECT id FROM wa_templates WHERE name = ? AND language = ?', [update.name, update.language || 'en']);
+    if (!row) continue;
+    const status = update.event === 'QUALITY_UPDATE' ? null : String(update.event || '').toUpperCase();
+    await run(
+      env,
+      'UPDATE wa_templates SET status = COALESCE(?, status), quality = COALESCE(?, quality), rejected_reason = COALESCE(?, rejected_reason), updated_at = ? WHERE id = ?',
+      [status || null, update.quality || null, update.reason || null, nowIso(), row.id]
+    );
+    summary.templates += 1;
+  }
+
+  // Account-level notices and phone quality drops are worth a CRM alert.
+  for (const alert of (parsed.accountAlerts || []).concat(parsed.qualityUpdates || [])) {
+    await insertRow(env, 'wa_alerts', {
+      id: randomId(),
+      kind: alert.event ? 'account' : 'quality',
+      title: 'WhatsApp account notice',
+      body: JSON.stringify(alert).slice(0, 1000),
+      payload_json: JSON.stringify(alert),
+      created_at: nowIso(),
+    });
+    summary.alerts += 1;
+  }
+
+  for (const err of parsed.errors || []) {
+    await insertRow(env, 'wa_alerts', {
+      id: randomId(),
+      kind: 'error',
+      title: 'WhatsApp error ' + (err.code || ''),
+      body: [err.title, err.message, err.details].filter(Boolean).join(' — ').slice(0, 1000),
+      payload_json: JSON.stringify(err),
+      created_at: nowIso(),
+    });
+    summary.alerts += 1;
   }
 
   return summary;
 }
 
+function inboundRow(env, message, contact, hash) {
+  return {
+    id: randomId(),
+    wa_message_id: message.waMessageId,
+    phone_e164: contact.phone_e164,
+    direction: 'inbound',
+    type: message.type,
+    kind: message.kind,
+    template_name: message.templateName,
+    template_lang: message.templateLanguage,
+    body: message.text,
+    caption: message.caption,
+    media_id: message.mediaId,
+    media_mime: message.mediaMime,
+    media_r2_key: null,
+    media_size: null,
+    media_filename: message.mediaFilename,
+    media_sha256: message.mediaSha256,
+    media_animated: message.mediaAnimated == null ? null : (message.mediaAnimated ? 1 : 0),
+    voice: message.voice ? 1 : 0,
+    latitude: message.latitude,
+    longitude: message.longitude,
+    location_name: message.locationName,
+    location_address: message.locationAddress,
+    location_url: message.locationUrl,
+    interactive_id: message.interactiveId,
+    interactive_title: message.interactiveTitle,
+    flow_token: message.flowToken,
+    flow_response: message.flowResponse,
+    reaction_emoji: message.reactionEmoji,
+    reaction_to: message.reactionTo,
+    system_type: message.systemType,
+    system_new_wa_id: message.systemNewWaId,
+    system_body: message.systemBody,
+    contacts_json: message.contacts && message.contacts.length ? JSON.stringify(message.contacts) : null,
+    order_json: message.order ? JSON.stringify(message.order) : null,
+    poll_json: message.poll ? JSON.stringify(message.poll) : null,
+    referral_json: message.referral ? JSON.stringify(message.referral) : null,
+    forwarded: message.forwarded ? 1 : 0,
+    phone_number_id: env.WHATSAPP_PHONE_NUMBER_ID || null,
+    conversation_category: null,
+    pricing_category: null,
+    status: 'received',
+    error_code: message.errors && message.errors[0] ? message.errors[0].code : null,
+    error_title: message.errors && message.errors[0] ? message.errors[0].title : null,
+    error_message: message.errors && message.errors[0] ? message.errors[0].message : null,
+    reply_to: message.replyTo,
+    broadcast_id: null,
+    sent_by: null,
+    payload_hash: hash,
+    edited_at: null,
+    sent_at: message.timestamp,
+    delivered_at: message.timestamp,
+    read_at: null,
+    created_at: nowIso(),
+    raw_json: JSON.stringify(message.raw || message),
+  };
+}
+
 async function storeInboundMedia(env, message) {
   if (!env.R2_BUCKET) return null;
   const media = await downloadMedia(env, message.mediaId);
-  const ext = mediaExtension(media.mimeType, message.type === 'document' ? 'bin' : 'jpg');
-  const key = 'wa-media/in/' + nowMonth() + '/' + message.waMessageId + '.' + ext;
+  const fallback = message.type === 'document' ? 'bin' : (message.type === 'sticker' ? 'webp' : 'jpg');
+  const ext = mediaExtension(media.mimeType, fallback);
+  const safeName = message.mediaFilename
+    ? '-' + String(message.mediaFilename).replace(/[^a-zA-Z0-9._-]/g, '_').slice(-40)
+    : '';
+  const key = 'wa-media/in/' + nowMonth() + '/' + message.waMessageId + safeName + '.' + ext;
   await env.R2_BUCKET.put(key, media.bytes, { httpMetadata: { contentType: media.mimeType } });
-  await run(env, 'UPDATE wa_messages SET media_r2_key = ?, media_mime = ?, media_size = ? WHERE wa_message_id = ?', [
-    key, media.mimeType, media.size, message.waMessageId,
-  ]);
+  await run(
+    env,
+    'UPDATE wa_messages SET media_r2_key = ?, media_mime = ?, media_size = ?, media_sha256 = COALESCE(?, media_sha256) WHERE wa_message_id = ?',
+    [key, media.mimeType, media.size, media.sha256 || null, message.waMessageId]
+  );
   return key;
 }
 

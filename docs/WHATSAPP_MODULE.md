@@ -55,6 +55,38 @@ fake events. Three checks run on every request:
 
 The route answers Meta immediately and does the work in `waitUntil`.
 
+## Inbound message types
+
+Nothing is dropped. Every type Meta can deliver is parsed into its own columns,
+and the untouched payload is kept in `raw_json`:
+
+| Type | What is stored |
+| --- | --- |
+| `text` | body |
+| `image` / `video` / `audio` / `document` / `sticker` | media id, mime, filename, sha256, animated, voice-note flag, caption; the file itself goes to R2 |
+| `location` | latitude, longitude, name, address, maps url |
+| `contacts` | full contact cards (names, phones, emails, organisation, urls, addresses) |
+| `button` | button text and payload (template quick replies) |
+| `interactive` | button_reply, list_reply and flow (nfm_reply) responses |
+| `order` | catalog id, text, product items with quantity, price and currency |
+| `system` | event type, new wa_id, body (customer changed number, identity change) |
+| `poll` / `poll_update` | question, options, selectable count |
+| `reaction` | emoji plus the message it reacts to (the target row is updated too) |
+| `template` | template name and language |
+| `unsupported` | kept as-is with a readable label |
+| anything new | stored as `unknown` with the raw payload, and listed in the webhook summary |
+
+Also handled: edited messages (same message id, different content → the row is
+updated and `edited_at` set instead of being thrown away as a duplicate),
+forwarded and frequently-forwarded flags, quoted replies (`reply_to`), click-to-
+WhatsApp ad referrals, delivery/read/failed statuses with pricing and
+conversation details, template approval or rejection events (the local template
+cache is updated), phone-number quality drops and account alerts (stored in
+`wa_alerts`).
+
+Deduplication uses a hash of the payload, so Meta's retries are ignored while a
+genuine edit still gets through.
+
 ## Routes
 
 Public: `GET|POST /api/v1/whatsapp/webhook[/:secret]`.
@@ -175,7 +207,7 @@ the website contact form) and links it back.
 node --test test/
 ```
 
-21 WhatsApp tests cover phone normalisation, signature verification, webhook
+34 WhatsApp tests cover phone normalisation, signature verification, webhook
 parsing, template building and validation, audience dedupe and consent, opt-out
 keywords and media extensions. Graph API calls are never made in tests.
 

@@ -437,6 +437,7 @@ CREATE TABLE IF NOT EXISTS wa_messages (
   phone_e164 TEXT NOT NULL,
   direction TEXT NOT NULL,
   type TEXT NOT NULL,
+  kind TEXT,
   template_name TEXT,
   template_lang TEXT,
   body TEXT,
@@ -445,6 +446,32 @@ CREATE TABLE IF NOT EXISTS wa_messages (
   media_mime TEXT,
   media_r2_key TEXT,
   media_size INTEGER,
+  media_filename TEXT,
+  media_sha256 TEXT,
+  media_animated INTEGER,
+  voice INTEGER,
+  latitude REAL,
+  longitude REAL,
+  location_name TEXT,
+  location_address TEXT,
+  location_url TEXT,
+  interactive_id TEXT,
+  interactive_title TEXT,
+  flow_token TEXT,
+  flow_response TEXT,
+  reaction_emoji TEXT,
+  reaction_to TEXT,
+  system_type TEXT,
+  system_new_wa_id TEXT,
+  system_body TEXT,
+  contacts_json TEXT,
+  order_json TEXT,
+  poll_json TEXT,
+  referral_json TEXT,
+  forwarded INTEGER,
+  phone_number_id TEXT,
+  conversation_category TEXT,
+  pricing_category TEXT,
   status TEXT,
   error_code TEXT,
   error_title TEXT,
@@ -452,6 +479,8 @@ CREATE TABLE IF NOT EXISTS wa_messages (
   reply_to TEXT,
   broadcast_id TEXT,
   sent_by TEXT,
+  payload_hash TEXT,
+  edited_at TEXT,
   sent_at TEXT,
   delivered_at TEXT,
   read_at TEXT,
@@ -524,9 +553,19 @@ CREATE TABLE IF NOT EXISTS wa_settings (
   updated_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS wa_alerts (
+  id TEXT PRIMARY KEY,
+  kind TEXT,
+  title TEXT,
+  body TEXT,
+  payload_json TEXT,
+  created_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_wa_messages_phone ON wa_messages (phone_e164, created_at);
 CREATE INDEX IF NOT EXISTS idx_wa_messages_status ON wa_messages (status);
 CREATE INDEX IF NOT EXISTS idx_wa_messages_broadcast ON wa_messages (broadcast_id);
+CREATE INDEX IF NOT EXISTS idx_wa_messages_kind ON wa_messages (kind);
 CREATE INDEX IF NOT EXISTS idx_wa_contacts_optin ON wa_contacts (opt_in_status);
 CREATE INDEX IF NOT EXISTS idx_wa_contacts_updated ON wa_contacts (updated_at);
 CREATE INDEX IF NOT EXISTS idx_wa_templates_name ON wa_templates (name, language);

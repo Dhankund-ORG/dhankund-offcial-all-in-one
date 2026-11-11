@@ -13,6 +13,10 @@ import {
   buildTemplateComponents,
   isOptOutMessage,
   mediaExtension,
+  describeMessage,
+  normalizeInboundMessage,
+  payloadHash,
+  INBOUND_KINDS,
   WhatsappError,
 } from '../worker/whatsapp.js';
 import {
@@ -108,7 +112,11 @@ test('parseWebhook reads media messages', () => {
 
 test('parseWebhook tolerates an empty payload', () => {
   const parsed = parseWebhook(null);
-  assert.deepEqual(parsed, { messages: [], statuses: [], errors: [] });
+  assert.deepEqual(parsed.messages, []);
+  assert.deepEqual(parsed.statuses, []);
+  assert.deepEqual(parsed.errors, []);
+  assert.deepEqual(parsed.templateUpdates, []);
+  assert.deepEqual(parsed.accountAlerts, []);
 });
 
 test('webhook signature is verified with the app secret', async () => {
@@ -237,5 +245,170 @@ test('every audience source points at real columns', () => {
     assert.ok(def.table, key + ' needs a table');
     assert.ok(def.phone, key + ' needs a phone column');
     assert.ok(def.name, key + ' needs a name column');
+  }
+});
+
+// ---------- every inbound type ----------
+
+function wrap(messages, extraValue) {
+  return {
+    object: 'whatsapp_business_account',
+    entry: [{ id: 'WABA', changes: [{ field: 'messages', value: Object.assign({
+      messaging_product: 'whatsapp',
+      metadata: { display_phone_number: '919000000000', phone_number_id: '1234' },
+      contacts: [{ profile: { name: 'Ramesh' }, wa_id: '919876543210' }],
+      messages: messages,
+    }, extraValue || {}) }] }],
+  };
+}
+
+function firstMessage(payload) {
+  return parseWebhook(payload).messages[0];
+}
+
+test('every known WhatsApp type is classified and never dropped', () => {
+  const cases = [
+    ['text', { text: { body: 'hi' } }, 'text', 'hi'],
+    ['image', { image: { id: 'm1', mime_type: 'image/jpeg', caption: 'PAN' } }, 'media', 'PAN'],
+    ['video', { video: { id: 'm2', mime_type: 'video/mp4', caption: 'video' } }, 'media', 'video'],
+    ['audio', { audio: { id: 'm3', mime_type: 'audio/ogg', voice: true } }, 'media', null],
+    ['document', { document: { id: 'm4', mime_type: 'application/pdf', filename: 'aadhaar.pdf' } }, 'media', 'aadhaar.pdf'],
+    ['sticker', { sticker: { id: 'm5', mime_type: 'image/webp', animated: true } }, 'media', null],
+    ['location', { location: { latitude: 26.8, longitude: 80.9, name: 'Office', address: 'Lucknow' } }, 'location', null],
+    ['contacts', { contacts: [{ name: { formatted_name: 'Sita Devi' }, phones: [{ phone: '+919812345678' }] }] }, 'contacts', null],
+    ['button', { button: { text: 'Yes', payload: 'yes_1' } }, 'button', 'Yes'],
+    ['interactive', { interactive: { button_reply: { id: 'b1', title: 'Track loan' } } }, 'interactive', 'Track loan'],
+    ['order', { order: { catalog_id: 'cat1', text: 'order', product_items: [{ product_retailer_id: 'p1', quantity: 2, item_price: 100, currency: 'INR' }] } }, 'order', null],
+    ['system', { system: { type: 'customer_changed_number', body: 'Number changed', new_wa_id: '919800000000' } }, 'system', 'Number changed'],
+    ['poll', { poll: { question: 'Which loan?', options: [{ name: 'Home' }, { name: 'Car' }], selectable_options_count: 1 } }, 'poll', null],
+    ['poll_update', { poll_update: {} }, 'poll', null],
+    ['reaction', { reaction: { emoji: '👍', message_id: 'wamid.x' } }, 'reaction', null],
+    ['template', { template: { name: 'hello_world', language: { code: 'en' } } }, 'template', null],
+    ['unsupported', { unsupported: {} }, 'unsupported', null],
+    ['something_new', { something_new: { a: 1 } }, 'unknown', null],
+  ];
+
+  for (const [type, body, kind, text] of cases) {
+    const payload = wrap([Object.assign({ from: '919876543210', id: 'wamid.' + type, timestamp: '1700000000', type: type }, body)]);
+    const m = firstMessage(payload);
+    assert.equal(m.type, type, type + ' keeps its type');
+    assert.equal(m.kind, kind, type + ' maps to kind ' + kind);
+    if (text !== null) assert.equal(m.text, text, type + ' text');
+    assert.ok(m.raw, type + ' keeps the raw payload');
+  }
+});
+
+test('media messages expose id, mime, filename and voice flag', () => {
+  const audio = firstMessage(wrap([{ from: '919876543210', id: 'wamid.a', timestamp: '1700000000', type: 'audio', audio: { id: 'm3', mime_type: 'audio/ogg', voice: true } }]));
+  assert.equal(audio.mediaId, 'm3');
+  assert.equal(audio.voice, true);
+
+  const doc = firstMessage(wrap([{ from: '919876543210', id: 'wamid.d', timestamp: '1700000000', type: 'document', document: { id: 'm4', mime_type: 'application/pdf', filename: 'kyc.pdf' } }]));
+  assert.equal(doc.mediaFilename, 'kyc.pdf');
+});
+
+test('location messages keep coordinates and address', () => {
+  const m = firstMessage(wrap([{ from: '919876543210', id: 'wamid.l', timestamp: '1700000000', type: 'location', location: { latitude: 26.85, longitude: 80.95, name: 'Head office', address: 'Lucknow, UP', url: 'https://maps.google.com/x' } }]));
+  assert.equal(m.latitude, 26.85);
+  assert.equal(m.longitude, 80.95);
+  assert.equal(m.locationName, 'Head office');
+  assert.equal(m.locationAddress, 'Lucknow, UP');
+  assert.equal(m.locationUrl, 'https://maps.google.com/x');
+});
+
+test('contact cards are unpacked', () => {
+  const m = firstMessage(wrap([{ from: '919876543210', id: 'wamid.c', timestamp: '1700000000', type: 'contacts', contacts: [{ name: { formatted_name: 'Sita Devi' }, phones: [{ phone: '+919812345678', type: 'CELL' }], emails: [{ email: 'sita@example.com' }], org: { company: 'Dhankund', title: 'Partner' } }] }]));
+  assert.equal(m.contacts.length, 1);
+  assert.equal(m.contacts[0].name, 'Sita Devi');
+  assert.equal(m.contacts[0].phones[0].phone, '+919812345678');
+  assert.equal(m.contacts[0].emails[0], 'sita@example.com');
+  assert.equal(m.contacts[0].organization, 'Dhankund');
+});
+
+test('interactive flow replies and list replies are captured', () => {
+  const list = firstMessage(wrap([{ from: '919876543210', id: 'wamid.i1', timestamp: '1700000000', type: 'interactive', interactive: { list_reply: { id: 'row_2', title: 'Home loan', description: '9.1%' } } }]));
+  assert.equal(list.interactiveId, 'row_2');
+  assert.equal(list.interactiveTitle, 'Home loan');
+
+  const flow = firstMessage(wrap([{ from: '919876543210', id: 'wamid.i2', timestamp: '1700000000', type: 'interactive', interactive: { nfm_reply: { flow_token: 'tok', response_json: '{"a":1}' } } }]));
+  assert.equal(flow.flowToken, 'tok');
+  assert.equal(flow.flowResponse, '{"a":1}');
+});
+
+test('reactions point at the message they belong to', () => {
+  const m = firstMessage(wrap([{ from: '919876543210', id: 'wamid.r', timestamp: '1700000000', type: 'reaction', reaction: { emoji: '🙏', message_id: 'wamid.original' } }]));
+  assert.equal(m.reactionEmoji, '🙏');
+  assert.equal(m.reactionTo, 'wamid.original');
+});
+
+test('orders and polls keep their structured payload', () => {
+  const order = firstMessage(wrap([{ from: '919876543210', id: 'wamid.o', timestamp: '1700000000', type: 'order', order: { catalog_id: 'c1', text: 'two items', product_items: [{ product_retailer_id: 'sku1', quantity: 2, item_price: 500, currency: 'INR' }] } }]));
+  assert.equal(order.order.catalogId, 'c1');
+  assert.equal(order.order.productItems[0].quantity, 2);
+  assert.equal(order.order.productItems[0].currency, 'INR');
+
+  const poll = firstMessage(wrap([{ from: '919876543210', id: 'wamid.p', timestamp: '1700000000', type: 'poll', poll: { question: 'Which loan?', options: [{ name: 'Home' }, { name: 'Car' }], selectable_options_count: 1 } }]));
+  assert.equal(poll.poll.question, 'Which loan?');
+  assert.deepEqual(poll.poll.options, ['Home', 'Car']);
+});
+
+test('forwarded, quoted and referral context survives', () => {
+  const m = firstMessage(wrap([{ from: '919876543210', id: 'wamid.f', timestamp: '1700000000', type: 'text', text: { body: 'forwarded text' }, context: { id: 'wamid.parent', forwarded: true, frequently_forwarded: true, referral: { source_url: 'https://fb.me/x' } } }]));
+  assert.equal(m.replyTo, 'wamid.parent');
+  assert.equal(m.forwarded, true);
+  assert.equal(m.frequentlyForwarded, true);
+  assert.equal(m.referral.source_url, 'https://fb.me/x');
+});
+
+test('template status updates are picked up for the cache', () => {
+  const payload = {
+    entry: [{ changes: [{ field: 'message_template_status_update', value: { event: 'APPROVED', message_template_name: 'loan_status_update', message_template_language: 'hi', reason: null } }] }],
+  };
+  const parsed = parseWebhook(payload);
+  assert.equal(parsed.templateUpdates.length, 1);
+  assert.equal(parsed.templateUpdates[0].event, 'APPROVED');
+  assert.equal(parsed.templateUpdates[0].language, 'hi');
+  assert.equal(parsed.messages.length, 0);
+});
+
+test('statuses carry pricing, conversation and error details', () => {
+  const parsed = parseWebhook(wrap([], {
+    messages: [],
+    statuses: [{
+      id: 'wamid.s', status: 'failed', timestamp: '1700000002', recipient_id: '919876543210',
+      conversation: { id: 'conv1', category: 'marketing', expiration_timestamp: '1700100000' },
+      pricing: { billable: true, pricing_model: 'PMP', category: 'marketing' },
+      errors: [{ code: 131047, title: 'Re-engagement', message: 'Window closed' }],
+    }],
+  }));
+  const s = parsed.statuses[0];
+  assert.equal(s.status, 'failed');
+  assert.equal(s.conversationCategory, 'marketing');
+  assert.equal(s.pricingCategory, 'marketing');
+  assert.equal(s.billable, true);
+  assert.equal(s.errorCode, '131047');
+  assert.equal(s.errorTitle, 'Re-engagement');
+});
+
+test('describeMessage gives the thread list a readable line', () => {
+  assert.equal(describeMessage({ text: 'hello', kind: 'text' }), 'hello');
+  assert.equal(describeMessage({ kind: 'media', type: 'image', mediaFilename: null }), '[image]');
+  assert.equal(describeMessage({ kind: 'media', type: 'document', mediaFilename: 'kyc.pdf' }), '[document] kyc.pdf');
+  assert.equal(describeMessage({ type: 'unsupported', kind: 'unsupported' }), '[unsupported]');
+});
+
+test('payloadHash is stable for retries and different for edits', async () => {
+  const a = await payloadHash({ id: 'x', text: 'one' });
+  const b = await payloadHash({ id: 'x', text: 'one' });
+  const c = await payloadHash({ id: 'x', text: 'two' });
+  assert.equal(a, b);
+  assert.notEqual(a, c);
+  assert.equal(a.length, 32);
+});
+
+test('every INBOUND_KINDS entry maps to a known kind', () => {
+  const allowed = ['text', 'reaction', 'media', 'location', 'contacts', 'button', 'interactive', 'order', 'system', 'poll', 'template', 'unsupported', 'unknown'];
+  for (const type of Object.keys(INBOUND_KINDS)) {
+    assert.ok(allowed.indexOf(INBOUND_KINDS[type]) >= 0, type + ' -> ' + INBOUND_KINDS[type]);
   }
 });

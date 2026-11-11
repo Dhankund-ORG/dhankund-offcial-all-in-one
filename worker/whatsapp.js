@@ -219,6 +219,14 @@ export async function verifyWebhookSignature(env, rawBody, signatureHeader) {
   return constantTimeEqual(hexToBytes(expected), hexToBytes(provided));
 }
 
+export async function payloadHash(value) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  let hex = '';
+  for (let i = 0; i < digest.length; i++) hex += digest[i].toString(16).padStart(2, '0');
+  return hex.slice(0, 32);
+}
+
 // Optional extra lock: the callback URL itself carries a random segment,
 // so even a leaked verify token cannot be used to POST fake events.
 export function checkWebhookPathSecret(env, provided) {
@@ -236,93 +244,354 @@ export function checkVerifyChallenge(env, mode, token, challenge) {
 
 // ---------- webhook payload ----------
 
+// Every inbound type the Cloud API can deliver. Anything Meta adds later falls
+// into 'unknown' and is still stored, never dropped.
+export const INBOUND_KINDS = {
+  text: 'text',
+  reaction: 'reaction',
+  image: 'media',
+  video: 'media',
+  audio: 'media',
+  document: 'media',
+  sticker: 'media',
+  location: 'location',
+  contacts: 'contacts',
+  button: 'button',
+  interactive: 'interactive',
+  order: 'order',
+  system: 'system',
+  poll: 'poll',
+  poll_update: 'poll',
+  template: 'template',
+  unsupported: 'unsupported',
+  unknown: 'unknown',
+};
+
+const MEDIA_TYPES = ['image', 'video', 'audio', 'document', 'sticker'];
+
 export function parseWebhook(payload) {
   const messages = [];
   const statuses = [];
   const errors = [];
-  if (!payload || !Array.isArray(payload.entry)) return { messages, statuses, errors };
+  const templateUpdates = [];
+  const qualityUpdates = [];
+  const accountAlerts = [];
+  const fields = new Set();
+
+  if (!payload || !Array.isArray(payload.entry)) {
+    return { messages, statuses, errors, templateUpdates, qualityUpdates, accountAlerts, fields: [] };
+  }
 
   for (const entry of payload.entry) {
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
     for (const change of changes) {
+      const field = change && change.field ? String(change.field) : 'messages';
+      fields.add(field);
       const value = change && change.value ? change.value : {};
-      const profileName = value.contacts && value.contacts[0] && value.contacts[0].profile
-        ? value.contacts[0].profile.name
-        : null;
-      const contactPhone = value.contacts && value.contacts[0] ? value.contacts[0].wa_id : null;
+      const metadata = value.metadata || {};
+
+      if (field === 'message_template_status_update') {
+        templateUpdates.push({
+          event: value.event || null,
+          name: value.message_template_name || null,
+          language: value.message_template_language || null,
+          reason: value.reason || null,
+          message: value.message || null,
+        });
+        continue;
+      }
+      if (field === 'message_template_quality_update') {
+        templateUpdates.push({
+          event: 'QUALITY_UPDATE',
+          name: value.message_template_name || null,
+          language: value.message_template_language || null,
+          quality: value.new_quality_score || null,
+          reason: value.previous_quality_score ? 'previous ' + value.previous_quality_score : null,
+        });
+        continue;
+      }
+      if (field === 'phone_number_quality_update') {
+        qualityUpdates.push({
+          displayPhoneNumber: value.display_phone_number || null,
+          event: value.event || null,
+          currentLimit: value.current_limit || null,
+        });
+        continue;
+      }
+      if (field === 'account_alerts' || field === 'account_update') {
+        accountAlerts.push(value);
+        continue;
+      }
+
+      const contact = (value.contacts && value.contacts[0]) || null;
+      const contactContext = {
+        profileName: contact && contact.profile ? contact.profile.name || null : null,
+        waId: contact ? contact.wa_id || null : null,
+        metadata: metadata,
+      };
 
       for (const m of (value.messages || [])) {
-        messages.push(normalizeInboundMessage(m, profileName || null, contactPhone || null));
+        messages.push(normalizeInboundMessage(m, contactContext));
       }
 
       for (const s of (value.statuses || [])) {
-        statuses.push({
-          waMessageId: s.id,
-          status: s.status,
-          timestamp: s.timestamp ? new Date(Number(s.timestamp) * 1000).toISOString() : null,
-          recipient: s.recipient_id || null,
-          conversationCategory: s.conversation ? s.conversation.category || null : null,
-          errorCode: s.errors && s.errors[0] ? String(s.errors[0].code) : null,
-          errorTitle: s.errors && s.errors[0] ? s.errors[0].title || null : null,
-          errorMessage: s.errors && s.errors[0] ? s.errors[0].message || null : null,
-        });
+        statuses.push(normalizeStatus(s, metadata));
       }
 
       for (const e of (value.errors || [])) {
-        errors.push({ code: e.code == null ? null : String(e.code), title: e.title || null, message: e.message || null });
+        errors.push({
+          code: e.code == null ? null : String(e.code),
+          title: e.title || null,
+          message: e.message || null,
+          details: e.error_data ? e.error_data.details || null : null,
+        });
+      }
+
+      // A message that failed validation can arrive without a `messages` entry.
+      if (value.message_echoes) {
+        for (const m of value.message_echoes) messages.push(normalizeInboundMessage(m, contactContext));
       }
     }
   }
-  return { messages, statuses, errors };
+
+  return { messages, statuses, errors, templateUpdates, qualityUpdates, accountAlerts, fields: Array.from(fields) };
 }
 
-function normalizeInboundMessage(m, profileName, contactPhone) {
-  const type = m.type || 'unknown';
+function normalizeStatus(s, metadata) {
+  const err = (s.errors && s.errors[0]) || null;
+  return {
+    waMessageId: s.id || null,
+    status: s.status || 'unknown',
+    timestamp: s.timestamp ? new Date(Number(s.timestamp) * 1000).toISOString() : null,
+    recipient: s.recipient_id ? normalizePhone(s.recipient_id) || s.recipient_id : null,
+    conversationCategory: s.conversation ? s.conversation.category || null : null,
+    conversationId: s.conversation ? s.conversation.id || null : null,
+    conversationExpiration: s.conversation && s.conversation.expiration_timestamp
+      ? new Date(Number(s.conversation.expiration_timestamp) * 1000).toISOString()
+      : null,
+    pricingCategory: s.pricing ? s.pricing.category || null : null,
+    pricingModel: s.pricing ? s.pricing.pricing_model || null : null,
+    billable: s.pricing ? !!s.pricing.billable : null,
+    errorCode: err ? String(err.code) : null,
+    errorTitle: err ? err.title || null : null,
+    errorMessage: err ? err.message || null : null,
+    errorDetails: err && err.error_data ? err.error_data.details || null : null,
+    phoneNumberId: metadata && metadata.phone_number_id ? String(metadata.phone_number_id) : null,
+    raw: s,
+  };
+}
+
+// Full, lossless normalisation of one inbound message. Every field the CRM may
+// want is lifted out; the untouched payload is kept in `raw` as well.
+export function normalizeInboundMessage(m, ctx) {
+  const context = m.context || {};
+  const type = String(m.type || 'unknown');
+  const kind = INBOUND_KINDS[type] || 'unknown';
+
   const out = {
     waMessageId: m.id || null,
-    from: normalizePhone(m.from || contactPhone) || (m.from ? '+' + String(m.from).replace(/\D/g, '') : null),
-    profileName: profileName,
+    from: normalizePhone(m.from || (ctx && ctx.waId)) || (m.from ? '+' + String(m.from).replace(/\D/g, '') : null),
+    profileName: ctx ? ctx.profileName || null : null,
     timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : new Date().toISOString(),
     type: type,
+    kind: kind,
+
     text: null,
     caption: null,
+
     mediaId: null,
-    mimeType: null,
-    filename: null,
-    templateName: null,
-    templateLanguage: null,
-    replyTo: m.context && m.context.id ? m.context.id : null,
-    interactiveId: null,
+    mediaMime: null,
+    mediaFilename: null,
+    mediaSha256: null,
+    mediaAnimated: null,
+    voice: false,
+
     latitude: null,
     longitude: null,
+    locationName: null,
+    locationAddress: null,
+    locationUrl: null,
+
+    contacts: [],
+    interactiveId: null,
+    interactiveTitle: null,
+    flowToken: null,
+    flowResponse: null,
+    buttonPayload: null,
+
+    reactionEmoji: null,
+    reactionTo: null,
+
+    templateName: null,
+    templateLanguage: null,
+
+    systemType: null,
+    systemNewWaId: null,
+    systemBody: null,
+
+    order: null,
+    poll: null,
+
+    replyTo: context.id || null,
+    forwarded: !!context.forwarded,
+    frequentlyForwarded: !!context.frequently_forwarded,
+    expiration: context.expiration || null,
+    referral: context.referral || null,
+    errors: Array.isArray(m.errors) ? m.errors.map(function (e) {
+      return { code: e.code == null ? null : String(e.code), title: e.title || null, message: e.message || null };
+    }) : [],
+
+    raw: m,
   };
 
-  if (type === 'text') out.text = m.text ? m.text.body || '' : '';
-  else if (type === 'button') out.text = m.button ? m.button.text || '' : '';
-  else if (type === 'interactive') {
-    const i = m.interactive || {};
-    out.interactiveId = i.button_reply ? i.button_reply.id : (i.list_reply ? i.list_reply.id : null);
-    out.text = i.button_reply ? i.button_reply.title : (i.list_reply ? i.list_reply.title : null);
-  } else if (type === 'template') {
-    out.templateName = m.template ? m.template.name || null : null;
-    out.templateLanguage = m.template && m.template.language ? m.template.language.code || null : null;
-  } else if (type === 'location') {
-    out.latitude = m.location ? m.location.latitude : null;
-    out.longitude = m.location ? m.location.longitude : null;
-    out.text = m.location ? m.location.name || m.location.address || null : null;
-  } else if (['image', 'video', 'audio', 'document', 'sticker'].indexOf(type) >= 0) {
-    const media = m[type] || {};
-    out.mediaId = media.id || null;
-    out.mimeType = media.mime_type || null;
-    out.caption = media.caption || null;
-    out.filename = media.filename || null;
-    out.text = media.caption || null;
-  } else if (type === 'contacts') {
-    out.text = '[contact card]';
-  } else if (type === 'reaction') {
-    out.text = m.reaction ? m.reaction.emoji || '' : '';
+  switch (type) {
+    case 'text':
+      out.text = (m.text && m.text.body) || '';
+      break;
+
+    case 'reaction':
+      out.reactionEmoji = m.reaction ? m.reaction.emoji || '' : '';
+      out.reactionTo = m.reaction ? m.reaction.message_id || null : null;
+      out.text = out.reactionEmoji ? 'Reacted ' + out.reactionEmoji : 'Removed a reaction';
+      break;
+
+    case 'image':
+    case 'video':
+    case 'audio':
+    case 'document':
+    case 'sticker': {
+      const media = m[type] || {};
+      out.mediaId = media.id || null;
+      out.mediaMime = media.mime_type || null;
+      out.mediaSha256 = media.sha256 || null;
+      out.mediaFilename = media.filename || null;
+      out.mediaAnimated = media.animated === undefined ? null : !!media.animated;
+      out.voice = type === 'audio' ? !!media.voice : false;
+      out.caption = media.caption || null;
+      out.text = media.caption || media.filename || '[' + type + ']';
+      break;
+    }
+
+    case 'location': {
+      const loc = m.location || {};
+      out.latitude = loc.latitude == null ? null : Number(loc.latitude);
+      out.longitude = loc.longitude == null ? null : Number(loc.longitude);
+      out.locationName = loc.name || null;
+      out.locationAddress = loc.address || null;
+      out.locationUrl = loc.url || null;
+      out.text = '[location]' + (loc.name ? ' ' + loc.name : '') + (loc.address ? ' — ' + loc.address : '');
+      break;
+    }
+
+    case 'contacts':
+      out.contacts = (Array.isArray(m.contacts) ? m.contacts : []).map(function (c) {
+        return {
+          name: c.name ? c.name.formatted_name || [c.name.first_name, c.name.last_name].filter(Boolean).join(' ') : null,
+          phones: (c.phones || []).map(function (p) { return { phone: p.phone || null, type: p.type || null, waId: p.wa_id || null }; }),
+          emails: (c.emails || []).map(function (e) { return e.email || null; }).filter(Boolean),
+          organization: c.org ? c.org.company || null : null,
+          title: c.org ? c.org.title || null : null,
+          urls: (c.urls || []).map(function (u) { return u.url || null; }).filter(Boolean),
+          addresses: (c.addresses || []).map(function (a) { return a.full_address || null; }).filter(Boolean),
+        };
+      });
+      out.text = '[contact] ' + out.contacts.map(function (c) { return c.name || (c.phones[0] && c.phones[0].phone) || ''; }).filter(Boolean).join(', ');
+      break;
+
+    case 'button':
+      out.buttonPayload = m.button ? m.button.payload || null : null;
+      out.interactiveId = out.buttonPayload;
+      out.text = m.button ? m.button.text || '' : '';
+      break;
+
+    case 'interactive': {
+      const i = m.interactive || {};
+      if (i.button_reply) {
+        out.interactiveId = i.button_reply.id || null;
+        out.interactiveTitle = i.button_reply.title || null;
+        out.text = i.button_reply.title || '';
+      } else if (i.list_reply) {
+        out.interactiveId = i.list_reply.id || null;
+        out.interactiveTitle = i.list_reply.title || null;
+        out.text = i.list_reply.title || (i.list_reply.description || '');
+      } else if (i.nfm_reply) {
+        out.flowToken = i.nfm_reply.flow_token || null;
+        out.flowResponse = i.nfm_reply.response_json || null;
+        out.text = '[flow response]';
+      } else {
+        out.text = '[interactive]';
+      }
+      break;
+    }
+
+    case 'order': {
+      const o = m.order || {};
+      out.order = {
+        catalogId: o.catalog_id || null,
+        text: o.text || null,
+        productItems: (o.product_items || []).map(function (p) {
+          return {
+            productRetailerId: p.product_retailer_id || null,
+            quantity: p.quantity == null ? null : Number(p.quantity),
+            itemPrice: p.item_price == null ? null : Number(p.item_price),
+            currency: p.currency || null,
+          };
+        }),
+      };
+      out.text = '[order] ' + (o.text || (out.order.productItems.length + ' item(s)'));
+      break;
+    }
+
+    case 'system': {
+      const s = m.system || {};
+      out.systemType = s.type || null;
+      out.systemNewWaId = s.new_wa_id || null;
+      out.systemBody = s.body || null;
+      out.text = s.body || '[system ' + (s.type || 'event') + ']';
+      break;
+    }
+
+    case 'poll': {
+      const p = m.poll || {};
+      out.poll = {
+        question: p.question || null,
+        options: (p.options || []).map(function (o) { return o.name || o; }),
+        selectableCount: p.selectable_options_count == null ? null : Number(p.selectable_options_count),
+      };
+      out.text = '[poll] ' + (out.poll.question || '');
+      break;
+    }
+
+    case 'poll_update':
+      out.text = '[poll update]';
+      break;
+
+    case 'template':
+      out.templateName = m.template ? m.template.name || null : null;
+      out.templateLanguage = m.template && m.template.language ? m.template.language.code || null : null;
+      out.text = '[template] ' + (out.templateName || '');
+      break;
+
+    case 'unsupported':
+      out.text = '[unsupported message]';
+      break;
+
+    default:
+      // Unknown type: keep the payload, describe it plainly, never drop it.
+      out.text = '[unsupported: ' + type + ']';
+      out.kind = 'unknown';
+      break;
   }
+
   return out;
+}
+
+// Short, human line for the thread list and notifications.
+export function describeMessage(message) {
+  const m = message || {};
+  if (m.text) return String(m.text).slice(0, 200);
+  if (m.kind === 'media') return '[' + m.type + ']' + (m.mediaFilename ? ' ' + m.mediaFilename : '');
+  return '[' + (m.type || 'message') + ']';
 }
 
 export function isOptOutMessage(text) {
