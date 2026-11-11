@@ -28,7 +28,7 @@ class_name = "WhatsappBroadcastSender"
 
 [[env.production.migrations]]
 tag = "v1-whatsapp-sender"
-new_classes = ["WhatsappBroadcastSender"]
+new_sqlite_classes = ["WhatsappBroadcastSender"]
 
 [env.production.triggers]
 crons = ["*/5 * * * *"]
