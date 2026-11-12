@@ -247,7 +247,7 @@ async function addMissingColumns(env, table, columns, added, steps) {
   for (const [column, type] of columns) {
     if (existing && existing.has(column)) continue;
     try {
-      await env.DB.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type);
+      await env.DB.prepare('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type).run();
       added.push(table + '.' + column);
     } catch (err) {
       const message = err && err.message ? err.message : String(err);
@@ -263,6 +263,24 @@ async function addMissingColumns(env, table, columns, added, steps) {
   }
 }
 
+// D1's exec() splits the script by line, so a CREATE TABLE that spans several
+// lines fails with "incomplete input". Every statement therefore goes through
+// prepare().run(), which takes the whole statement no matter how it is wrapped.
+export function splitStatements(sql) {
+  return String(sql || '')
+    .split(';')
+    .map(function (part) { return part.trim(); })
+    .filter(function (part) { return part.length > 0; });
+}
+
+async function runScript(env, sql) {
+  const statements = splitStatements(sql);
+  for (const statement of statements) {
+    await env.DB.prepare(statement).run();
+  }
+  return statements.length;
+}
+
 // Every step is reported, so a failure says exactly which statement broke
 // instead of surfacing as a blank 500.
 export async function runWhatsappMigrations(env) {
@@ -270,17 +288,17 @@ export async function runWhatsappMigrations(env) {
   const added = [];
 
   try {
-    await env.DB.exec(WHATSAPP_TABLES_SQL);
-    steps.push({ step: 'create_tables', ok: true });
+    const count = await runScript(env, WHATSAPP_TABLES_SQL);
+    steps.push({ step: 'create_tables', ok: true, statements: count });
   } catch (err) {
     steps.push({ step: 'create_tables', ok: false, error: err && err.message ? err.message : String(err) });
-    return { ok: false, steps: steps, tables: [], added_columns: added, failed_indexes: [] };
+    // Keep going: the tables may already exist, and the columns still matter.
   }
 
   try {
     await addMissingColumns(env, 'wa_messages', WHATSAPP_MESSAGE_COLUMNS, added, steps);
     await addMissingColumns(env, 'wa_contacts', WHATSAPP_CONTACT_COLUMNS, added, steps);
-    steps.push({ step: 'add_missing_columns', ok: true });
+    steps.push({ step: 'add_missing_columns', ok: true, added: added.length });
   } catch (err) {
     steps.push({ step: 'add_missing_columns', ok: false, error: err && err.message ? err.message : String(err) });
   }
@@ -289,12 +307,12 @@ export async function runWhatsappMigrations(env) {
   const failedIndexes = [];
   for (const statement of WHATSAPP_INDEX_SQL) {
     try {
-      await env.DB.exec(statement);
+      await env.DB.prepare(statement).run();
     } catch (err) {
       failedIndexes.push({ statement: statement, error: err && err.message ? err.message : String(err) });
     }
   }
-  steps.push({ step: 'create_indexes', ok: failedIndexes.length === 0, error: failedIndexes.length ? JSON.stringify(failedIndexes) : undefined });
+  steps.push({ step: 'create_indexes', ok: failedIndexes.length === 0, failed: failedIndexes.length });
 
   let tables = [];
   try {
@@ -305,8 +323,9 @@ export async function runWhatsappMigrations(env) {
     steps.push({ step: 'list_tables', ok: false, error: err && err.message ? err.message : String(err) });
   }
 
+  const failed = steps.filter(function (x) { return !x.ok; });
   return {
-    ok: steps.every(function (s) { return s.ok; }),
+    ok: failed.length === 0,
     tables: tables,
     added_columns: added,
     failed_indexes: failedIndexes,
