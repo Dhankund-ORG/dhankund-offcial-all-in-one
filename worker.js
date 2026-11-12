@@ -37,6 +37,16 @@ app.use('*', async function (c, next) {
 
 app.onError(function (err, c) {
   console.error('API error', err);
+  // WhatsApp routes carry the real reason back, so the CRM can show it instead
+  // of an empty "internal server error" that hides which query broke.
+  const path = c.req.path || '';
+  if (path.indexOf('/api/v1/whatsapp/') === 0) {
+    return c.json({
+      error: 'Internal server error. Please try again later.',
+      detail: err && err.message ? err.message : String(err),
+      path: path,
+    }, 500);
+  }
   return c.json({ error: 'Internal server error. Please try again later.' }, 500);
 });
 
