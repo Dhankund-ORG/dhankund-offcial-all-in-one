@@ -86,9 +86,14 @@ class ApiClient {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return data;
     }
-    final message = (data is Map && data['error'] != null)
+    // The API sends the real reason as `detail` on WhatsApp routes; show it,
+    // otherwise the screen only ever says "Internal server error".
+    var message = (data is Map && data['error'] != null)
         ? data['error'].toString()
         : 'Request failed (' + response.statusCode.toString() + ')';
+    if (data is Map && data['detail'] != null) {
+      message = message + '\n' + data['detail'].toString();
+    }
     throw ApiException(message);
   }
 
