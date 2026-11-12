@@ -549,7 +549,7 @@ test('every outbound type is either window-bound or a template', () => {
 
 // ---------- database migration ----------
 
-import { WHATSAPP_SCHEMA_SQL, WHATSAPP_MESSAGE_COLUMNS, WHATSAPP_CONTACT_COLUMNS } from '../worker/whatsapp_schema.js';
+import { WHATSAPP_SCHEMA_SQL, WHATSAPP_TABLES_SQL, WHATSAPP_INDEX_SQL, WHATSAPP_MESSAGE_COLUMNS, WHATSAPP_CONTACT_COLUMNS, splitStatements } from '../worker/whatsapp_schema.js';
 
 function tableBlock(sql, table) {
   const start = sql.indexOf('CREATE TABLE IF NOT EXISTS ' + table);
@@ -584,5 +584,28 @@ test('schema is additive: it never drops or alters an existing table', () => {
 test('indexes are declared for the queries the inbox runs', () => {
   for (const index of ['idx_wa_messages_phone', 'idx_wa_recipients_broadcast', 'idx_wa_contacts_optin', 'idx_wa_templates_name']) {
     assert.ok(WHATSAPP_SCHEMA_SQL.includes(index), index + ' must exist');
+  }
+});
+
+test('the schema is split into single statements before it reaches D1', () => {
+  // D1's exec() splits by line, so a multi-line CREATE TABLE arrives as
+  // "incomplete input". Every statement must go through prepare() instead.
+  const statements = splitStatements(WHATSAPP_TABLES_SQL);
+  assert.equal(statements.length, 8);
+  for (const statement of statements) {
+    assert.ok(/^CREATE TABLE IF NOT EXISTS wa_/.test(statement), 'unexpected statement: ' + statement.slice(0, 40));
+    assert.equal(statement.includes(';'), false);
+  }
+  for (const statement of WHATSAPP_INDEX_SQL) {
+    assert.ok(statement.startsWith('CREATE INDEX IF NOT EXISTS'));
+    assert.equal(statement.includes(';'), false);
+  }
+});
+
+test('no schema statement is left with an unbalanced parenthesis', () => {
+  for (const statement of splitStatements(WHATSAPP_SCHEMA_SQL)) {
+    const open = (statement.match(/\(/g) || []).length;
+    const close = (statement.match(/\)/g) || []).length;
+    assert.equal(open, close, 'unbalanced parentheses in: ' + statement.slice(0, 50));
   }
 });
