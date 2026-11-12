@@ -409,6 +409,7 @@ CREATE TABLE IF NOT EXISTS insurance_applications (
 -- ============================================================
 -- WhatsApp Cloud API (CRM messaging, templates, broadcasts)
 -- Additive only: no existing table is altered.
+-- Tables first, then columns, then indexes (see worker/whatsapp_schema.js).
 -- ============================================================
 CREATE TABLE IF NOT EXISTS wa_contacts (
   id TEXT PRIMARY KEY,
@@ -427,6 +428,7 @@ CREATE TABLE IF NOT EXISTS wa_contacts (
   notes TEXT,
   last_inbound_at TEXT,
   last_outbound_at TEXT,
+  window_expires_at TEXT,
   created_at TEXT,
   updated_at TEXT
 );

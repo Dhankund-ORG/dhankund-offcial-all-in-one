@@ -28,3 +28,6 @@ jobs.json
 jobs_new.json
 latest_run.json
 runs.json
+
+# dependencies
+node_modules/
