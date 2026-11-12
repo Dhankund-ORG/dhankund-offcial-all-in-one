@@ -404,6 +404,48 @@ export function registerWhatsappRoutes(app, ctx) {
   app.post('/api/v1/whatsapp/webhook', webhookPost);
   app.post('/api/v1/whatsapp/webhook/:secret', webhookPost);
 
+  // --- public health: no secrets, safe to open in a browser ---
+  // Useful when the CRM only shows "Internal server error".
+  app.get('/api/v1/whatsapp/health', async function (c) {
+    const out = { ok: false, db: null, tables: [], error: null, configured: false };
+    try {
+      out.configured = isWhatsappConfigured(c.env);
+      await c.env.DB.exec('SELECT 1');
+      const r = await c.env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'wa_%' ORDER BY name").all();
+      out.tables = (r.results || []).map(function (x) { return x.name; });
+
+      const cols = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('wa_messages')").all();
+      out.wa_messages_columns = (cols.results && cols.results[0]) ? cols.results[0].n : 0;
+      const ccols = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('wa_contacts')").all();
+      out.wa_contacts_columns = (ccols.results && ccols.results[0]) ? ccols.results[0].n : 0;
+
+      // The queries the inbox actually runs, so a failure names the culprit.
+      try {
+        await c.env.DB.prepare('SELECT c.phone_e164 AS phone, c.window_expires_at FROM wa_contacts c LIMIT 1').all();
+        out.threads_query = 'ok';
+      } catch (err) {
+        out.threads_query = 'failed';
+        out.threads_error = err && err.message ? err.message : String(err);
+      }
+      try {
+        await c.env.DB.prepare('SELECT kind, payload_hash, edited_at FROM wa_messages LIMIT 1').all();
+        out.messages_query = 'ok';
+      } catch (err) {
+        out.messages_query = 'failed';
+        out.messages_error = err && err.message ? err.message : String(err);
+      }
+
+      const migration = await ensureWhatsappSchemaForced(c.env);
+      out.migration = { ok: migration.ok, added_columns: migration.added_columns, failed_indexes: migration.failed_indexes, steps: migration.steps };
+      out.db = 'ok';
+      out.ok = out.threads_query === 'ok' && out.messages_query === 'ok';
+    } catch (err) {
+      out.db = 'error';
+      out.error = err && err.message ? err.message : String(err);
+    }
+    return c.json(out);
+  });
+
   // --- diagnostics: says exactly what is broken, in plain words ---
   app.get('/api/v1/whatsapp/diag', requireAdmin, async function (c) {
     const checks = [];

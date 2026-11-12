@@ -218,37 +218,48 @@ export const WHATSAPP_CONTACT_COLUMNS = [
 let schemaReady = false;
 
 // SQLite exposes table_info both as a PRAGMA and as a table-valued function.
-// D1 accepts the function form everywhere; the PRAGMA form is tried next, and
-// if neither answers we simply attempt the ALTER and ignore "duplicate column".
+// D1 does not reliably accept a bound parameter there, and an empty answer must
+// not be read as "the table has no columns" — that would make the ALTER below
+// hit a duplicate on the very first column and abort the whole loop, leaving the
+// genuinely missing columns unadded. So: inline the (whitelisted) table name,
+// treat an empty list as unknown, and never let one column stop the rest.
+const KNOWN_COLUMN_TABLES = ['wa_messages', 'wa_contacts'];
+
 async function listColumns(env, table) {
+  if (KNOWN_COLUMN_TABLES.indexOf(table) < 0) throw new Error('unknown table: ' + table);
   try {
-    const r = await env.DB.prepare('SELECT name FROM pragma_table_info(?)').bind(table).all();
-    if (r && Array.isArray(r.results)) return new Set(r.results.map(function (x) { return x.name; }));
-  } catch (_) { /* fall through */ }
+    const r = await env.DB.prepare("SELECT name FROM pragma_table_info('" + table + "')").all();
+    const names = (r && r.results ? r.results : []).map(function (x) { return x.name; });
+    if (names.length) return new Set(names);
+  } catch (_) { /* try the PRAGMA form */ }
   try {
     const r = await env.DB.prepare('PRAGMA table_info(' + table + ')').all();
-    if (r && Array.isArray(r.results)) return new Set(r.results.map(function (x) { return x.name; }));
-  } catch (_) { /* fall through */ }
+    const names = (r && r.results ? r.results : []).map(function (x) { return x.name; });
+    if (names.length) return new Set(names);
+  } catch (_) { /* give up and ALTER blind */ }
   return null;
 }
 
 async function addMissingColumns(env, table, columns, added, steps) {
   const existing = await listColumns(env, table);
-  if (existing) {
-    for (const [column, type] of columns) {
-      if (existing.has(column)) continue;
-      await env.DB.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type);
-      added.push(table + '.' + column);
-    }
-    return;
-  }
-  // Column list unknown: try each ALTER, keep going when the column is already there.
-  steps.push({ step: 'list_columns:' + table, ok: false, error: 'could not read column list, tried ALTER directly' });
+  const attempted = [];
+
   for (const [column, type] of columns) {
+    if (existing && existing.has(column)) continue;
     try {
       await env.DB.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + column + ' ' + type);
       added.push(table + '.' + column);
-    } catch (_) { /* already exists */ }
+    } catch (err) {
+      const message = err && err.message ? err.message : String(err);
+      // "duplicate column name" simply means it was already there.
+      if (!/duplicate column/i.test(message)) {
+        attempted.push({ column: table + '.' + column, error: message });
+      }
+    }
+  }
+
+  if (attempted.length) {
+    steps.push({ step: 'add_missing_columns:' + table, ok: false, error: JSON.stringify(attempted) });
   }
 }
 
