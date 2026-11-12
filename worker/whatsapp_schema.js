@@ -1,7 +1,12 @@
 // WhatsApp tables. Additive only: nothing here touches an existing table,
 // so CRM, DSA and the website keep working while this ships.
+//
+// Order matters. Tables are created first, then any missing column is added with
+// ALTER TABLE, and only then are the indexes created — an index on a column that
+// an older database does not have yet used to abort the whole migration and
+// leave every route failing with "no such column".
 
-export const WHATSAPP_SCHEMA_SQL = `
+export const WHATSAPP_TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS wa_contacts (
   id TEXT PRIMARY KEY,
   phone_e164 TEXT NOT NULL UNIQUE,
@@ -154,21 +159,26 @@ CREATE TABLE IF NOT EXISTS wa_alerts (
   payload_json TEXT,
   created_at TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_wa_messages_phone ON wa_messages (phone_e164, created_at);
-CREATE INDEX IF NOT EXISTS idx_wa_messages_status ON wa_messages (status);
-CREATE INDEX IF NOT EXISTS idx_wa_messages_broadcast ON wa_messages (broadcast_id);
-CREATE INDEX IF NOT EXISTS idx_wa_messages_kind ON wa_messages (kind);
-CREATE INDEX IF NOT EXISTS idx_wa_contacts_optin ON wa_contacts (opt_in_status);
-CREATE INDEX IF NOT EXISTS idx_wa_contacts_updated ON wa_contacts (updated_at);
-CREATE INDEX IF NOT EXISTS idx_wa_templates_name ON wa_templates (name, language);
-CREATE INDEX IF NOT EXISTS idx_wa_recipients_broadcast ON wa_broadcast_recipients (broadcast_id, status);
-CREATE INDEX IF NOT EXISTS idx_wa_broadcasts_status ON wa_broadcasts (status, created_at);
 `;
 
-// Columns added after the first release. Each one is applied with ALTER TABLE
-// and a swallowed error, so an older database upgrades in place and a fresh one
-// simply skips them.
+// One statement each, so a single failure cannot stop the rest.
+export const WHATSAPP_INDEX_SQL = [
+  'CREATE INDEX IF NOT EXISTS idx_wa_messages_phone ON wa_messages (phone_e164, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_messages_status ON wa_messages (status)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_messages_broadcast ON wa_messages (broadcast_id)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_messages_kind ON wa_messages (kind)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_contacts_optin ON wa_contacts (opt_in_status)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_contacts_updated ON wa_contacts (updated_at)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_templates_name ON wa_templates (name, language)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_recipients_broadcast ON wa_broadcast_recipients (broadcast_id, status)',
+  'CREATE INDEX IF NOT EXISTS idx_wa_broadcasts_status ON wa_broadcasts (status, created_at)',
+];
+
+// Kept for the schema.sql snapshot and for the tests.
+export const WHATSAPP_SCHEMA_SQL = WHATSAPP_TABLES_SQL + '\n' + WHATSAPP_INDEX_SQL.map(function (s) { return s + ';'; }).join('\n') + '\n';
+
+// Columns added after the first release. Each one is applied with ALTER TABLE,
+// so an older database upgrades in place.
 export const WHATSAPP_MESSAGE_COLUMNS = [
   ['kind', 'TEXT'],
   ['media_filename', 'TEXT'],
@@ -249,11 +259,11 @@ export async function runWhatsappMigrations(env) {
   const added = [];
 
   try {
-    await env.DB.exec(WHATSAPP_SCHEMA_SQL);
-    steps.push({ step: 'create_tables_and_indexes', ok: true });
+    await env.DB.exec(WHATSAPP_TABLES_SQL);
+    steps.push({ step: 'create_tables', ok: true });
   } catch (err) {
-    steps.push({ step: 'create_tables_and_indexes', ok: false, error: err && err.message ? err.message : String(err) });
-    return { ok: false, steps: steps, tables: [], added_columns: added };
+    steps.push({ step: 'create_tables', ok: false, error: err && err.message ? err.message : String(err) });
+    return { ok: false, steps: steps, tables: [], added_columns: added, failed_indexes: [] };
   }
 
   try {
@@ -263,6 +273,17 @@ export async function runWhatsappMigrations(env) {
   } catch (err) {
     steps.push({ step: 'add_missing_columns', ok: false, error: err && err.message ? err.message : String(err) });
   }
+
+  // Indexes last: they depend on columns that may only just have been added.
+  const failedIndexes = [];
+  for (const statement of WHATSAPP_INDEX_SQL) {
+    try {
+      await env.DB.exec(statement);
+    } catch (err) {
+      failedIndexes.push({ statement: statement, error: err && err.message ? err.message : String(err) });
+    }
+  }
+  steps.push({ step: 'create_indexes', ok: failedIndexes.length === 0, error: failedIndexes.length ? JSON.stringify(failedIndexes) : undefined });
 
   let tables = [];
   try {
@@ -277,6 +298,7 @@ export async function runWhatsappMigrations(env) {
     ok: steps.every(function (s) { return s.ok; }),
     tables: tables,
     added_columns: added,
+    failed_indexes: failedIndexes,
     steps: steps,
     ran_at: new Date().toISOString(),
   };
