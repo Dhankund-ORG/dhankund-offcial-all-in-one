@@ -10,6 +10,13 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.dhankund.com"),
   title: "Dhankund Global Private Limited",
   description: "Empowering your financial journey with trusted loan solutions and business consulting across India.",
+  icons: {
+    icon: [
+      { url: "/favicon.png" },
+      { url: "/images/dhankund-logo.png" }
+    ],
+    apple: "/images/dhankund-logo.png",
+  },
 };
 
 export default function RootLayout({

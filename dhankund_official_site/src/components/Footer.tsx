@@ -1,13 +1,21 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Footer() {
   return (
     <footer className="bg-slate-900 text-slate-300 py-12 mt-auto">
       <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         <div>
-          <Link href="/" className="text-2xl font-extrabold text-white flex items-center gap-2 mb-4">
-            <span className="bg-accent text-white p-1 rounded-md text-sm">DG</span>
-            Dhankund Global
+          <Link href="/" className="text-2xl font-extrabold text-white flex items-center gap-2.5 mb-4">
+            <Image
+              src="/images/dhankund-logo.png"
+              alt="Dhankund Logo"
+              width={36}
+              height={36}
+              className="w-9 h-9 object-contain rounded-full bg-white/10 p-0.5 shadow-sm"
+              unoptimized
+            />
+            <span className="tracking-tight">Dhankund Global</span>
           </Link>
           <p className="text-slate-400 mb-6 text-sm leading-relaxed">
             Empowering your financial journey. Dhankund provides comprehensive loan solutions and business consulting services across India.
