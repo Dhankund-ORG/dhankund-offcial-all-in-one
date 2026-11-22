@@ -37,7 +37,7 @@ Required:
 - SESSION_SECRET - random string used to sign JWTs
 - ADMIN_EMAIL - bootstrap admin email
 - ADMIN_PASSWORD - bootstrap admin password
-- D1_DATABASE_ID - Cloudflare D1 database id (overrides database_id in wrangler.toml at deploy time)
+- D1_DATABASE_ID - Cloudflare D1 database id; the deploy workflow writes it into wrangler.toml in place of REPLACE_WITH_D1_DATABASE_ID, so the id is never committed
 - CLOUDFLARE_API_TOKEN - Cloudflare API token
 - CLOUDFLARE_ACCOUNT_ID - Cloudflare account id
 
@@ -48,7 +48,7 @@ Optional (only for push notifications):
 
 ## Local development
 
-1. Create a D1 database named dhankund-crm in the Cloudflare dashboard and put its id in wrangler.toml (database_id).
+1. Create a D1 database named dhankund-crm in the Cloudflare dashboard and put its id in wrangler.toml (database_id) for local runs; on GitHub Actions the value of the D1_DATABASE_ID secret replaces REPLACE_WITH_D1_DATABASE_ID at deploy time.
 2. Run: npm install
 3. Apply the schema: npx wrangler d1 execute dhankund-crm --remote --file=schema.sql
 4. Set secrets: npx wrangler secret put SESSION_SECRET (and the other secrets listed above)

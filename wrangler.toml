@@ -17,7 +17,7 @@ name = "SEB"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dhankund-crm"
-database_id = "9e40a496-b335-484d-b1d1-bca3876e2e45"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
 
 # WhatsApp Cloud API
 # Durable Object keeps a broadcast sending batches without holding one request
