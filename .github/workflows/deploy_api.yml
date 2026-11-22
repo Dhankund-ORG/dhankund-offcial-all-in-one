@@ -38,7 +38,7 @@ jobs:
           if [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ]; then echo "ERROR: CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; fi
 
       - name: Configure Wrangler (D1 database id)
-        run: sed -i "s#FILL_ME_D1_DATABASE_ID#${{ secrets.D1_DATABASE_ID }}#g" wrangler.toml
+        run: sed -i "s#9e40a496-b335-484d-b1d1-bca3876e2e45#${{ secrets.D1_DATABASE_ID }}#g" wrangler.toml
 
       - name: Apply D1 schema
         env:

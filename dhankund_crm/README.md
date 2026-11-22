@@ -37,7 +37,7 @@ Required:
 - SESSION_SECRET - random string used to sign JWTs
 - ADMIN_EMAIL - bootstrap admin email
 - ADMIN_PASSWORD - bootstrap admin password
-- D1_DATABASE_ID - Cloudflare D1 database id (replaces FILL_ME_D1_DATABASE_ID in wrangler.toml)
+- D1_DATABASE_ID - Cloudflare D1 database id (overrides database_id in wrangler.toml at deploy time)
 - CLOUDFLARE_API_TOKEN - Cloudflare API token
 - CLOUDFLARE_ACCOUNT_ID - Cloudflare account id
 
