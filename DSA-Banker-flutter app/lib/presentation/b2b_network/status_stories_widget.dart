@@ -123,7 +123,7 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
 
   Future<void> _pickImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+      final result = await FilePicker.pickFiles(type: FileType.image, withData: true);
       if (result != null && result.files.isNotEmpty) {
         final f = result.files.single;
         Uint8List? bytes = f.bytes;

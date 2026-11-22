@@ -486,7 +486,19 @@ app.post('/api/v1/auth/login', async function (c) {
       } else { return c.json({ error: 'Invalid email or password' }, 401); }
     }
   }
-  const ok = await verifyPassword(password, user.password_hash);
+  let ok = await verifyPassword(password, user.password_hash);
+  if (!ok) {
+    // The admin account follows the ADMIN_EMAIL/ADMIN_PASSWORD worker secrets, so a
+    // password hash left behind by a database migration must never lock the owner out.
+    const adminEmail = (c.env.ADMIN_EMAIL || '').toString().trim().toLowerCase();
+    const adminPassword = (c.env.ADMIN_PASSWORD || '').toString();
+    if (user.role === 'admin' && adminEmail && email === adminEmail && adminPassword && adminPassword === password) {
+      const hash = await hashPassword(password);
+      await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash, updated_at: nowIso() });
+      user.password_hash = hash;
+      ok = true;
+    }
+  }
   if (!ok) return c.json({ error: 'Invalid email or password' }, 401);
   const token = await signSession({ sub: user.id, email: user.email, role: user.role, name: user.name, exp: Math.floor(Date.now() / 1000) + (8 * 60 * 60) }, c.env.SESSION_SECRET || '');
   return c.json({ token: token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });

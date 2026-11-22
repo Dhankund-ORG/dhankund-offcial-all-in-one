@@ -323,7 +323,7 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
 
   Future<void> _pickExcelPincodes() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls', 'csv', 'txt'],
         withData: true,
@@ -373,7 +373,7 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
 
   Future<void> _uploadOnePagerPolicy() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
         withData: true,

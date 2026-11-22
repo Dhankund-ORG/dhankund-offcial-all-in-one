@@ -94,7 +94,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
   Future<void> _pickAndUploadImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.image,
         withData: true,
       );

@@ -363,14 +363,6 @@ INSERT INTO users (
   CURRENT_TIMESTAMP
 ) ON CONFLICT(email) DO NOTHING;
 
-CREATE TABLE IF NOT EXISTS blog_categories (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT UNIQUE NOT NULL,
-  language TEXT NOT NULL DEFAULT 'hi',
-  created_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS blog_admin_otps (
   mobile TEXT NOT NULL,
   otp TEXT NOT NULL,
