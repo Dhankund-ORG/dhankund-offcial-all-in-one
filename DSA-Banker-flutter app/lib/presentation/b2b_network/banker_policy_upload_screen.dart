@@ -1,4 +1,3 @@
-import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -323,18 +322,13 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
 
   Future<void> _pickExcelPincodes() async {
     try {
-      final result = await FilePicker.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls', 'csv', 'txt'],
-        withData: true,
       );
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        Uint8List? bytes = file.bytes;
-        if (bytes == null && !kIsWeb && file.path != null) {
-          bytes = await io.File(file.path!).readAsBytes();
-        }
-        if (bytes != null) {
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
           final matches = await _api.parsePincodesFromFile(bytes);
           if (matches.isNotEmpty) {
             final current = _approvedPincodesController.text.trim();
@@ -373,18 +367,13 @@ class _BankerPolicyUploadScreenState extends State<BankerPolicyUploadScreen> {
 
   Future<void> _uploadOnePagerPolicy() async {
     try {
-      final result = await FilePicker.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'docx'],
-        withData: true,
       );
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        Uint8List? bytes = file.bytes;
-        if (bytes == null && !kIsWeb && file.path != null) {
-          bytes = await io.File(file.path!).readAsBytes();
-        }
-        if (bytes != null) {
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isNotEmpty) {
           setState(() => _isUploadingDoc = true);
           final ext = file.extension ?? 'pdf';
           final url = await _r2Service.uploadFile(bytes: bytes, folderPath: 'bank_policies', extension: ext);

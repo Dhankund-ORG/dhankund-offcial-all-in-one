@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:io' as io;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -123,14 +122,10 @@ class _AddStatusDialogState extends State<AddStatusDialog> {
 
   Future<void> _pickImage() async {
     try {
-      final result = await FilePicker.pickFiles(type: FileType.image, withData: true);
-      if (result != null && result.files.isNotEmpty) {
-        final f = result.files.single;
-        Uint8List? bytes = f.bytes;
-        if (bytes == null && f.path != null) {
-          bytes = await io.File(f.path!).readAsBytes();
-        }
-        if (bytes != null) {
+      final f = await FilePicker.pickFile(type: FileType.image);
+      if (f != null) {
+        final bytes = await f.readAsBytes();
+        if (bytes.isNotEmpty) {
           // Open crop screen
           final cropped = await Navigator.push<Uint8List?>(
             context,

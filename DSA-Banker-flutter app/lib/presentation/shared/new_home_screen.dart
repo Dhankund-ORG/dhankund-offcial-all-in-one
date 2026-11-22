@@ -310,12 +310,12 @@ class _AddAdminPostDialogState extends State<AddAdminPostDialog> {
 
   Future<void> _pickAndUploadImage() async {
     try {
-      final result = await FilePicker.pickFiles(type: FileType.image, withData: true);
-      if (result != null && result.files.single.bytes != null) {
+      final file = await FilePicker.pickFile(type: FileType.image);
+      if (file != null) {
         setState(() => _isUploadingImage = true);
-        final file = result.files.single;
         final extension = file.extension ?? 'jpg';
-        final url = await CloudflareR2Service().uploadFile(bytes: file.bytes!, folderPath: 'admin_posts_images', extension: extension);
+        final bytes = await file.readAsBytes();
+        final url = await CloudflareR2Service().uploadFile(bytes: bytes, folderPath: 'admin_posts_images', extension: extension);
         setState(() { _uploadedImageUrl = url; _isUploadingImage = false; });
       }
     } catch (e) { setState(() => _isUploadingImage = false); if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to upload image. ' + friendlyErrorMessage(e)))); }
@@ -363,6 +363,7 @@ class CreatePostDialog extends StatefulWidget {
 class _CreatePostDialogState extends State<CreatePostDialog> {
   final _contentController = TextEditingController();
   PlatformFile? _selectedFile;
+  Uint8List? _selectedBytes;
   bool _isSaving = false;
   final _api = ApiService();
 
@@ -372,7 +373,7 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
   void dispose() { _contentController.dispose(); super.dispose(); }
 
   Future<void> _pickImage() async {
-    try { final result = await FilePicker.pickFiles(type: FileType.image, withData: true); if (result != null) setState(() => _selectedFile = result.files.single); } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image. ' + friendlyErrorMessage(e)))); }
+    try { final file = await FilePicker.pickFile(type: FileType.image); if (file != null) { final bytes = await file.readAsBytes(); if (mounted) setState(() { _selectedFile = file; _selectedBytes = bytes; }); } } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick image. ' + friendlyErrorMessage(e)))); }
   }
 
   Future<void> _submitPost() async {
@@ -383,8 +384,7 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
     try {
       if (_selectedFile != null) {
         final extension = _selectedFile!.extension ?? 'jpg';
-        Uint8List fileBytes;
-        if (kIsWeb || _selectedFile!.bytes != null) { fileBytes = _selectedFile!.bytes!; } else { fileBytes = await io.File(_selectedFile!.path!).readAsBytes(); }
+        final fileBytes = _selectedBytes ?? await _selectedFile!.readAsBytes();
         imageUrl = await CloudflareR2Service().uploadFile(bytes: fileBytes, folderPath: 'news_feed_images', extension: extension);
       }
       await _api.createNewsFeedPost(content: text, imageUrl: imageUrl);
@@ -404,7 +404,7 @@ class _CreatePostDialogState extends State<CreatePostDialog> {
       const SizedBox(height: 16),
       TextField(controller: _contentController, maxLines: 4, decoration: const InputDecoration(hintText: "What's on your mind?", border: InputBorder.none)),
       const SizedBox(height: 16),
-      if (_selectedFile != null) Column(children: [Stack(children: [ClipRRect(borderRadius: BorderRadius.circular(10), child: kIsWeb ? Image.memory(_selectedFile!.bytes!, height: 150, width: double.infinity, fit: BoxFit.cover) : Image.file(io.File(_selectedFile!.path!), height: 150, width: double.infinity, fit: BoxFit.cover)), Positioned(right: 8, top: 8, child: GestureDetector(onTap: () => setState(() => _selectedFile = null), child: Container(decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(4), child: const Icon(Icons.close, color: Colors.white, size: 18))))]), const SizedBox(height: 8)]),
+      if (_selectedFile != null && _selectedBytes != null) Column(children: [Stack(children: [ClipRRect(borderRadius: BorderRadius.circular(10), child: kIsWeb ? Image.memory(_selectedBytes!, height: 150, width: double.infinity, fit: BoxFit.cover) : Image.file(io.File(_selectedFile!.path!), height: 150, width: double.infinity, fit: BoxFit.cover)), Positioned(right: 8, top: 8, child: GestureDetector(onTap: () => setState(() { _selectedFile = null; _selectedBytes = null; }), child: Container(decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(4), child: const Icon(Icons.close, color: Colors.white, size: 18))))]), const SizedBox(height: 8)]),
       OutlinedButton.icon(onPressed: _pickImage, icon: const Icon(Icons.photo_library, color: Colors.green), label: const Text('Add Photo'), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), foregroundColor: Colors.black87)),
       const SizedBox(height: 24),
       ElevatedButton(onPressed: _isSaving ? null : _submitPost, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF093A7A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), minimumSize: const Size(double.infinity, 48)), child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Post', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),

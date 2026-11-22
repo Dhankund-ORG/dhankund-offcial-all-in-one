@@ -24,14 +24,14 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
   double _uploadProgress = 0;
 
   Future<void> _pickAndUploadFile() async {
-    final result = await FilePicker.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-      withData: true,
     );
 
-    if (result != null && result.files.single.bytes != null) {
-      final file = result.files.single;
+    if (file != null) {
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return;
       setState(() {
         _fileName = file.name;
         _isUploading = true;
@@ -41,7 +41,7 @@ class _FileUploadWidgetState extends State<FileUploadWidget> {
       try {
         final extension = file.extension ?? 'bin';
         final downloadUrl = await CloudflareR2Service().uploadFile(
-          bytes: file.bytes!,
+          bytes: bytes,
           folderPath: widget.storagePath,
           extension: extension,
         );

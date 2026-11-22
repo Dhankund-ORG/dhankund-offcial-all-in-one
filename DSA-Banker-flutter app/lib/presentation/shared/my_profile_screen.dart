@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
-import 'dart:io' as io;
 
 import 'package:my_flutter_app/services/api_service.dart';
 import 'package:my_flutter_app/services/auth_service.dart';
@@ -94,25 +93,20 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
   Future<void> _pickAndUploadImage() async {
     try {
-      final result = await FilePicker.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.image,
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (file == null) return;
 
-      final file = result.files.single;
-      Uint8List? rawBytes = file.bytes;
-      if (rawBytes == null && file.path != null) {
-        rawBytes = await io.File(file.path!).readAsBytes();
-      }
-      if (rawBytes == null) {
+      final rawBytes = await file.readAsBytes();
+      if (rawBytes.isEmpty) {
         throw Exception("Could not read image file bytes.");
       }
 
       final croppedBytes = await Navigator.push<Uint8List?>(
         context,
         MaterialPageRoute(
-          builder: (context) => ImageCropScreen(initialBytes: rawBytes!),
+          builder: (context) => ImageCropScreen(initialBytes: rawBytes),
         ),
       );
 
