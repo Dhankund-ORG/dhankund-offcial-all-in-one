@@ -10,6 +10,7 @@ import {
   sanitizeMessage,
   r2CopyBatch,
   buildD1Diff,
+  normalizeImport,
 } from '../worker/cloudflare.js';
 
 test('md5Hex matches known MD5 vectors', () => {
@@ -303,4 +304,24 @@ test('buildD1Diff empty source produces empty diff lists', () => {
   assert.deepEqual(diff.overlapping_tables, []);
   assert.deepEqual(diff.extra_tables, ['legacy']);
   assert.equal(diff.safe_without_reset, true);
+});
+
+test('normalizeImport surfaces error and failure messages correctly', () => {
+  const explicitErr = normalizeImport({ status: 'error', error: 'Table already exists' });
+  assert.equal(explicitErr.status, 'error');
+  assert.equal(explicitErr.error, 'Table already exists');
+
+  const nestedErr = normalizeImport({ status: 'error', result: { error: 'SQLite parse error' } });
+  assert.equal(nestedErr.error, 'SQLite parse error');
+
+  const msgErr = normalizeImport({
+    status: 'error',
+    messages: [{ type: 'error', message: 'D1 import failed due to constraint' }],
+  });
+  assert.match(msgErr.error, /constraint/);
+
+  const clean = normalizeImport({ status: 'complete', result: { num_queries: 15 } });
+  assert.equal(clean.status, 'complete');
+  assert.equal(clean.error, null);
+  assert.equal(clean.num_queries, 15);
 });
