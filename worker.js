@@ -1608,7 +1608,9 @@ function cfMigrationRoute(handler) {
       const known = e instanceof CloudflareError;
       const status = known ? e.status : 500;
       if (!known || status >= 500) console.error('Cloudflare migration error:', e && e.message);
-      return c.json({ error: known ? e.message : 'Migration request failed. Please try again.' }, status);
+      const errMsg = e && e.message ? e.message : 'Migration request failed. Please try again.';
+      const detailMsg = e && e.stack ? String(e.stack).split('\n')[0] : undefined;
+      return c.json({ error: errMsg, detail: detailMsg }, status);
     }
   };
 }

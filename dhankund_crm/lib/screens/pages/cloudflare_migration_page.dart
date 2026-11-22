@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../api_service.dart';
 import '../../theme/app_theme.dart';
@@ -52,6 +53,9 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
   Map<String, dynamic>? _validation;
   Map<String, dynamic>? _plan;
   bool _lastRunHadErrors = false;
+  String? _lastFailureDetail;
+  String? _failedComponent;
+  String _logFilter = 'all'; // 'all', 'error', 'warn'
   final List<_LogEntry> _logs = [];
   final ScrollController _logScrollController = ScrollController();
 
@@ -136,6 +140,69 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: AppTheme.rubyRed),
     );
+  }
+
+  void _showToast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _copyAllLogs() {
+    if (_logs.isEmpty) {
+      _showToast('No logs to copy.');
+      return;
+    }
+    final text = _logs.map((e) => '[${e.time}] [${e.level.toUpperCase()}] ${e.message}').join('\n');
+    Clipboard.setData(ClipboardData(text: text));
+    _showToast('All logs copied to clipboard (${_logs.length} lines).');
+  }
+
+  void _copyErrorLogs() {
+    final errorLogs = _logs.where((e) => e.level == 'error' || e.level == 'warn').toList();
+    if (errorLogs.isEmpty) {
+      _showToast('No errors or warnings found in logs.');
+      return;
+    }
+    final text = errorLogs.map((e) => '[${e.time}] [${e.level.toUpperCase()}] ${e.message}').join('\n');
+    Clipboard.setData(ClipboardData(text: text));
+    _showToast('Copied ${errorLogs.length} error/warning line(s) to clipboard.');
+  }
+
+  void _copySingleLog(_LogEntry entry) {
+    final text = '[${entry.time}] [${entry.level.toUpperCase()}] ${entry.message}';
+    Clipboard.setData(ClipboardData(text: text));
+    _showToast('Log line copied to clipboard.');
+  }
+
+  void _copyFailureDetail() {
+    if (_lastFailureDetail == null || _lastFailureDetail!.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: _lastFailureDetail!));
+    _showToast('Error details copied to clipboard.');
+  }
+
+  Future<void> _retryD1Only() async {
+    if (_isRunning) return;
+    setState(() {
+      _migrateD1 = true;
+      _migrateR2 = false;
+    });
+    await _startMigration();
+  }
+
+  Future<void> _retryR2Only() async {
+    if (_isRunning) return;
+    setState(() {
+      _migrateD1 = false;
+      _migrateR2 = true;
+    });
+    await _startMigration();
   }
 
   Map<String, dynamic> _accountPayload({
@@ -283,6 +350,8 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
       _progress = 0;
       _status = 'Starting migration...';
       _lastRunHadErrors = false;
+      _lastFailureDetail = null;
+      _failedComponent = null;
       _voidPlan();
       _logs.clear();
     });
@@ -302,8 +371,11 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
       _setStatus('Migration stopped by user.');
       _log('Migration stopped by user. Data already copied remains in the destination.', level: 'warn');
     } catch (e) {
+      final message = e.toString();
+      _lastRunHadErrors = true;
+      _lastFailureDetail = _lastFailureDetail ?? message;
       _setStatus('Migration failed.');
-      _log('Migration failed: ' + e.toString(), level: 'error');
+      _log('Migration failed: ' + message, level: 'error');
     } finally {
       if (mounted) {
         setState(() => _isRunning = false);
@@ -338,6 +410,8 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
         rethrow;
       } catch (e) {
         final message = e.toString();
+        _failedComponent = 'D1';
+        _lastFailureDetail = 'D1 migration failed: ' + message;
         _log('D1 migration failed: ' + message, level: 'error');
         _log('R2 migration will continue because D1 and R2 are independent.', level: 'warn');
       }
@@ -352,6 +426,12 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
         rethrow;
       } catch (e) {
         final message = e.toString();
+        if (_failedComponent == null) {
+          _failedComponent = 'R2';
+        } else {
+          _failedComponent = 'D1 & R2';
+        }
+        _lastFailureDetail = (_lastFailureDetail != null ? _lastFailureDetail! + '\n' : '') + 'R2 migration failed: ' + message;
         _log('R2 migration failed: ' + message, level: 'error');
       }
     }
@@ -588,7 +668,9 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
       _checkCancelled();
       final exportStatus = (exportResult['status'] ?? '').toString().toLowerCase();
       if (exportResult['error'] != null || exportStatus == 'error' || exportStatus == 'failed') {
-        throw Exception('D1 export failed: ' + (exportResult['error']?.toString() ?? exportStatus));
+        final errDetail = exportResult['error']?.toString() ?? exportStatus;
+        final msgs = _asList(exportResult['messages']).map((m) => m is Map ? (m['message'] ?? m.toString()) : m.toString()).join('; ');
+        throw Exception('D1 export failed: ' + errDetail + (msgs.isNotEmpty ? ' ($msgs)' : ''));
       }
       final bookmark = (exportResult['bookmark'] ?? '').toString();
       if (bookmark.isEmpty) throw Exception('D1 export did not return a bookmark.');
@@ -640,7 +722,9 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
       _checkCancelled();
       final importStatus = (importResult['status'] ?? '').toString().toLowerCase();
       if (importResult['error'] != null || importStatus == 'error' || importStatus == 'failed') {
-        throw Exception('D1 import failed: ' + (importResult['error']?.toString() ?? importStatus));
+        final errDetail = importResult['error']?.toString() ?? importStatus;
+        final msgs = _asList(importResult['messages']).map((m) => m is Map ? (m['message'] ?? m.toString()) : m.toString()).join('; ');
+        throw Exception('D1 import failed: ' + errDetail + (msgs.isNotEmpty ? ' ($msgs)' : ''));
       }
       final bookmark = (importResult['bookmark'] ?? '').toString();
       if (bookmark.isEmpty) throw Exception('D1 import did not return a bookmark.');
@@ -922,6 +1006,10 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
             children: [
               _buildHeader(),
               const SizedBox(height: 20),
+              if (_lastRunHadErrors && _lastFailureDetail != null) ...[
+                _buildFailureBanner(),
+                const SizedBox(height: 20),
+              ],
               if (wide)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1877,37 +1965,210 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
     );
   }
 
-  Widget _buildLogCard() {
+  Widget _buildFailureBanner() {
+    final component = _failedComponent ?? 'Migration';
     return Container(
-      height: 360,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF450A0A).withOpacity(0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.rubyRed, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.error_outline, color: AppTheme.rubyRed, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  component + ' Migration Failed',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.rubyRed,
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _copyFailureDetail,
+                icon: const Icon(Icons.copy, size: 14, color: Colors.white),
+                label: const Text('Copy Error Details', style: TextStyle(fontSize: 11, color: Colors.white)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppTheme.rubyRed),
+                  backgroundColor: AppTheme.rubyRed.withOpacity(0.2),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: SelectableText(
+              _lastFailureDetail ?? 'Unknown error occurred.',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Color(0xFFFCA5A5),
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              if (_failedComponent == 'D1')
+                ElevatedButton.icon(
+                  onPressed: _isRunning ? null : _retryD1Only,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Retry D1 Only (R2 is already done)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.brightGold,
+                    foregroundColor: Colors.black,
+                  ),
+                ),
+              if (_failedComponent == 'R2')
+                ElevatedButton.icon(
+                  onPressed: _isRunning ? null : _retryR2Only,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Retry R2 Only (D1 is already done)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.emeraldGreen,
+                    foregroundColor: Colors.black,
+                  ),
+                ),
+              OutlinedButton.icon(
+                onPressed: _copyAllLogs,
+                icon: const Icon(Icons.list_alt, size: 16),
+                label: const Text('Copy Entire Live Log'),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.white70),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogCard() {
+    final errorCount = _logs.where((e) => e.level == 'error').length;
+    final warnCount = _logs.where((e) => e.level == 'warn').length;
+    final hasErrorsOrWarnings = errorCount > 0 || warnCount > 0;
+
+    final List<_LogEntry> displayLogs;
+    if (_logFilter == 'error') {
+      displayLogs = _logs.where((e) => e.level == 'error').toList();
+    } else if (_logFilter == 'warn') {
+      displayLogs = _logs.where((e) => e.level == 'warn' || e.level == 'error').toList();
+    } else {
+      displayLogs = _logs;
+    }
+
+    return Container(
+      height: 400,
+      padding: const EdgeInsets.all(18),
       decoration: AppTheme.glassDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.terminal, color: AppTheme.royalGold, size: 20),
-                  SizedBox(width: 8),
-                  Text('LIVE LOG', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.royalGold, letterSpacing: 1.0)),
-                ],
+              const Icon(Icons.terminal, color: AppTheme.royalGold, size: 20),
+              const SizedBox(width: 8),
+              const Text('LIVE LOG', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.royalGold, letterSpacing: 1.0)),
+              const Spacer(),
+              Tooltip(
+                message: 'Copy all logs to clipboard',
+                child: IconButton(
+                  icon: const Icon(Icons.copy, size: 16, color: AppTheme.royalGold),
+                  onPressed: _logs.isEmpty ? null : _copyAllLogs,
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
+              if (hasErrorsOrWarnings)
+                Tooltip(
+                  message: 'Copy error/warning logs only',
+                  child: IconButton(
+                    icon: const Icon(Icons.copy_all, size: 16, color: Color(0xFFFCA5A5)),
+                    onPressed: _copyErrorLogs,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              Tooltip(
+                message: 'Clear log',
+                child: IconButton(
+                  icon: const Icon(Icons.clear_all, size: 18, color: AppTheme.textSecondary),
+                  onPressed: _logs.isEmpty || _isRunning ? null : () => setState(() => _logs.clear()),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 4),
               Text(
                 _logs.length.toString() + ' lines',
                 style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildLogFilterChip('All (' + _logs.length.toString() + ')', 'all', AppTheme.royalGold),
+                const SizedBox(width: 8),
+                _buildLogFilterChip('Errors (' + errorCount.toString() + ')', 'error', const Color(0xFFFCA5A5), badgeCount: errorCount),
+                const SizedBox(width: 8),
+                _buildLogFilterChip('Warnings (' + warnCount.toString() + ')', 'warn', const Color(0xFFFCD34D), badgeCount: warnCount),
+                const SizedBox(width: 12),
+                if (_logs.isNotEmpty)
+                  InkWell(
+                    onTap: _copyAllLogs,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.content_copy, size: 12, color: AppTheme.brightGold),
+                          SizedBox(width: 4),
+                          Text('Copy All', style: TextStyle(fontSize: 11, color: AppTheme.brightGold, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (hasErrorsOrWarnings)
+                  InkWell(
+                    onTap: _copyErrorLogs,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.report_problem_outlined, size: 12, color: Color(0xFFFCA5A5)),
+                          SizedBox(width: 4),
+                          Text('Copy Errors', style: TextStyle(fontSize: 11, color: Color(0xFFFCA5A5), fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
           Expanded(
-            child: _logs.isEmpty
-                ? const Center(
+            child: displayLogs.isEmpty
+                ? Center(
                     child: Text(
-                      'Migration steps will appear here.',
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                      _logFilter == 'all'
+                          ? 'Migration steps will appear here.'
+                          : 'No ' + _logFilter + ' logs to display.',
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                     ),
                   )
                 : Container(
@@ -1917,38 +2178,70 @@ class _CloudflareMigrationPageState extends State<CloudflareMigrationPage> {
                       color: const Color(0xFF0F172A),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: ListView.builder(
-                      controller: _logScrollController,
-                      itemCount: _logs.length,
-                      itemBuilder: (context, index) {
-                        final entry = _logs[index];
-                        Color color;
-                        if (entry.level == 'error') {
-                          color = const Color(0xFFFCA5A5);
-                        } else if (entry.level == 'warn') {
-                          color = const Color(0xFFFCD34D);
-                        } else if (entry.level == 'success') {
-                          color = const Color(0xFF6EE7B7);
-                        } else {
-                          color = const Color(0xFFCBD5E1);
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 5),
-                          child: Text(
-                            '[' + entry.time + '] ' + entry.message,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              height: 1.35,
-                              fontFamily: 'monospace',
-                              color: color,
+                    child: SelectionArea(
+                      child: ListView.builder(
+                        controller: _logScrollController,
+                        itemCount: displayLogs.length,
+                        itemBuilder: (context, index) {
+                          final entry = displayLogs[index];
+                          Color color;
+                          if (entry.level == 'error') {
+                            color = const Color(0xFFFCA5A5);
+                          } else if (entry.level == 'warn') {
+                            color = const Color(0xFFFCD34D);
+                          } else if (entry.level == 'success') {
+                            color = const Color(0xFF6EE7B7);
+                          } else {
+                            color = const Color(0xFFCBD5E1);
+                          }
+                          return InkWell(
+                            onTap: () => _copySingleLog(entry),
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 5),
+                              child: Text(
+                                '[' + entry.time + '] ' + entry.message,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  height: 1.35,
+                                  fontFamily: 'monospace',
+                                  color: color,
+                                ),
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLogFilterChip(String label, String value, Color activeColor, {int badgeCount = 0}) {
+    final selected = _logFilter == value;
+    return InkWell(
+      onTap: () => setState(() => _logFilter = value),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? activeColor.withOpacity(0.18) : Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? activeColor : (badgeCount > 0 ? activeColor.withOpacity(0.4) : Colors.white12),
+            width: selected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            color: selected ? activeColor : (badgeCount > 0 ? activeColor : AppTheme.textSecondary),
+          ),
+        ),
       ),
     );
   }

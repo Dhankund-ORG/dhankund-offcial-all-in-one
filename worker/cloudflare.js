@@ -522,13 +522,17 @@ export async function d1ExportPoll(input, databaseId, bookmark) {
     body: body,
   });
   const result = json.result || {};
+  let errorMsg = result.error || (result.result && result.result.error) || null;
+  if (!errorMsg && Array.isArray(json.errors) && json.errors.length) {
+    errorMsg = json.errors.map(function (e) { return e.message || JSON.stringify(e); }).join('; ');
+  }
   return {
-    status: result.status || 'in_progress',
+    status: result.status || (json.success ? 'in_progress' : 'error'),
     bookmark: result.at_bookmark || bookmark || null,
     signed_url: (result.result && result.result.signed_url) || null,
     filename: (result.result && result.result.filename) || null,
-    error: result.error || null,
-    messages: result.messages || [],
+    error: errorMsg,
+    messages: result.messages || json.messages || [],
   };
 }
 
@@ -555,13 +559,26 @@ async function downloadSql(signedUrl) {
   return bytes;
 }
 
-function normalizeImport(result) {
+export function normalizeImport(result) {
   const payload = result || {};
   const meta = (payload.result && payload.result.meta) || null;
+  let errorMsg = payload.error || (payload.result && payload.result.error) || null;
+  if (!errorMsg && Array.isArray(payload.messages) && payload.messages.length) {
+    const errorMessages = payload.messages.filter(function (m) {
+      if (typeof m === 'string') return /error|failed/i.test(m);
+      if (m && typeof m === 'object') return m.type === 'error' || /error|failed/i.test(m.message || '');
+      return false;
+    });
+    if (errorMessages.length) {
+      errorMsg = errorMessages.map(function (m) {
+        return typeof m === 'object' ? (m.message || JSON.stringify(m)) : String(m);
+      }).join('; ');
+    }
+  }
   return {
     status: payload.status || 'in_progress',
     bookmark: payload.at_bookmark || null,
-    error: payload.error || null,
+    error: errorMsg,
     filename: payload.filename || null,
     num_queries: (payload.result && payload.result.num_queries) || 0,
     meta: meta,
