@@ -99,8 +99,15 @@ export async function processBroadcastBatch(env, broadcastId, options) {
   let sent = 0;
   let failed = 0;
 
+  // Claim the whole batch with one statement instead of one UPDATE per recipient.
+  const queueIds = queue.map(function (recipient) { return recipient.id; });
+  await run(
+    env,
+    "UPDATE wa_broadcast_recipients SET status = 'sending', attempts = attempts + 1, updated_at = ? WHERE status = 'queued' AND id IN (" + queueIds.map(function () { return '?'; }).join(',') + ')',
+    [nowIso()].concat(queueIds)
+  );
+
   for (const recipient of queue) {
-    await run(env, "UPDATE wa_broadcast_recipients SET status = 'sending', attempts = attempts + 1, updated_at = ? WHERE id = ? AND status = 'queued'", [nowIso(), recipient.id]);
     try {
       const response = await sendTemplate(env, recipient.phone_e164, {
         name: broadcast.template_name,

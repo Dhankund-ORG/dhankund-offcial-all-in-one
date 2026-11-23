@@ -243,15 +243,22 @@ export async function handleWebhookEvents(env, parsed, ctx) {
   }
 
   // Template approved / rejected / paused by Meta — keep the local cache honest.
-  for (const update of parsed.templateUpdates || []) {
-    if (!update.name) continue;
-    const row = await first(env, 'SELECT id FROM wa_templates WHERE name = ? AND language = ?', [update.name, update.language || 'en']);
-    if (!row) continue;
+  // One lookup for the whole batch instead of a SELECT per template update.
+  const templateUpdates = (parsed.templateUpdates || []).filter(function (update) { return !!update.name; });
+  const templateIds = new Map();
+  if (templateUpdates.length) {
+    const names = Array.from(new Set(templateUpdates.map(function (update) { return update.name; })));
+    const cached = await all(env, 'SELECT id, name, language FROM wa_templates WHERE name IN (' + names.map(function () { return '?'; }).join(',') + ')', names);
+    for (const row of cached) templateIds.set(String(row.name) + '\u0000' + String(row.language || 'en'), row.id);
+  }
+  for (const update of templateUpdates) {
+    const rowId = templateIds.get(String(update.name) + '\u0000' + String(update.language || 'en'));
+    if (!rowId) continue;
     const status = update.event === 'QUALITY_UPDATE' ? null : String(update.event || '').toUpperCase();
     await run(
       env,
       'UPDATE wa_templates SET status = COALESCE(?, status), quality = COALESCE(?, quality), rejected_reason = COALESCE(?, rejected_reason), updated_at = ? WHERE id = ?',
-      [status || null, update.quality || null, update.reason || null, nowIso(), row.id]
+      [status || null, update.quality || null, update.reason || null, nowIso(), rowId]
     );
     summary.templates += 1;
   }
@@ -534,16 +541,24 @@ export function registerWhatsappRoutes(app, ctx) {
       where = ' WHERE (c.phone_e164 LIKE ? OR c.name LIKE ? OR c.profile_name LIKE ?)';
       params.push('%' + search + '%', '%' + search + '%', '%' + search + '%');
     }
+    // One window-function pass for the newest message per thread and one grouped
+    // count for unread, instead of five correlated subqueries per contact row.
+    // Both are restricted to the contacts the outer query can return.
+    const scope = 'SELECT phone_e164 FROM wa_contacts c' + where;
+    const latest = 'SELECT m.phone_e164, m.body, m.type, m.direction, m.created_at, ' +
+      'ROW_NUMBER() OVER (PARTITION BY m.phone_e164 ORDER BY m.created_at DESC) AS rn ' +
+      'FROM wa_messages m WHERE m.phone_e164 IN (' + scope + ')';
+    const unread = "SELECT phone_e164, COUNT(*) AS n FROM wa_messages WHERE direction = 'inbound' AND read_at IS NULL AND phone_e164 IN (" + scope + ') GROUP BY phone_e164';
     const rows = await all(
       c.env,
       'SELECT c.phone_e164 AS phone, c.name, c.profile_name, c.opt_in_status, c.source, c.last_inbound_at, c.last_outbound_at, c.window_expires_at, ' +
-      '(SELECT body FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_body, ' +
-      '(SELECT type FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_type, ' +
-      '(SELECT direction FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_direction, ' +
-      '(SELECT created_at FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 ORDER BY m.created_at DESC LIMIT 1) AS last_at, ' +
-      "(SELECT COUNT(*) FROM wa_messages m WHERE m.phone_e164 = c.phone_e164 AND m.direction = 'inbound' AND m.read_at IS NULL) AS unread " +
-      'FROM wa_contacts c' + where + ' ORDER BY COALESCE(last_at, c.updated_at) DESC LIMIT ' + limit,
-      params
+      'l.body AS last_body, l.type AS last_type, l.direction AS last_direction, l.created_at AS last_at, ' +
+      'COALESCE(u.n, 0) AS unread ' +
+      'FROM wa_contacts c ' +
+      'LEFT JOIN (' + latest + ') l ON l.phone_e164 = c.phone_e164 AND l.rn = 1 ' +
+      'LEFT JOIN (' + unread + ') u ON u.phone_e164 = c.phone_e164' +
+      where + ' ORDER BY COALESCE(l.created_at, c.updated_at) DESC LIMIT ' + limit,
+      params.concat(params, params)
     );
     return c.json(rows.map(function (r) {
       const window = serviceWindow(r.last_inbound_at);

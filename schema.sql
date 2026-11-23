@@ -560,6 +560,7 @@ CREATE INDEX IF NOT EXISTS idx_wa_messages_phone ON wa_messages (phone_e164, cre
 CREATE INDEX IF NOT EXISTS idx_wa_messages_status ON wa_messages (status);
 CREATE INDEX IF NOT EXISTS idx_wa_messages_broadcast ON wa_messages (broadcast_id);
 CREATE INDEX IF NOT EXISTS idx_wa_messages_kind ON wa_messages (kind);
+CREATE INDEX IF NOT EXISTS idx_wa_messages_unread ON wa_messages (phone_e164, direction, read_at);
 CREATE INDEX IF NOT EXISTS idx_wa_contacts_optin ON wa_contacts (opt_in_status);
 CREATE INDEX IF NOT EXISTS idx_wa_contacts_updated ON wa_contacts (updated_at);
 CREATE INDEX IF NOT EXISTS idx_wa_templates_name ON wa_templates (name, language);

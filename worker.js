@@ -1165,10 +1165,7 @@ app.post('/api/v1/admin/blog-categories', requireAdmin, async function (c) {
 
 app.delete('/api/v1/admin/blog-categories/:id', requireAdmin, async function (c) {
   const id = c.req.param('id');
-  const posts = await all(c.env, 'SELECT id FROM blog_posts WHERE category_id = ?', [id]);
-  for (const p of posts) {
-    await updateRow(c.env, 'blog_posts', 'id', p.id, { category_id: null, category_name: null });
-  }
+  await run(c.env, 'UPDATE blog_posts SET category_id = NULL, category_name = NULL, updated_at = ? WHERE category_id = ?', [nowIso(), id]);
   await run(c.env, 'DELETE FROM blog_categories WHERE id = ?', [id]);
   return c.json({ success: true });
 });
@@ -1247,7 +1244,26 @@ app.get('/api/v1/download/:filename{.*}', async function (c) {
 });
 app.post('/api/v1/upload', auth, async function (c) { const filename = c.req.query('filename'); if (!filename) return c.json({ error: 'filename query parameter is required' }, 400); const contentType = c.req.header('Content-Type') || 'application/octet-stream'; const body = await c.req.raw.arrayBuffer(); await c.env.R2_BUCKET.put(filename, body, { httpMetadata: { contentType: contentType } }); return c.json({ success: true, url: '/api/v1/download/' + encodeURIComponent(filename) }); });
 
-app.get('/api/v1/overview', requireAdmin, async function (c) { const env = c.env; const totalUsers = ((await first(env, 'SELECT COUNT(*) AS n FROM users')) || {}).n || 0; const totalLoans = ((await first(env, 'SELECT COUNT(*) AS n FROM loan_applications')) || {}).n || 0; const totalReferrals = ((await first(env, 'SELECT COUNT(*) AS n FROM referrals')) || {}).n || 0; const pendingApprovals = ((await first(env, "SELECT COUNT(*) AS n FROM registrations WHERE lower(status) = 'pending'")) || {}).n || 0; const refs = await all(env, 'SELECT status FROM referrals'); let d = 0, p = 0; for (const r of refs) { const s = (r.status || '').toLowerCase(); if (s === 'earned') d += 5000; else if (s === 'approved') p += 5000; } return c.json({ totalUsers, totalLoans, totalReferrals, pendingApprovals, disbursedCommission: d, pendingCommission: p }); });
+app.get('/api/v1/overview', requireAdmin, async function (c) {
+  // One round trip for every counter: four COUNTs plus two conditional sums used
+  // to be five queries, and the commission totals pulled every referral row into
+  // the Worker just to add them up.
+  const row = await first(c.env,
+    'SELECT (SELECT COUNT(*) FROM users) AS total_users, ' +
+    '(SELECT COUNT(*) FROM loan_applications) AS total_loans, ' +
+    '(SELECT COUNT(*) FROM referrals) AS total_referrals, ' +
+    "(SELECT COUNT(*) FROM registrations WHERE lower(status) = 'pending') AS pending_approvals, " +
+    "(SELECT COALESCE(SUM(CASE WHEN lower(status) = 'earned' THEN 5000 ELSE 0 END), 0) FROM referrals) AS disbursed, " +
+    "(SELECT COALESCE(SUM(CASE WHEN lower(status) = 'approved' THEN 5000 ELSE 0 END), 0) FROM referrals) AS pending_commission") || {};
+  return c.json({
+    totalUsers: Number(row.total_users) || 0,
+    totalLoans: Number(row.total_loans) || 0,
+    totalReferrals: Number(row.total_referrals) || 0,
+    pendingApprovals: Number(row.pending_approvals) || 0,
+    disbursedCommission: Number(row.disbursed) || 0,
+    pendingCommission: Number(row.pending_commission) || 0,
+  });
+});
 app.get('/api/v1/registrations', requireAdmin, async function (c) { const role = (c.req.query('role') || '').toLowerCase(); const rows = await all(c.env, 'SELECT * FROM registrations WHERE lower(role) = lower(?) ORDER BY created_at DESC', [role]); return c.json(rows.map(rowToRegistration)); });
 app.patch('/api/v1/registrations/:id', requireAdmin, async function (c) { const id = c.req.param('id'); const body = await readJson(c); const status = (body.status || 'pending').toString(); const uid = (body.uid || '').toString(); const role = (body.role || '').toString(); await updateRow(c.env, 'registrations', 'id', id, { status: status }); if (status.toLowerCase() === 'approved' && uid) { await upsertUserFromRegistration(c.env, uid, role, (body.userDetails && typeof body.userDetails === 'object') ? body.userDetails : {}); } return c.json({ success: true }); });
 app.get('/api/v1/kyc-bank-users', requireAdmin, async function (c) { const rows = await all(c.env, 'SELECT * FROM users ORDER BY created_at DESC'); return c.json(rows.map(rowToUser)); });
