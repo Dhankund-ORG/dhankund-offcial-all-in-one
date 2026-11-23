@@ -346,6 +346,8 @@ CREATE TABLE IF NOT EXISTS ip_security_logs (
   created_at TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_otp_rate_limits_email ON otp_rate_limits (email, requested_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_otps_email ON password_reset_otps (email, expires_at);
 CREATE INDEX IF NOT EXISTS idx_blocked_ips_ip ON blocked_ips(ip);
 CREATE INDEX IF NOT EXISTS idx_ip_security_logs_ip ON ip_security_logs(ip);
 CREATE INDEX IF NOT EXISTS idx_ip_security_logs_created ON ip_security_logs(created_at);

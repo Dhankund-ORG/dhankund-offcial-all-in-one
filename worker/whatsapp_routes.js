@@ -158,7 +158,13 @@ export async function handleWebhookEvents(env, parsed, ctx) {
       direction: 'inbound',
       at: message.timestamp,
     });
-    if (!contact) { summary.errors += 1; await record(eventKey, 'message', message); continue; }
+    // Do NOT record the event when the contact upsert fails: recording it made Meta's
+    // retry look like a duplicate, so the message was dropped for good.
+    if (!contact) {
+      summary.errors += 1;
+      console.error('whatsapp inbound: contact upsert failed, leaving event for retry', message.waMessageId);
+      continue;
+    }
 
     const existing = await first(env, 'SELECT id, payload_hash FROM wa_messages WHERE wa_message_id = ?', [message.waMessageId]);
 
