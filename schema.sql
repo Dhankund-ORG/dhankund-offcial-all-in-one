@@ -292,6 +292,13 @@ CREATE TABLE IF NOT EXISTS fcm_tokens (
 CREATE INDEX IF NOT EXISTS idx_registrations_role ON registrations (role);
 CREATE INDEX IF NOT EXISTS idx_registrations_uid ON registrations (uid);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+-- The lookups compare lower(email), lower(role) and lower(status), which a plain
+-- column index cannot serve, so these expression indexes match the real queries.
+CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
+CREATE INDEX IF NOT EXISTS idx_users_role_lower ON users (lower(role));
+CREATE INDEX IF NOT EXISTS idx_registrations_role_created ON registrations (lower(role), created_at);
+CREATE INDEX IF NOT EXISTS idx_registrations_status_lower ON registrations (lower(status));
+CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON fcm_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_loans_submitted_at ON loan_applications (submitted_at);
 CREATE INDEX IF NOT EXISTS idx_loans_email ON loan_applications (email);
 CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals (referrer_id);
