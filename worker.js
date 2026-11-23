@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword, signSession, verifySession, verifyFirebas
 import { sendFcm } from './worker/fcm.js';
 import { routeIndex, openApiSpec, docsHtml } from './worker/openapi.js';
 import { slugify, uniqueBlogSlug, blogPostOut, ensureBlogSchema } from './worker/blog.js';
+import { allowedOrigins, isOriginAllowed } from './worker/cors.js';
 import { registerWhatsappRoutes } from './worker/whatsapp_routes.js';
 import { WhatsappBroadcastSender, resumePendingBroadcasts } from './worker/whatsapp_broadcast.js';
 import {
@@ -28,9 +29,19 @@ import {
 const app = new Hono();
 
 app.use('*', async function (c, next) {
-  c.header('Access-Control-Allow-Origin', '*');
+  const origin = (c.req.header('Origin') || '').trim();
+  if (isOriginAllowed(c.env, origin)) {
+    c.header('Access-Control-Allow-Origin', origin);
+    c.header('Access-Control-Allow-Credentials', 'true');
+    c.header('Vary', 'Origin');
+  }
   c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  c.header('Access-Control-Max-Age', '86400');
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   if (c.req.method === 'OPTIONS') return c.text('', 204);
   await next();
 });
@@ -186,54 +197,75 @@ async function upsertUserFromRegistration(env, uid, role, userDetails) {
   else { await insertRow(env, 'users', Object.assign({ id: uid, email: email, password_hash: null, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify(data), created_at: now, updated_at: now }, cols)); }
 }
 
+// The profile fields the API accepts, mapped to their users columns. One table for
+// the writer and the reader (rowToUser) keeps the two from drifting apart.
+const USER_PROFILE_COLUMNS = {
+  name: 'name', mobile: 'mobile', gender: 'gender', company: 'company', companyName: 'company',
+  address: 'address', currentExperience: 'current_experience', totalExperience: 'total_experience',
+  segment: 'segment', profession: 'profession', about: 'about',
+  partnerName: 'partner_name', partnerMobile: 'partner_mobile',
+  gumastaUrl: 'gumasta_url', idCardUrl: 'id_card_url',
+  managerName: 'manager_name', managerMobile: 'manager_mobile',
+  areaManagerName: 'area_manager_name', areaManagerMobile: 'area_manager_mobile',
+  nomineeName: 'nominee_name', officeAddress: 'office_address',
+  profilePictureUrl: 'profile_picture_url', fcmToken: 'fcm_token',
+  kycPan: 'kyc_pan', kycAadhaar: 'kyc_aadhaar', kycDocUrl: 'kyc_doc_url',
+  bankName: 'bank_name', bankAccountHolder: 'bank_account_holder',
+  bankAccountNumber: 'bank_account_number', bankIfsc: 'bank_ifsc', bankProofUrl: 'bank_proof_url',
+  alternateMobile: 'alternate_mobile', dob: 'dob', panNumber: 'pan_number',
+  companyAddress: 'company_address', customId: 'custom_id',
+};
+
 async function mergeUserData(env, uid, patch) {
-  const row = await first(env, 'SELECT * FROM users WHERE id = ?', [uid]);
+  const row = await first(env, 'SELECT id FROM users WHERE id = ?', [uid]);
   if (!row) throw new Error('user not found');
-  const data = safeJson(row.data, {});
-  const merged = Object.assign({}, data, patch, { updatedAt: nowIso() });
-  const cols = {};
-  if (patch.name != null) cols.name = String(patch.name);
-  if (patch.mobile != null) cols.mobile = String(patch.mobile);
-  if (patch.gender != null) cols.gender = String(patch.gender);
-  if (patch.company != null) cols.company = String(patch.company);
-  if (patch.address != null) cols.address = String(patch.address);
-  if (patch.currentExperience != null) cols.current_experience = String(patch.currentExperience);
-  if (patch.totalExperience != null) cols.total_experience = String(patch.totalExperience);
-  if (patch.segment != null) cols.segment = String(patch.segment);
-  if (patch.profession != null) cols.profession = String(patch.profession);
-  if (patch.about != null) cols.about = String(patch.about);
-  if (patch.partnerName != null) cols.partner_name = String(patch.partnerName);
-  if (patch.partnerMobile != null) cols.partner_mobile = String(patch.partnerMobile);
-  if (patch.gumastaUrl != null) cols.gumasta_url = String(patch.gumastaUrl);
-  if (patch.idCardUrl != null) cols.id_card_url = String(patch.idCardUrl);
-  if (patch.managerName != null) cols.manager_name = String(patch.managerName);
-  if (patch.managerMobile != null) cols.manager_mobile = String(patch.managerMobile);
-  if (patch.areaManagerName != null) cols.area_manager_name = String(patch.areaManagerName);
-  if (patch.areaManagerMobile != null) cols.area_manager_mobile = String(patch.areaManagerMobile);
-  if (patch.nomineeName != null) cols.nominee_name = String(patch.nomineeName);
-  if (patch.officeAddress != null) cols.office_address = String(patch.officeAddress);
-  if (patch.profilePictureUrl != null) cols.profile_picture_url = String(patch.profilePictureUrl);
-  if (patch.fcmToken != null) cols.fcm_token = String(patch.fcmToken);
-  if (patch.kycPan != null) cols.kyc_pan = String(patch.kycPan);
-  if (patch.kycAadhaar != null) cols.kyc_aadhaar = String(patch.kycAadhaar);
-  if (patch.kycDocUrl != null) cols.kyc_doc_url = String(patch.kycDocUrl);
-  if (patch.bankName != null) cols.bank_name = String(patch.bankName);
-  if (patch.bankAccountHolder != null) cols.bank_account_holder = String(patch.bankAccountHolder);
-  if (patch.bankAccountNumber != null) cols.bank_account_number = String(patch.bankAccountNumber);
-  if (patch.bankIfsc != null) cols.bank_ifsc = String(patch.bankIfsc);
-  if (patch.bankProofUrl != null) cols.bank_proof_url = String(patch.bankProofUrl);
-  if (patch.profileCompleted != null) cols.profile_completed = patch.profileCompleted ? 1 : 0;
-  if (patch.alternateMobile != null) cols.alternate_mobile = String(patch.alternateMobile);
-  if (patch.dob != null) cols.dob = String(patch.dob);
-  if (patch.panNumber != null) cols.pan_number = String(patch.panNumber);
-  if (patch.companyAddress != null) cols.company_address = String(patch.companyAddress);
-  if (patch.companyName != null) cols.company = String(patch.companyName);
-  if (patch.customId != null) cols.custom_id = String(patch.customId);
-  await updateRow(env, 'users', 'id', uid, Object.assign({ data: JSON.stringify(merged), updated_at: nowIso() }, cols));
-  return merged;
+  const incoming = patch || {};
+  const now = nowIso();
+  const jsonPatch = { updatedAt: now };
+  const sets = [];
+  const params = [];
+
+  Object.keys(incoming).forEach(function (key) {
+    if (key === 'updatedAt' || key === 'profileCompleted') return;
+    const value = incoming[key];
+    // null or '' means "clear this field": RFC 7396 json_patch drops the key and the
+    // column is set to NULL, so a cleared value can no longer come back on the next read.
+    jsonPatch[key] = (value === null || value === '') ? null : value;
+    const column = USER_PROFILE_COLUMNS[key];
+    if (!column) return;
+    sets.push(column + ' = ?');
+    params.push((value === null || value === '') ? null : String(value));
+  });
+  if (incoming.profileCompleted != null) {
+    sets.push('profile_completed = ?');
+    params.push(incoming.profileCompleted ? 1 : 0);
+  }
+
+  // One statement does the merge inside SQLite, so two saves running at the same time
+  // can no longer overwrite each other's keys the way read-modify-write did.
+  const sql = "UPDATE users SET data = json_patch(CASE WHEN json_valid(data) THEN data ELSE '{}' END, ?), " +
+    sets.concat(['updated_at = ?']).join(', ') + ' WHERE id = ?';
+  await run(env, sql, [JSON.stringify(jsonPatch)].concat(params, [now, uid]));
+
+  const fresh = await first(env, 'SELECT data FROM users WHERE id = ?', [uid]);
+  return Object.assign({}, safeJson(fresh && fresh.data, {}), { updatedAt: now });
+}
+
+// A field the API does not map is a bug in the caller, not something to swallow.
+function warnDroppedFields(where, body, cols) {
+  if (!body || typeof body !== 'object') return;
+  const known = new Set(Object.keys(cols));
+  const dropped = Object.keys(body).filter(function (key) { return !known.has(key); });
+  if (dropped.length) console.warn(where + ': ignoring unmapped fields: ' + dropped.join(', '));
 }
 
 function loanColumns(b) {
+  const cols = loanColumnsRaw(b);
+  warnDroppedFields('loan application', b, cols);
+  return cols;
+}
+
+function loanColumnsRaw(b) {
   return { loan_type: b.loan_type || null, full_name: b.full_name || null, pan_number: b.pan_number || null, aadhaar_number: b.aadhaar_number || null, mobile_number: b.mobile_number || null, email: b.email || null, loan_amount: b.loan_amount || null, salary: b.salary || null, turnover: b.turnover || null, father_name: b.father_name || null, mother_name: b.mother_name || null, marital_status: b.marital_status || null, spouse_name: b.spouse_name || null, occupation: b.occupation || null, personal_email: b.personal_email || null, official_email: b.official_email || null, current_address: b.current_address || null, office_address: b.office_address || null, ref1_name: b.ref1_name || null, ref1_mobile: b.ref1_mobile || null, ref1_address: b.ref1_address || null, ref2_name: b.ref2_name || null, ref2_mobile: b.ref2_mobile || null, ref2_address: b.ref2_address || null, applicant_documents: b.applicant_documents ? JSON.stringify(b.applicant_documents) : null, co_applicants: b.co_applicants ? JSON.stringify(b.co_applicants) : null, status: b.status || 'Pending', login_company_name: b.login_company_name || null, bank_executive_name: b.bank_executive_name || null, gender: b.gender || null, applicant_cibil: (b.applicant_cibil != null) ? b.applicant_cibil : null };
 }
 
@@ -451,6 +483,12 @@ app.post('/api/v1/auth/signup', async function (c) {
 });
 
 app.post('/api/v1/auth/login', async function (c) {
+  // Same IP block list the OTP routes use: without this the login route was the one
+  // unguarded way to keep guessing passwords.
+  const ipCheck = await checkClientIpBlocked(c);
+  if (ipCheck.blocked) {
+    return c.json({ error: ipCheck.permanent ? 'Access permanently blocked due to suspicious activity.' : 'Too many failed attempts. Please try again later.' }, 429);
+  }
   const body = await readJson(c);
   const email = (body.email || '').toString().trim().toLowerCase(); const password = (body.password || '').toString();
   if (!email || !password) return c.json({ error: 'Email and password are required' }, 400);
@@ -461,7 +499,7 @@ app.post('/api/v1/auth/login', async function (c) {
       const now = nowIso(); const uid = randomId(); const hash = await hashPassword(password);
       await insertRow(c.env, 'users', { id: uid, email: email, password_hash: hash, role: 'admin', name: 'Admin', mobile: null, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify({ uid: uid, role: 'admin', profileCompleted: true }), created_at: now, updated_at: now });
       user = await first(c.env, 'SELECT * FROM users WHERE id = ?', [uid]);
-    } else { return c.json({ error: 'Invalid email or password' }, 401); }
+    } else { await recordAuthFailure(c, email, 'login'); return c.json({ error: 'Invalid email or password' }, 401); }
   }
   if (!user.password_hash) {
     const adminEmail = (c.env.ADMIN_EMAIL || '').toString().trim().toLowerCase();
@@ -482,8 +520,8 @@ app.post('/api/v1/auth/login', async function (c) {
           const hash = await hashPassword(password);
           await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash, updated_at: nowIso() });
           user.password_hash = hash;
-        } else { return c.json({ error: 'Invalid email or password' }, 401); }
-      } else { return c.json({ error: 'Invalid email or password' }, 401); }
+        } else { await recordAuthFailure(c, email, 'login'); return c.json({ error: 'Invalid email or password' }, 401); }
+      } else { await recordAuthFailure(c, email, 'login'); return c.json({ error: 'Invalid email or password' }, 401); }
     }
   }
   let ok = await verifyPassword(password, user.password_hash);
@@ -499,7 +537,7 @@ app.post('/api/v1/auth/login', async function (c) {
       ok = true;
     }
   }
-  if (!ok) return c.json({ error: 'Invalid email or password' }, 401);
+  if (!ok) { await recordAuthFailure(c, email, 'login'); return c.json({ error: 'Invalid email or password' }, 401); }
   const token = await signSession({ sub: user.id, email: user.email, role: user.role, name: user.name, exp: Math.floor(Date.now() / 1000) + (8 * 60 * 60) }, c.env.SESSION_SECRET || '');
   return c.json({ token: token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
@@ -540,6 +578,29 @@ async function checkClientIpBlocked(c) {
     return { blocked: false, ip: clientIp };
   } catch (e) {
     return { blocked: false, ip: clientIp };
+  }
+}
+
+// Counts a failed credential attempt and escalates to a temporary block, so the
+// login route cannot be brute forced the way it could before.
+async function recordAuthFailure(c, email, action) {
+  const clientIp = (c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+  if (!clientIp || clientIp === 'unknown') return;
+  const country = (c.req.header('cf-ipcountry') || 'IN').toUpperCase();
+  const userAgent = (c.req.header('user-agent') || 'Unknown Device').trim();
+  try {
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    await run(c.env, 'INSERT INTO ip_security_logs (id, ip, email, user_agent, country, action, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [randomId(), clientIp, (email || '').toString().slice(0, 100), userAgent.slice(0, 150), country, action, 'failed', nowIso()]);
+    const row = await first(c.env, "SELECT COUNT(*) AS cnt FROM ip_security_logs WHERE ip = ? AND created_at >= ? AND status = 'failed'", [clientIp, fifteenMinAgo]);
+    const failures = extractCount(row);
+    if (failures >= 10) {
+      const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await run(c.env, 'INSERT OR REPLACE INTO blocked_ips (ip, block_type, reason, violation_count, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [clientIp, 'temporary', 'Too many failed login attempts', failures, expires, nowIso(), nowIso()]);
+    }
+  } catch (err) {
+    console.error('recordAuthFailure failed:', err && err.message);
   }
 }
 
@@ -731,7 +792,7 @@ app.get('/api/v1/me/profile', auth, async function (c) {
   const profile = rowToUser(user);
   if (!profile.profileCompleted) { const reg = await first(c.env, 'SELECT id FROM registrations WHERE uid = ? LIMIT 1', [me.sub]); if (reg) profile.profileCompleted = true; }
   if (!user.custom_id && profile.customId) {
-    try { await updateRow(c.env, 'users', 'id', me.sub, { custom_id: profile.customId }); } catch (_) {}
+    await updateRow(c.env, 'users', 'id', me.sub, { custom_id: profile.customId });
   }
   return c.json(profile);
 });
@@ -787,6 +848,7 @@ app.post('/api/v1/registrations', auth, async function (c) {
     manager_name: details.managerName || details.manager_name || null, manager_mobile: details.managerMobile || details.manager_mobile || null,
     area_manager_name: details.areaManagerName || details.area_manager_name || null, area_manager_mobile: details.areaManagerMobile || details.area_manager_mobile || null,
     nominee_name: details.nomineeName || details.nominee_name || null, office_address: details.officeAddress || details.office_address || null };
+  warnDroppedFields('registration', b, regCols);
   await insertRow(c.env, 'registrations', regCols);
   await upsertUserFromRegistration(c.env, me.sub, role, Object.assign({}, b.details || {}, { email: me.email }));
   if (c.executionCtx && c.executionCtx.waitUntil) c.executionCtx.waitUntil(notifyAdmins(c.env, 'New Registration', `${details.name || me.name || 'A user'} has submitted a new ${role} registration.`));
