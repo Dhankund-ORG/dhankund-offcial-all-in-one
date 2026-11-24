@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
-import 'package:flutter/rendering.dart';
 
 import 'package:my_flutter_app/services/api_service.dart';
 import 'package:my_flutter_app/services/auth_service.dart';
@@ -1099,32 +1099,173 @@ class ImageCropScreen extends StatefulWidget {
 }
 
 class _ImageCropScreenState extends State<ImageCropScreen> {
-  final GlobalKey _cropKey = GlobalKey();
-  bool _isCropping = false;
-  int _rotationQuarterTurns = 0;
+  static const double _outputSide = 512;
 
-  Future<void> _cropAndReturn() async {
-    setState(() => _isCropping = true);
+  final TransformationController _transform = TransformationController();
+  final List<ui.Image> _decoded = <ui.Image>[];
+  ui.Image? _image;
+  Object? _decodeError;
+  bool _isCropping = false;
+  double _viewportSide = 300;
+
+  @override
+  void initState() {
+    super.initState();
+    _decode(widget.initialBytes);
+  }
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    for (final image in _decoded) {
+      image.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _decode(Uint8List bytes) async {
     try {
-      await Future.delayed(const Duration(milliseconds: 300));
-      RenderRepaintBoundary? boundary = _cropKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) throw Exception("Could not find repaint boundary");
-      ui.Image image = await boundary.toImage(pixelRatio: 2.0);
-      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) throw Exception("Could not convert image to bytes");
-      Uint8List croppedBytes = byteData.buffer.asUint8List();
-      if (mounted) Navigator.pop(context, croppedBytes);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not crop image. Please try again.')));
-    } finally {
-      if (mounted) setState(() => _isCropping = false);
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      if (!mounted) {
+        frame.image.dispose();
+        return;
+      }
+      _decoded.add(frame.image);
+      setState(() {
+        _image = frame.image;
+        _decodeError = null;
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() => _decodeError = err);
     }
   }
 
-  void _rotate() {
-    setState(() {
-      _rotationQuarterTurns = (_rotationQuarterTurns + 1) % 4;
-    });
+  Future<void> _rotate() async {
+    final image = _image;
+    if (image == null || _isCropping) return;
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.translate(image.height.toDouble(), 0);
+      canvas.rotate(math.pi / 2);
+      canvas.drawImage(image, Offset.zero, Paint());
+      final picture = recorder.endRecording();
+      final rotated = await picture.toImage(image.height, image.width);
+      picture.dispose();
+      if (!mounted) {
+        rotated.dispose();
+        return;
+      }
+      _decoded.add(rotated);
+      setState(() {
+        _image = rotated;
+        _transform.value = _transform.value.clone()..setIdentity();
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not rotate this photo.')));
+      }
+    }
+  }
+
+  Future<void> _cropAndReturn() async {
+    final image = _image;
+    if (image == null || _isCropping) return;
+    setState(() => _isCropping = true);
+    try {
+      final bytes = await _cropToSquare(image);
+      if (!mounted) return;
+      Navigator.pop(context, bytes);
+      return;
+    } catch (_) {
+      // Cropping must never block the upload: fall back to the photo uncropped.
+      final fallback = await _scaledOriginal(image);
+      if (!mounted) return;
+      if (fallback != null) {
+        Navigator.pop(context, fallback);
+        return;
+      }
+    } finally {
+      if (mounted) setState(() => _isCropping = false);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not prepare the photo. Please pick it again.')),
+      );
+    }
+  }
+
+  /// Crops the pixels the user actually framed. The old version captured the whole
+  /// widget with RepaintBoundary.toImage(), which saved the letterboxed square
+  /// instead of the framed area and could come out blank on Android.
+  Future<Uint8List> _cropToSquare(ui.Image image) async {
+    final double side = _viewportSide;
+    final double imageWidth = image.width.toDouble();
+    final double imageHeight = image.height.toDouble();
+
+    // The preview draws the photo with BoxFit.cover inside the square viewport, so
+    // the same scale and centring map a viewport point back to an image pixel.
+    final double scale = math.max(side / imageWidth, side / imageHeight);
+    final double offsetX = (side - imageWidth * scale) / 2;
+    final double offsetY = (side - imageHeight * scale) / 2;
+
+    final Offset topLeft = _transform.toScene(Offset.zero);
+    final Offset bottomRight = _transform.toScene(Offset(side, side));
+
+    final double left = ((topLeft.dx - offsetX) / scale).clamp(0.0, imageWidth);
+    final double top = ((topLeft.dy - offsetY) / scale).clamp(0.0, imageHeight);
+    final double right = ((bottomRight.dx - offsetX) / scale).clamp(0.0, imageWidth);
+    final double bottom = ((bottomRight.dy - offsetY) / scale).clamp(0.0, imageHeight);
+    if (right - left < 1 || bottom - top < 1) {
+      throw StateError('empty crop rectangle');
+    }
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTRB(left, top, right, bottom),
+      Rect.fromLTWH(0, 0, _outputSide, _outputSide),
+      Paint()
+        ..filterQuality = ui.FilterQuality.high
+        ..isAntiAlias = true,
+    );
+    final picture = recorder.endRecording();
+    final cropped = await picture.toImage(_outputSide.toInt(), _outputSide.toInt());
+    picture.dispose();
+    final data = await cropped.toByteData(format: ui.ImageByteFormat.png);
+    cropped.dispose();
+    if (data == null) throw StateError('could not encode the cropped photo');
+    return data.buffer.asUint8List();
+  }
+
+  /// Uncropped fallback: the whole photo, only shrunk so the upload stays small.
+  Future<Uint8List?> _scaledOriginal(ui.Image image) async {
+    try {
+      const double maxSide = 1024;
+      final double longest = math.max(image.width.toDouble(), image.height.toDouble());
+      final double factor = longest > maxSide ? maxSide / longest : 1;
+      final int width = math.max(1, (image.width * factor).round());
+      final int height = math.max(1, (image.height * factor).round());
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      canvas.drawImageRect(
+        image,
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+        Paint()..filterQuality = ui.FilterQuality.high,
+      );
+      final picture = recorder.endRecording();
+      final scaled = await picture.toImage(width, height);
+      picture.dispose();
+      final data = await scaled.toByteData(format: ui.ImageByteFormat.png);
+      scaled.dispose();
+      return data?.buffer.asUint8List();
+    } catch (_) {
+      return widget.initialBytes;
+    }
   }
 
   @override
@@ -1132,15 +1273,10 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Position & Rotate Photo', style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: const Text('Position Photo', style: TextStyle(color: Colors.white, fontSize: 16)),
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.rotate_right, color: Colors.white),
-            tooltip: 'Rotate 90°',
-            onPressed: _rotate,
-          ),
           if (!_isCropping)
             TextButton(
               onPressed: _cropAndReturn,
@@ -1154,89 +1290,116 @@ class _ImageCropScreenState extends State<ImageCropScreen> {
             children: [
               Expanded(
                 child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Container(
-                      width: 300,
-                      height: 300,
-                      decoration: BoxDecoration(border: Border.all(color: Colors.white24, width: 1)),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Positioned.fill(
-                            child: RepaintBoundary(
-                              key: _cropKey,
-                              child: InteractiveViewer(
-                                boundaryMargin: const EdgeInsets.all(double.infinity),
-                                minScale: 1.0,
-                                maxScale: 5.0,
-                                child: RotatedBox(
-                                  quarterTurns: _rotationQuarterTurns,
-                                  child: Image.memory(widget.initialBytes, fit: BoxFit.contain),
-                                ),
-                              ),
-                            ),
-                          ),
-                          IgnorePointer(
-                            child: Positioned.fill(
-                              child: CustomPaint(painter: CropOverlayPainter()),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double side = math.min(constraints.maxWidth, constraints.maxHeight) - 32;
+                      _viewportSide = side;
+                      return SizedBox(width: side, height: side, child: _buildPreview(side));
+                    },
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                color: Colors.black87,
-                child: SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: _rotate,
-                            icon: const Icon(Icons.rotate_right, color: Colors.white),
-                            label: const Text('Rotate 90°', style: TextStyle(color: Colors.white)),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.white24),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Text('Pinch to Zoom & Drag to Position', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                      const SizedBox(height: 6),
-                      Text(
-                        'The circle area will be saved as your profile picture.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildFooter(),
             ],
           ),
-          if (_isCropping) Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: Colors.white))),
+          if (_isCropping)
+            Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: Colors.white))),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPreview(double side) {
+    if (_decodeError != null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'This photo could not be opened. Please pick a different one.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70),
+          ),
+        ),
+      );
+    }
+    final image = _image;
+    if (image == null) {
+      return const Center(child: CircularProgressIndicator(color: Colors.white));
+    }
+    return ClipRect(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              transformationController: _transform,
+              minScale: 1,
+              maxScale: 5,
+              // No boundary margin: the photo always covers the frame, so the saved
+              // image can never contain black corners.
+              boundaryMargin: EdgeInsets.zero,
+              clipBehavior: Clip.hardEdge,
+              child: SizedBox(
+                width: side,
+                height: side,
+                child: RawImage(image: image, fit: BoxFit.cover, filterQuality: ui.FilterQuality.medium),
+              ),
+            ),
+          ),
+          IgnorePointer(child: Positioned.fill(child: CustomPaint(painter: CropOverlayPainter()))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      color: Colors.black87,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ElevatedButton.icon(
+              onPressed: _isCropping ? null : _rotate,
+              icon: const Icon(Icons.rotate_right, color: Colors.white),
+              label: const Text('Rotate 90°', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.white24),
+            ),
+            const SizedBox(height: 12),
+            const Text('Pinch to zoom, drag to position', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            const SizedBox(height: 6),
+            Text(
+              'The square inside the frame is saved as your profile picture.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
+/// Frame and thirds guides drawn over the preview. The frame is a square because
+/// that is exactly what gets saved, so the preview no longer lies about the result.
 class CropOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black.withOpacity(0.5);
-    final outerPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
-    final innerPath = Path()..addOval(Rect.fromCircle(center: Offset(size.width / 2, size.height / 2), radius: size.width / 2));
-    final path = Path.combine(PathOperation.difference, outerPath, innerPath);
-    canvas.drawPath(path, paint);
-    final borderPaint = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.0;
-    canvas.drawCircle(Offset(size.width / 2, size.height / 2), size.width / 2, borderPaint);
+    final frame = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawRect(Rect.fromLTWH(1, 1, size.width - 2, size.height - 2), frame);
+
+    final guide = Paint()
+      ..color = Colors.white24
+      ..strokeWidth = 1;
+    for (var i = 1; i < 3; i++) {
+      final double x = size.width * i / 3;
+      final double y = size.height * i / 3;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), guide);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), guide);
+    }
   }
 
   @override
