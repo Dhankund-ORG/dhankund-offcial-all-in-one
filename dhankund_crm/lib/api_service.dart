@@ -19,7 +19,10 @@ class ApiClient {
   static void init() {
     var url = (dotenv.env['API_BASE_URL'] ?? dotenv.env['CLOUDFLARE_API_BASE_URL'] ?? '').trim();
     if (url.isEmpty) {
-      url = Uri.base.origin;
+      // The API is always the shared worker, never the page's own origin. On the web
+      // build Uri.base.origin is crm.dhankund.com, so every request went to the wrong
+      // host, 404'd, and the login screen could only say "Login failed".
+      url = 'https://api.dhankund.com';
     }
     if (url.endsWith('/')) {
       url = url.substring(0, url.length - 1);
