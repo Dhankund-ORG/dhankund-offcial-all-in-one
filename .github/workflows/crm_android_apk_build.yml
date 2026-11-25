@@ -32,6 +32,10 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Validate API Base URL Secret
+        run: |
+          if [ -z "${{ secrets.API_BASE_URL }}" ]; then echo "ERROR: API_BASE_URL is missing - the APK would have no API host"; exit 1; fi
+
       - name: Create config.env file
         run: |
           echo "AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}" > config.env
