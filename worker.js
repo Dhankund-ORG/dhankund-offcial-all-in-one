@@ -112,6 +112,7 @@ function rowToUser(row) {
     id: row.id, uid: row.id, email: row.email, role: row.role,
     name: row.name || data.name || '', mobile: row.mobile || data.mobile || '',
     kycCompleted: !!row.kyc_completed, bankDetailsCompleted: !!row.bank_details_completed,
+    mpinSet: !!row.mpin_hash,
     profileCompleted: (row.profile_completed != null) ? !!row.profile_completed : ((data.profileCompleted == null) ? true : data.profileCompleted),
     profilePictureUrl: pick('profile_picture_url', 'profilePictureUrl'),
     fcmToken: pick('fcm_token', 'fcmToken'),
@@ -367,6 +368,7 @@ async function ensureUserSchema(env) {
       if (!colNames.has('pan_number')) await run(env, 'ALTER TABLE users ADD COLUMN pan_number TEXT');
       if (!colNames.has('company_address')) await run(env, 'ALTER TABLE users ADD COLUMN company_address TEXT');
       if (!colNames.has('custom_id')) await run(env, 'ALTER TABLE users ADD COLUMN custom_id TEXT');
+      if (!colNames.has('mpin_hash')) await run(env, 'ALTER TABLE users ADD COLUMN mpin_hash TEXT');
     }
     userSchemaEnsured = true;
   } catch (err) {
@@ -823,6 +825,41 @@ app.get('/api/v1/me/profile', auth, async function (c) {
 });
 
 app.put('/api/v1/me/profile', auth, async function (c) { await ensureUserSchema(c.env); const me = c.get('user'); const b = await readJson(c); const merged = await mergeUserData(c.env, me.sub, b); return c.json({ success: true, data: merged }); });
+
+// The app lock PIN lives in D1, hashed with the same PBKDF2 as passwords, so it
+// survives a reinstall or a new phone and is never stored in plain text on the device.
+const MPIN_PATTERN = /^[0-9]{4,6}$/;
+
+app.post('/api/v1/me/mpin', auth, async function (c) {
+  await ensureUserSchema(c.env);
+  const me = c.get('user');
+  const body = await readJson(c);
+  const mpin = (body.mpin || '').toString().trim();
+  if (!MPIN_PATTERN.test(mpin)) return c.json({ error: 'MPIN must be 4 to 6 digits' }, 400);
+  await updateRow(c.env, 'users', 'id', me.sub, { mpin_hash: await hashPassword(mpin), updated_at: nowIso() });
+  return c.json({ success: true, mpinSet: true });
+});
+
+app.post('/api/v1/me/mpin/verify', auth, async function (c) {
+  const me = c.get('user');
+  const body = await readJson(c);
+  const mpin = (body.mpin || '').toString().trim();
+  if (!mpin) return c.json({ error: 'MPIN is required' }, 400);
+  const row = await first(c.env, 'SELECT mpin_hash FROM users WHERE id = ?', [me.sub]);
+  if (!row || !row.mpin_hash) return c.json({ error: 'No MPIN is set for this account' }, 404);
+  const valid = await verifyPassword(mpin, row.mpin_hash);
+  if (!valid) {
+    await recordAuthFailure(c, me.email, 'mpin');
+    return c.json({ valid: false, error: 'Incorrect MPIN' }, 401);
+  }
+  return c.json({ valid: true });
+});
+
+app.delete('/api/v1/me/mpin', auth, async function (c) {
+  const me = c.get('user');
+  await updateRow(c.env, 'users', 'id', me.sub, { mpin_hash: null, updated_at: nowIso() });
+  return c.json({ success: true, mpinSet: false });
+});
 
 app.post('/api/v1/me/kyc', auth, async function (c) {
   const me = c.get('user'); const b = await readJson(c);

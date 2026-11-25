@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
   pan_number TEXT,
   company_address TEXT,
   custom_id TEXT,
+  mpin_hash TEXT,
   data TEXT,
   created_at TEXT,
   updated_at TEXT

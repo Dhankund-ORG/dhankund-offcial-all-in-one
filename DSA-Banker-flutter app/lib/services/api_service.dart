@@ -133,6 +133,13 @@ class ApiService {
 
   Future<Map<String, dynamic>> fetchMyProfile() async { final data = await ApiClient.get('/api/v1/me/profile'); return (data as Map).cast<String, dynamic>(); }
   Future<void> updateProfile(Map<String, dynamic> patch) async { await ApiClient.put('/api/v1/me/profile', patch); }
+  // The app-lock PIN is stored hashed in D1, so it survives a reinstall or a new phone.
+  Future<void> setMpin(String mpin) async { await ApiClient.post('/api/v1/me/mpin', {'mpin': mpin}); }
+  Future<bool> verifyMpin(String mpin) async {
+    final data = await ApiClient.post('/api/v1/me/mpin/verify', {'mpin': mpin});
+    return data is Map && data['valid'] == true;
+  }
+  Future<void> clearMpin() async { await ApiClient.delete('/api/v1/me/mpin'); }
   Future<void> submitKyc({required String pan, required String aadhaar, String docUrl = ''}) async { await ApiClient.post('/api/v1/me/kyc', {'pan': pan, 'aadhaar': aadhaar, 'docUrl': docUrl}); }
   Future<void> submitBank({required String holderName, required String bankName, required String accountNumber, required String ifsc, String proofUrl = ''}) async { await ApiClient.post('/api/v1/me/bank', {'holderName': holderName, 'bankName': bankName, 'accountNumber': accountNumber, 'ifsc': ifsc, 'proofUrl': proofUrl}); }
 
