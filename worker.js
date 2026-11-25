@@ -192,8 +192,14 @@ async function upsertUserFromRegistration(env, uid, role, userDetails) {
     manager_name: details.managerName || details.manager_name || null, manager_mobile: details.managerMobile || details.manager_mobile || null,
     area_manager_name: details.areaManagerName || details.area_manager_name || null, area_manager_mobile: details.areaManagerMobile || details.area_manager_mobile || null,
     nominee_name: details.nomineeName || details.nominee_name || null, office_address: details.officeAddress || details.office_address || null };
-  const existing = await first(env, 'SELECT id FROM users WHERE id = ?', [uid]);
-  if (existing) { await updateRow(env, 'users', 'id', uid, Object.assign({ data: JSON.stringify(data), updated_at: now }, cols)); }
+  let existing = await first(env, 'SELECT id FROM users WHERE id = ?', [uid]);
+  if (!existing && email) {
+    // Approving a registration for an email that already has an account must reuse that
+    // row: a second, passwordless row for the same email is what made login pick the
+    // wrong one and reject a correct password.
+    existing = await first(env, 'SELECT id FROM users WHERE lower(email) = lower(?) ORDER BY created_at ASC LIMIT 1', [email]);
+  }
+  if (existing) { await updateRow(env, 'users', 'id', existing.id, Object.assign({ data: JSON.stringify(data), updated_at: now }, cols)); }
   else { await insertRow(env, 'users', Object.assign({ id: uid, email: email, password_hash: null, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify(data), created_at: now, updated_at: now }, cols)); }
 }
 
@@ -215,6 +221,14 @@ const USER_PROFILE_COLUMNS = {
   alternateMobile: 'alternate_mobile', dob: 'dob', panNumber: 'pan_number',
   companyAddress: 'company_address', customId: 'custom_id',
 };
+
+// Marks a row whose password was chosen by its owner. From then on the
+// ADMIN_PASSWORD secret is no longer allowed to overwrite it.
+async function markPasswordSetByUser(env, userId) {
+  await run(env,
+    "UPDATE users SET data = json_patch(CASE WHEN json_valid(data) THEN data ELSE '{}' END, ?) WHERE id = ?",
+    [JSON.stringify({ passwordSetByUser: true }), userId]);
+}
 
 async function mergeUserData(env, uid, patch) {
   const row = await first(env, 'SELECT id FROM users WHERE id = ?', [uid]);
@@ -477,7 +491,7 @@ app.post('/api/v1/auth/signup', async function (c) {
   const existing = await first(c.env, 'SELECT id FROM users WHERE lower(email) = lower(?)', [email]);
   if (existing) return c.json({ error: 'An account with this email already exists' }, 409);
   const now = nowIso(); const uid = randomId(); const hash = await hashPassword(password);
-  await insertRow(c.env, 'users', { id: uid, email: email, password_hash: hash, role: role, name: name, mobile: mobile, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify({ uid: uid, role: role, name: name, mobile: mobile, profileCompleted: false, createdAt: now }), created_at: now, updated_at: now });
+  await insertRow(c.env, 'users', { id: uid, email: email, password_hash: hash, role: role, name: name, mobile: mobile, kyc_completed: 0, bank_details_completed: 0, data: JSON.stringify({ uid: uid, role: role, name: name, mobile: mobile, profileCompleted: false, passwordSetByUser: true, createdAt: now }), created_at: now, updated_at: now });
   const token = await signSession({ sub: uid, email: email, role: role, name: name, exp: Math.floor(Date.now() / 1000) + (8 * 60 * 60) }, c.env.SESSION_SECRET || '');
   return c.json({ token: token, user: { id: uid, email: email, role: role, name: name, mobile: mobile } });
 });
@@ -492,7 +506,13 @@ app.post('/api/v1/auth/login', async function (c) {
   const body = await readJson(c);
   const email = (body.email || '').toString().trim().toLowerCase(); const password = (body.password || '').toString();
   if (!email || !password) return c.json({ error: 'Email and password are required' }, 400);
-  let user = await first(c.env, 'SELECT * FROM users WHERE lower(email) = lower(?)', [email]);
+  // A row that has a password beats a passwordless duplicate, then an admin row, then
+  // the oldest. Without this ORDER BY a case-variant duplicate could be picked at
+  // random and every login would fail against a stale or empty hash.
+  let user = await first(c.env,
+    "SELECT * FROM users WHERE lower(email) = lower(?) " +
+    "ORDER BY (password_hash IS NOT NULL) DESC, (lower(role) = 'admin') DESC, created_at ASC LIMIT 1",
+    [email]);
   if (!user) {
     const adminEmail = (c.env.ADMIN_EMAIL || '').toString().trim().toLowerCase(); const adminPassword = (c.env.ADMIN_PASSWORD || '').toString();
     if (adminEmail && email === adminEmail && password === adminPassword) {
@@ -519,6 +539,7 @@ app.post('/api/v1/auth/login', async function (c) {
         if (fbOk) {
           const hash = await hashPassword(password);
           await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash, updated_at: nowIso() });
+          await markPasswordSetByUser(c.env, user.id);
           user.password_hash = hash;
         } else { await recordAuthFailure(c, email, 'login'); return c.json({ error: 'Invalid email or password' }, 401); }
       } else { await recordAuthFailure(c, email, 'login'); return c.json({ error: 'Invalid email or password' }, 401); }
@@ -526,11 +547,14 @@ app.post('/api/v1/auth/login', async function (c) {
   }
   let ok = await verifyPassword(password, user.password_hash);
   if (!ok) {
-    // The admin account follows the ADMIN_EMAIL/ADMIN_PASSWORD worker secrets, so a
-    // password hash left behind by a database migration must never lock the owner out.
+    // ADMIN_PASSWORD is a bootstrap and recovery credential, not the owner of the row.
+    // Once a password has been set from the app or a reset link, the secret must never
+    // overwrite it again: that overwrite is what made the admin password flip back and
+    // forth and come back as "invalid email or password".
     const adminEmail = (c.env.ADMIN_EMAIL || '').toString().trim().toLowerCase();
     const adminPassword = (c.env.ADMIN_PASSWORD || '').toString();
-    if (user.role === 'admin' && adminEmail && email === adminEmail && adminPassword && adminPassword === password) {
+    const secretStillOwns = !safeJson(user.data, {}).passwordSetByUser;
+    if (secretStillOwns && adminEmail && email === adminEmail && adminPassword && adminPassword === password) {
       const hash = await hashPassword(password);
       await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash, updated_at: nowIso() });
       user.password_hash = hash;
@@ -779,6 +803,7 @@ app.post('/api/v1/auth/reset-password', async function (c) {
   if (!user) return c.json({ error: 'User not found' }, 404);
   const hash = await hashPassword(newPassword);
   await updateRow(c.env, 'users', 'id', user.id, { password_hash: hash, updated_at: nowIso() });
+  await markPasswordSetByUser(c.env, user.id);
   // Also clear Firebase password hash since user has a new D1 password now
   if (user.data) { const userData = safeJson(user.data, {}); if (userData.firebasePasswordHash) { delete userData.firebasePasswordHash; delete userData.firebaseSalt; await run(c.env, 'UPDATE users SET data = ? WHERE id = ?', [JSON.stringify(userData), user.id]); } }
   return c.json({ success: true, message: 'Password reset successfully. You can now login with your new password.' });
