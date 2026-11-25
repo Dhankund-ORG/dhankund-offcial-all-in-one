@@ -42,6 +42,13 @@ class _BiometricAuthWrapperState extends State<BiometricAuthWrapper> with Single
   void dispose() { _rippleController.dispose(); _passwordController.dispose(); super.dispose(); }
 
   Future<void> _checkBiometricPreference() async {
+    if (kIsWeb) {
+      // Browsers expose no fingerprint API. The old code faked a scan for 1.5 seconds
+      // and then unlocked, which is misleading and blocks the page: skip the gate.
+      if (mounted) setState(() { _isLoading = false; _isAuthenticated = true; });
+      BiometricAuthWrapper.authenticatedThisSession = true;
+      return;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final enabled = prefs.getBool('biometric_enabled') ?? false;
@@ -57,12 +64,6 @@ class _BiometricAuthWrapperState extends State<BiometricAuthWrapper> with Single
 
   Future<void> _authenticate() async {
     if (_isAuthenticated) return;
-    if (kIsWeb) {
-      setState(() { _isScanning = true; _message = 'Scanning fingerprint...'; });
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (mounted) { setState(() { _isScanning = false; _isAuthenticated = true; _message = 'Success!'; }); }
-      return;
-    }
     final LocalAuthentication auth = LocalAuthentication();
     try {
       final bool canAuthenticate = await auth.canCheckBiometrics || await auth.isDeviceSupported();
