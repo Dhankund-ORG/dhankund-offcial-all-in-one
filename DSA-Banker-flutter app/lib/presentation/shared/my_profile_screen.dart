@@ -243,8 +243,18 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('app_mpin', newPinController.text);
+                // Saved hashed in D1, not in plain text on the phone: a reinstall or a
+                // new device keeps the PIN, and the device never holds it in the clear.
+                try {
+                  await ApiService().setMpin(newPinController.text);
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not save MPIN. ' + friendlyErrorMessage(e))),
+                    );
+                  }
+                  return;
+                }
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
